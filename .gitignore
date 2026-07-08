@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -217,4 +217,21 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# ── Flutter / Dart ────────────────────────────────
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+.android/
+.ios/
+.macos/
+.linux/
+.windows/
+.dart_tool/
+*.generated.dart
+
+# ── Claude Code ───────────────────────────────────
+.claude/settings.local.json
 
