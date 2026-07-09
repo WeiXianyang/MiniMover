@@ -15,7 +15,7 @@ name: car-ci
 
 on:
   push:
-    branches: [main, dev, dev_zhuyufan]
+    branches: [main, dev_cao, dev_zhuyufan]
   pull_request:
   workflow_dispatch:
 
