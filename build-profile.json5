@@ -1,0 +1,45 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "material": {
+          "certpath": "C:/Users/32599/.ohos/config/openharmony/default_oh-ai-car-ros-app_rhqhle-WGrD5QfGXllm5FXFYMwm8m9GemueNDYb2JGc=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B172C94588C686A0B334A69FA54906FBBAEEC3319887164652B8C5D5BC12A8E0F95105C0A30D3ED",
+          "profile": "C:/Users/32599/.ohos/config/openharmony/default_oh-ai-car-ros-app_rhqhle-WGrD5QfGXllm5FXFYMwm8m9GemueNDYb2JGc=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:/Users/32599/.ohos/config/openharmony/default_oh-ai-car-ros-app_rhqhle-WGrD5QfGXllm5FXFYMwm8m9GemueNDYb2JGc=.p12",
+          "storePassword": "0000001B4508EDF0E20F92F700C874B98A4E777BFEA1C523FAA6D03931BB9EFD438BDBEA8691F07C73DEFB"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "compileSdkVersion": 23,
+        "compatibleSdkVersion": 23,
+        "runtimeOS": "OpenHarmony",
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rocker",
+      "srcPath": "./Rocker"
+    }
+  ]
+}
