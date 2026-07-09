@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// 毛玻璃卡片 — 对应 Figma 中的 card 组件
+/// 毛玻璃卡片 — 自动撑满父容器宽度
 class GlassCard extends StatelessWidget {
   final Widget child;
   final double? height;
@@ -19,7 +19,7 @@ class GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: AppTheme.cardWidth,
+      width: double.infinity,
       height: height,
       margin: margin,
       padding: padding ?? const EdgeInsets.all(16),
@@ -33,7 +33,7 @@ class GlassCard extends StatelessWidget {
   }
 }
 
-/// 渐变主按钮
+/// 渐变主按钮 — 自动撑满父容器宽度
 class GradientButton extends StatelessWidget {
   final String text;
   final VoidCallback? onTap;
@@ -51,7 +51,7 @@ class GradientButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: AppTheme.cardWidth,
+        width: double.infinity,
         height: AppTheme.btnHeight,
         decoration: BoxDecoration(
           gradient: secondary
@@ -76,7 +76,7 @@ class GradientButton extends StatelessWidget {
   }
 }
 
-/// 小按钮 (用于双按钮排列)
+/// 小按钮 — 配合 Expanded 使用
 class SmallButton extends StatelessWidget {
   final String text;
   final VoidCallback? onTap;
@@ -88,7 +88,7 @@ class SmallButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 157,
+        width: double.infinity,
         height: AppTheme.smallBtnHeight,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppTheme.btnRadius),
@@ -186,8 +186,7 @@ class StatBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (icon != null)
-          Icon(icon, color: AppTheme.accent, size: 22),
+        if (icon != null) Icon(icon, color: AppTheme.accent, size: 22),
         const SizedBox(height: 4),
         Text(value, style: AppTheme.statValue),
         const SizedBox(height: 4),

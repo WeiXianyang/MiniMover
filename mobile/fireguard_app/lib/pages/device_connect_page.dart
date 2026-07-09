@@ -2,12 +2,19 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/tcp_service.dart';
 import '../widgets/common_widgets.dart';
-import 'inspection_home_page.dart';
+import '../widgets/page_shell.dart';
 
 /// S01 - 设备连接页面
 class DeviceConnectPage extends StatefulWidget {
   final TcpService tcpService;
-  const DeviceConnectPage({super.key, required this.tcpService});
+  final bool embedded;
+  final VoidCallback? onConnected;
+  const DeviceConnectPage({
+    super.key,
+    required this.tcpService,
+    this.embedded = false,
+    this.onConnected,
+  });
 
   @override
   State<DeviceConnectPage> createState() => _DeviceConnectPageState();
@@ -29,23 +36,16 @@ class _DeviceConnectPageState extends State<DeviceConnectPage> {
 
   Future<void> _connect() async {
     setState(() => _connecting = true);
-
     widget.tcpService.updateConfig(
       _ipCtrl.text.trim(),
       int.tryParse(_tcpCtrl.text.trim()) ?? 6000,
     );
-
     final ok = await widget.tcpService.connect();
-
     if (!mounted) return;
     setState(() => _connecting = false);
 
     if (ok) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => InspectionHomePage(tcpService: widget.tcpService),
-        ),
-      );
+      widget.onConnected?.call();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('连接失败，请检查 IP 和端口')),
@@ -55,106 +55,67 @@ class _DeviceConnectPageState extends State<DeviceConnectPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              AppTheme.frameGradientTop,
-              AppTheme.frameGradientBottom,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(AppTheme.pagePadding),
+    return _wrap(
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('S01-设备连接',
+              style: AppTheme.sectionLabel.copyWith(fontSize: 14)),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: _frameDeco(),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 20),
-                // 标题
-                Text('S01-设备连接',
-                    style: AppTheme.sectionLabel.copyWith(fontSize: 14)),
-                const SizedBox(height: 16),
-                // 手机 Frame 外壳
-                Container(
-                  width: AppTheme.phoneWidth - 64,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppTheme.cardBorder),
-                    gradient: const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFF172233),
-                        Color(0xFF0F1622),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('设备连接', style: AppTheme.pageTitle),
+                        SizedBox(height: 4),
+                        Text('OpenHarmony 控制入口',
+                            style: AppTheme.subtitle),
                       ],
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    const StatusBadge(text: '最近在线'),
+                  ],
+                ),
+                const SizedBox(height: 28),
+                _buildInputCard('小车 IP', _ipCtrl, Icons.wifi),
+                const SizedBox(height: 12),
+                _buildInputCard('TCP 控制端口', _tcpCtrl,
+                    Icons.settings_ethernet),
+                const SizedBox(height: 12),
+                _buildInputCard('视频端口', _videoCtrl, Icons.videocam),
+                const SizedBox(height: 12),
+                GlassCard(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                  child: const Column(
                     children: [
-                      // Header
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('设备连接',
-                                  style: AppTheme.pageTitle),
-                              const SizedBox(height: 4),
-                              const Text('OpenHarmony 控制入口',
-                                  style: AppTheme.subtitle),
-                            ],
-                          ),
-                          const StatusBadge(text: '最近在线'),
-                        ],
-                      ),
-                      const SizedBox(height: 28),
-                      // 小车 IP
-                      _buildInputCard('小车 IP', _ipCtrl, Icons.wifi),
-                      const SizedBox(height: 12),
-                      // TCP 端口
-                      _buildInputCard('TCP 控制端口', _tcpCtrl, Icons.settings_ethernet),
-                      const SizedBox(height: 12),
-                      // 视频端口
-                      _buildInputCard('视频端口', _videoCtrl, Icons.videocam),
-                      const SizedBox(height: 12),
-                      // 设备状态
-                      GlassCard(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        child: Column(
-                          children: [
-                            const InfoRow(
-                                label: '设备状态',
-                                value: 'Jetson / ROS2 / 视频服务正常'),
-                            const Divider(
-                                color: AppTheme.dividerLine, height: 20),
-                            const InfoRow(
-                                label: '最近任务', value: '07-07 上午巡检'),
-                            const Divider(
-                                color: AppTheme.dividerLine, height: 20),
-                            const InfoRow(label: '上次连接', value: '09:26'),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      // 连接按钮
-                      GradientButton(
-                        text: _connecting ? '连接中...' : '连接并进入巡检控制台',
-                        onTap: _connecting ? null : _connect,
-                      ),
+                      InfoRow(
+                          label: '设备状态',
+                          value: 'Jetson / ROS2 / 视频服务正常'),
+                      Divider(color: AppTheme.dividerLine, height: 20),
+                      InfoRow(label: '最近任务', value: '07-07 上午巡检'),
+                      Divider(color: AppTheme.dividerLine, height: 20),
+                      InfoRow(label: '上次连接', value: '09:26'),
                     ],
                   ),
+                ),
+                const SizedBox(height: 24),
+                GradientButton(
+                  text: _connecting ? '连接中...' : '连接并进入巡检控制台',
+                  onTap: _connecting ? null : _connect,
                 ),
               ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -187,6 +148,34 @@ class _DeviceConnectPageState extends State<DeviceConnectPage> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  BoxDecoration _frameDeco() => BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.cardBorder),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF172233), Color(0xFF0F1622)],
+        ),
+      );
+
+  Widget _wrap(Widget content) {
+    if (widget.embedded) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(
+            AppTheme.pagePadding, 16, AppTheme.pagePadding, 8),
+        child: content,
+      );
+    }
+    return PageShell(
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(AppTheme.pagePadding),
+          child: content,
+        ),
       ),
     );
   }
