@@ -40,7 +40,6 @@ start "Demo 1 - License Plate" /D "%DEMO_DIR%" python "player.py" "videos\licens
 start "Demo 2 - Traffic Light" /D "%DEMO_DIR%" python "player.py" "videos\traffic_light_demo.mp4" --title "2 - Traffic Light Recognition" --x 680 --y 20
 start "Demo 3 - Fire Smoke" /D "%DEMO_DIR%" python "player.py" "videos\fire_smoke_demo.mp4" --title "3 - Fire and Smoke Recognition" --x 350 --y 390
 
-timeout /t 2 /nobreak >nul
 exit /b 0
 
 :check_failed

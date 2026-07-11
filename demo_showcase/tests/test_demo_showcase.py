@@ -73,6 +73,7 @@ class LauncherTests(unittest.TestCase):
         self.assertIn("%~dp0", launcher)
         self.assertIn("--check", launcher)
         self.assertNotIn("E:\\MiniMover", launcher)
+        self.assertNotIn("timeout /t", launcher.lower())
 
     def test_answer_defense_readme_exists(self):
         root = Path(__file__).resolve().parents[1]
