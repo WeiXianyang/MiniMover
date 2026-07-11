@@ -34,6 +34,20 @@ class VideoBuilderTests(unittest.TestCase):
             [item.key for item in build_videos.MODULES],
         )
 
+    def test_every_module_uses_a_real_video_source(self):
+        video_extensions = build_videos.VIDEO_EXTENSIONS
+        for module in build_videos.MODULES:
+            with self.subTest(module=module.key):
+                source = build_videos.ASSET_DIR / module.source
+                self.assertIn(source.suffix.lower(), video_extensions)
+                self.assertTrue(source.is_file(), f"Missing source video: {source}")
+
+    def test_target_specific_sources_are_visible_to_lightweight_detectors(self):
+        plate_source = build_videos.ASSET_DIR / "license_plate_source.webm"
+        traffic_source = build_videos.ASSET_DIR / "traffic_light_source.webm"
+        self.assertGreater(build_videos.count_annotated_frames(plate_source, "plate"), 0)
+        self.assertGreater(build_videos.count_annotated_frames(traffic_source, "traffic"), 0)
+
     def test_fit_frame_produces_640_by_360_frame(self):
         image = np.zeros((100, 300, 3), dtype=np.uint8)
         frame = build_videos.fit_frame(
@@ -42,15 +56,25 @@ class VideoBuilderTests(unittest.TestCase):
         self.assertEqual((360, 640, 3), frame.shape)
         self.assertEqual(np.uint8, frame.dtype)
 
-    def test_generated_video_is_readable(self):
+    def test_generated_video_is_readable_and_preserves_real_motion(self):
         with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.avi"
             output = Path(tmp) / "clip.mp4"
-            image = np.full((120, 240, 3), 80, dtype=np.uint8)
+            writer = cv2.VideoWriter(
+                str(source), cv2.VideoWriter_fourcc(*"MJPG"), 12, (240, 120)
+            )
+            self.assertTrue(writer.isOpened())
+            for index in range(12):
+                frame = np.full((120, 240, 3), 30, dtype=np.uint8)
+                cv2.circle(frame, (20 + index * 15, 60), 14, (240, 240, 240), -1)
+                writer.write(frame)
+            writer.release()
+
             build_videos.write_clip(
-                image,
+                source,
                 output,
                 title="Traffic Light Recognition",
-                subtitle="RED LIGHT",
+                subtitle="REAL VIDEO",
                 seconds=1,
                 fps=12,
             )
@@ -63,6 +87,15 @@ class VideoBuilderTests(unittest.TestCase):
                 self.assertEqual((360, 640, 3), frame.shape)
             finally:
                 capture.release()
+            self.assertGreater(build_videos.video_motion_score(output), 1.0)
+
+    def test_repository_sources_have_meaningful_frame_motion(self):
+        for module in build_videos.MODULES:
+            with self.subTest(module=module.key):
+                score = build_videos.video_motion_score(
+                    build_videos.ASSET_DIR / module.source
+                )
+                self.assertGreater(score, 1.0)
 
 
 class LauncherTests(unittest.TestCase):
