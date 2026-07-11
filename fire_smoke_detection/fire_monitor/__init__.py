@@ -1,3 +1,3 @@
 from .config import FireMonitorConfig
-
-__all__ = ["FireMonitorConfig"]
+from .event_manager import FireEventManager
+__all__ = ["FireEventManager", "FireMonitorConfig"]
