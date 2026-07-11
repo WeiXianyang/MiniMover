@@ -1,4 +1,4 @@
-﻿diff --git a/yolov5/data/fire_smoke.yaml b/yolov5/data/fire_smoke.yaml
+diff --git a/yolov5/data/fire_smoke.yaml b/yolov5/data/fire_smoke.yaml
 index 490324c..dc62739 100644
 --- a/yolov5/data/fire_smoke.yaml
 +++ b/yolov5/data/fire_smoke.yaml

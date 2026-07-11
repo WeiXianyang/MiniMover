@@ -1,4 +1,4 @@
-﻿ M yolov5/data/fire_smoke.yaml
+ M yolov5/data/fire_smoke.yaml
  M yolov5/detect.py
  M yolov5/hubconf.py
  M yolov5/models/experimental.py

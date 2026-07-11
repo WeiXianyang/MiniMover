@@ -1,4 +1,4 @@
-﻿Source path: E:\fire-smoke-detect-yolov4
+Source path: E:\fire-smoke-detect-yolov4
 Target path: E:\MiniMover\fire_smoke_detection
 Migration date: 2026-07-11
 Source commit: 98b1fec0f82e09d67ef5fc657a80eaf0b1450360
