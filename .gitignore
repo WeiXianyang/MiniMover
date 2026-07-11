@@ -221,3 +221,6 @@ __marimo__/
 
 # Fire/smoke detector runtime output
 /fire_smoke_detection/output/
+
+# Local isolated development worktrees
+/.worktrees/
