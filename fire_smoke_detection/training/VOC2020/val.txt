@@ -1,0 +1,412 @@
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/94f6e538-d4d7-45e0-ac31-7d7e22b135fb.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fb712c7d-9988-4acb-807f-c8493e296fc4.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e6de565d-1df1-4500-9d7c-fe5dad8a7a20.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/9ed83408-ba50-4ba3-9566-0710675d1233.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0431a7d5-b76b-4a56-83f1-f0e556546961.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (20).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/2fdcbfa6-97d8-44a8-a3f2-deec96ebac3e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (24).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (155).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4daa1a23-5121-4e4e-bc10-860ca58f744c.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire_22323.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (57).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/9fb12f7b-d1b1-4f2b-9b88-01a1d833d565.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/551e1012-3d54-4ec1-a154-729abe55c616.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ed3d5f02-7c56-41a7-aeaa-7f3001835997.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/76dba0e1-fc96-4263-99fb-642fe4ca2bb5.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire110.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/7c404035-2d64-4e9f-b03b-711513229a80.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (113).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (70).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0282bf94-c97a-43bf-8df5-abb1c9c20fa5.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/dd5d9a4e-db3a-403a-9c07-87224cc90031.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (171).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fdc7838d-104c-4007-a108-5883e4599c82.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/315f8c8d-e7fc-4d77-af81-5d1fb6e515fb.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (118).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire020.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/892e5d2d-baf4-47a0-9773-313d813aa97b.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_32.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0aa20ec0-3ff3-41d4-a3a7-65c03c383851.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/95722f57-0295-44db-ab27-6049f0a9b91e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire033.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (25).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/aed84c9c-357f-43a7-b3e4-ea9bc37e9679.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (91).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (35).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/2fe8d7da-86fc-47fc-a685-8b1ad1dd75c6.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (95).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire030.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/debf12e0-c494-4e1a-b3b0-56fec7d7571b.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_19.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (42).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (147).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/de9eec3b-ca26-41dc-857c-0ea42241e425.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fb8fb274-f181-4175-bc88-d04cfbe74a13.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/185e2d9a-cca3-4f4f-bb0f-2f0b58cb71ae.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (19).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/96dcfe85-e246-4c4d-b293-fa26058374af.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (43).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (81).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/burning-charcoal-briquettes.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/bb992a39-1680-48c2-aa48-2140f2af1884.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ce7bfcff-0458-4120-bcaf-a286bce105b6.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/40944be0-1627-4ce0-b7ed-ec437ae28ba7.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1695b682-5a88-44cf-992a-968b87172675.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6c1e4ebe-16e0-4a7a-bb9d-8fcaeb084317.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (202).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/2CDDD98D00000578-3246257-image-a-30_1443454943645.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_87.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (109).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (65).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/f4ad9e62-fad5-4695-bcac-96d2555a6b6b.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/66f8c1d3-bcb2-44e1-bb9a-38e285809f08.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0c88dc20-e845-4bac-bae0-a8d86ce1d47a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/a9683175-39e3-46fd-9410-d7cb7cd9abb3.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/942d3203-1277-4b0e-b3ee-637cd8be2c52.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/15edaef4-0bf3-4042-8eee-8317e0872af9.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/13518571.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (96).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/c69da66a-1ebd-4a60-a40b-3fcd1c0b12b6.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4d9750b3-1c62-478f-8e80-668f89d6ce62.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (8).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/870e465e-ea22-4b1f-9cb3-39a755137407.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_70.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4f9d5014-e9f8-4562-8c4b-141114cdaf22.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (3).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (41).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/17b58c42-a244-40d9-8da8-281b20eab5de.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (139).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/25b17c01-1cce-419f-89ea-1d75bfecf728.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1d7c97f2-39f6-43fa-bf94-ddb61e829b53.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/5a5365a0-6f96-4cf6-8bea-693619e4cffb.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/b061f8dd-219a-4df6-8ee5-20fefe5cc101.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/12e4805e-5d34-4fea-b31e-7808e95631d2.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (59).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/63c41ed7-46c4-42ff-9faa-d1eb519bac14.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/cc09de7c-9291-4e90-9c6d-d8561ffe67ce.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ca56dc06-2991-4bd7-9adf-f203a2e1fe24.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/9a60689a-04e9-44f3-aabf-231ae4fec1a5.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (52).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/d8a6db2e-e533-44d1-9f47-0989842b657d.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/50790f85-a39f-45e4-95fd-a742cd8bdc69.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/3685b2bc-0d37-43e2-8d24-32460314e431.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/2c2a4c6f-21cf-4348-9186-ff0d24a96082.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (192).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/maxresdefault568.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (122).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/d2f0e634-1d0d-444c-8184-b4ba0df24a2a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e085a630-da78-4867-84b2-3505837c35a5.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e7f47653-a80b-4c01-872b-def4d95b0c58.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/185e7908-211b-4600-b6f4-adf5757fd7b4.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/141637fc-6b36-4ab5-b6ba-b4e0e5e38b13.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6d33542e-9023-408c-8660-9df0a9c833f1.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire051.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire060.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4e4abf49-2983-4e79-9342-c66c67780602.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (54).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/c92542a0-f847-4b97-87ce-3d334dadbc00.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (4).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/b016b0a9-3c66-4326-95e3-4e8a43b7e732.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (138).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (57).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (178).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/20200713172904.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/94b56946-0aa6-41e2-9562-2c7ce8ae75f4.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_35.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/df5cafae-06e6-49f8-bcb7-7de5141e7030.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/o-WASHINGTON-FIRE-900.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/04bcff12-cf6d-41be-a132-9ab7a02d170e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/SOURCE-TappenFire-A12.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/7a11a7ab-0864-4198-b0ef-164829243daa.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/7fe125be-f6a3-426e-b122-97a1643136d5.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/00001.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6514a983-a2d6-4bc4-bf5e-de6b9b9239a6.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (83).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e49ed104-2d69-4fe3-8850-1ad879f67a66.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/c819baff-edb6-4f5c-9912-82cb06704b50.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/f1cd107d-eadc-4ca6-aec9-765585c37a6d.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire049.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/d78b22de-32ae-4465-af38-2e03ad250cbe.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/c28460a3-9534-416f-812e-b025c72d2ff8.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_90.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/607fc186-3e5b-45d4-b463-3209c176a735.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/942d0a91-3542-4c3d-b900-f1c7fddf130e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic1.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/d742b027-2a09-49b5-a147-b4c79920965f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/5a31dfc0-dfe4-4d82-a90f-2641febc160a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0cf08ae1-3067-41bb-a3e1-e964cb55da32.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (153).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ff25f15d-bd8c-4fb6-aa15-1be5db114961.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/20498ae9-4c0a-4ca4-b8c1-69cf2b9aca4c.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/10-9-15-2-400.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/20200713173454.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/beea6e17-2fe8-4f68-9604-0869ef1d33d4.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e6889050-93ed-40c7-95b2-383733933da1.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0078511d-ec33-45c8-8dfa-72b8747fe0cb.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/98aa370a-f551-4235-a903-e00dd29ea8f3.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (84).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/62ec9cc1-3440-4f53-bd7e-9cbccd836da2.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (80).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire059.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (7).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire069.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (5).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/f4bd9f9a-8559-4f82-a8ad-81e44ae6fffb.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire098.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire035.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/bce5ab11-670f-4655-a18e-8be396214e43.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/9d6daf7d-5196-4161-921c-a91305b17c26.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/5d33f3a5-c728-4ee9-8047-f49fcd85b9ce.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/cd441815-6423-4fff-bacc-a3f41dd7a336.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/7c3f9adb-cb15-4362-ace4-ef847883c802.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/310e9436-ca6a-492b-a121-73a806463064.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/259c01a7-a3df-4f5b-8d87-0a2612fe60d9.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (104).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire116.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_76.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire063.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6a9daa2e-2d4c-4263-b246-8374dfedf82c.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/20200713172158.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/a3cbfadd-11d5-4c74-b98a-213d803330d2.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/c59cec69-ef78-4c7e-b747-13049e3be916.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_98.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/14.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire024.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/f182543b-3e57-4700-8fb5-a506d0dd2e5b.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_15.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_17.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (40).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/3f24dafd-f3bf-4664-b80e-ecccdd0aef39.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/bb291ecd-236b-45e6-8078-58831054dbb0.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/018c2fdb-c9e1-4653-b98f-07e226b62ae5.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire082.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/187b7111-3763-4090-ba29-55f5182f9f2d.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/946b134d-9bb1-4d0a-aa51-9290af7cd313.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/efaf2d10-d716-44c3-bd80-3010d22a34b3.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0d3f3df9-6e0b-4ad7-adb0-3d19f7d07bf5.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (94).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_30.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire045.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4bf67968-f45b-4615-9894-49353ae8dcc8.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/469efaba-0293-408d-9f61-e0e9fadc3170.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire023.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (129).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/34d210f5-eeca-4c92-82f9-ae2da18a3379.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4ff78415-93d0-414b-9bd3-4142696ef986.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/47267bf8-dcf6-46ad-ac83-e4febbecc822.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/12a473aa-909b-444a-af59-353a7ac44a93.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/09ed3895-de48-41eb-8df4-aa9e1fac6e51.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/cff6abb9-15da-4d23-8d92-0e15c1ec3b4d.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/488eab5a-32a7-4830-bd89-8b3ec5a3c7b6.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/98c4fc36-8c60-4eb7-bbc1-df266ca21d67.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/91fb2c84-8efc-4839-abd1-e6aa4b8b4d23.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/f3a93a70-6ecd-47f5-bc43-5887d394c5ec.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (118).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/a4fc82fa-4507-4877-9677-848872428f1a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (93).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_43.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/7bb5712e-0997-4789-a97e-c865986e3725.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e1fdd6ee-6cb7-456e-b839-b72e83548928.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_79.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4417ce0a-b4a3-47f8-a17f-dbc698a29b93.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/burning-house2.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/723f379c-ccaa-42a4-b40f-0e9b58cf47a0.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire115.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (127).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/dbbdffaf-33fe-4717-8df9-4f92b0c10b38.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/926b5124-f4df-40c6-baa9-dd56c98b578a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6a2a3ddd-fac3-4497-8ccb-d0448ca18601.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/29926960-cb60-4ec5-aecd-8a2ed924058b.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (15).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/20200713171907.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6e2de1b5-5803-4b1f-bc79-cc77871940f8.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/maxresdefault7896.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e160a619-c92b-43c2-9d7a-eecf823aaab7.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/43be9a61-0165-4141-8910-f25877baa125.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (18).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ffda0048-f3e9-45be-83aa-e97760ef92d2.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_69.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/9f042399-a690-4fe4-999b-108d36860019.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/79af03b9-1193-4202-bbbf-a2e4a561b86a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/dormfire_1.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ba4405d8-2f05-4151-ab46-3d0f8881dfda.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/da0c0e73-758f-4ea5-b936-2362776af165.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/59cad3ca-2e5c-4b9e-8c71-bc62bd3fbc5e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire043.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0162882b-e4b2-4547-9302-318a35ec67fc.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/640adbe2-693e-4b60-8f5c-e2d62dd6c19a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (15).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/db392259-9a18-416b-8668-ebda49931d09.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/9c83b68f-79f1-4235-a1aa-0ce84605c15b.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/b4745d06-1a18-4376-907d-64d5b5fe6b61.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1862baac-1545-4729-be63-1d766cfb0da3.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/056bfb4e-331b-4a89-b282-3bc809acb9bb.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (110).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/d00cc0fe53897ff01f30eba713ac8ef0.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (73).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/9866495e-8d01-42b6-902b-524b8d2f28a8.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (103).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1c992e2b-108a-4e3c-859d-ae84d6f8ce7f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1cc3da68-df9a-447b-b388-f082005a7f6f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (167).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (106).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0d546b55-0a93-42fa-9253-a48e0dd46a9e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (23).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (5).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fb498f54-105c-4074-9a3f-a875ec38fedd.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fa39e304-fc52-4e63-86f6-4ed8fe6900ef.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (52).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire067.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/55425839-a023-4c70-b15a-23fcdf11efe4.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (146).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_27.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/102ebc57-6887-4139-a3ef-c3a51d1fb4d5.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire025.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire083.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire019.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/996a061a-b139-408c-a8bf-ead2cfc15763.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/aa4f449e-9a90-4e7d-b2d4-ab0e30a0b59f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (135).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/236add3b-ccb9-4a47-889f-d700946933fe.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1da54983-4378-4161-a79b-30d9cc9e03f1.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (11).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ce317392-efbc-475c-870d-fbeddee1ba3a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/f952c92b-b335-4210-91ab-414494d2be64.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_85.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (39).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (1).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/railroadstreet_11-27-2002_02.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/burning-charcoal-briquettes-closeup-14552988.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire105.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/u=728658336,3440009586&fm=26&gp=0.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6ac1fa33-c5ae-43cd-8cc8-dd36717bddec.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (11).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (69).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/5438f6cd-728a-424b-937f-c77c2f8acd4b.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/a7cafb27-f863-4b5b-8936-c6770d52a99f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_48.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/bb524b12-7c24-43ca-a00c-a8d784790aef.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/cafe68d5-c234-4c7e-9086-2f122cbe9d76.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/12f905c0-5eb3-4e41-acc0-03f411c9c717.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0e84c5fb-e467-4840-91cb-da0f408d03b5.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/cc62d9cc-0df6-46da-8d1b-67b12e115351.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ad1e2da3-ac48-4511-b5d0-711033304ed8.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/f53d6194d2a38227e8ccbf91b42656c8.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/62556a5a-47ae-4d67-aaf3-7f05521e4c11.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/8246837d-6f70-4686-b14e-c1cd57169df0.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/f6de67a8-9ef1-4979-91b8-8de61545ae49.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (8).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6da6384f-6b1f-49d1-b65c-1489283bdfc9.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/47360e15-010c-4175-b6c5-97227376e96f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6a7e2cdd-2007-4646-854c-0f0274a1c652.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0644156b-11e4-4515-b666-6f00bdb47f73.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4d0ee0bb-7886-4b86-b85d-5d70cd4c340e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (130).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/a9bef389-09d8-4489-aa25-f6fbda0a007f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/2e70232d-a918-4be9-8eb0-5b03799bf51a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (78).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/288a06e1-6a06-4cc4-acd7-ed9311549767.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/370b953d-31db-4c6c-abe3-799a61a724e4.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (63).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/0dc710f6-adfa-4515-8095-a2233049802f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/2c3fe9db-b498-43c5-a086-e2c9b55f5f3f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/8a36f86b-db63-4645-ba85-b8f038e510db.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (151).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fc688d72-a2bc-4450-82b6-82ea05fe67a3.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e02d21e7-a5a2-4489-9ec1-1cfe8ba7ca04.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/698031a1-df3d-40bf-958d-1e3485191108.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/87a7aacc-f605-47c0-a96c-20b9776a4c1f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/6bea8d18-952a-490f-8d62-49d4b533a76d.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (82).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (38).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/360312a2-8dbb-4a4f-af22-e975bab17d85.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/cc563e00-2124-4ffa-b483-9222f8f73356.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fdaf7a1c-5d7a-4771-8660-fbcb719ad95e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/da67d5ac-d003-4790-90a2-c9796d5b8329.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (139).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (36).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/bb029054-1ec6-4757-86e0-069020fcd140.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_40.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (208).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/edc6cc18-a8c3-49ef-a296-e3c0d0d314a8.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/68b67e34-142c-4cb3-9b78-00f4e4835987.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (88).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (99).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (52).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/995cc86e-591c-459b-87b8-851e5fef135a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/01e999e4-17cf-43ae-bccc-3acb8d23c251.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (7).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/20200713171700.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/16213498-6f54-486f-8e5c-163746e510f6.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ff8dd0c8-ce3a-4b40-aba3-20c0aee469ec.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/7ada64e1-70ce-4f0d-89b0-a2e24c9cf062.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (88).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/10407e12-0c5d-40fe-9724-659cd130a00c.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/d5661015-d0c5-41f9-8a21-207651c1b933.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/cc8d2968-21ab-44a5-9963-2efe00eec003.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e5c81c02-01ce-4a74-9c09-9784024334b2.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/7fbb6b65-6d7b-4f88-b7b9-9f31a51638b3.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/5ccf4702-2753-4010-8ecd-102be34edcaf.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (28).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4e4df4af-e4c8-4eb6-b4a6-2953cefbaa04.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/7bf4a83c-df97-4fbc-b179-7dbb5a32f42b.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (117).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fe86317c-8f39-49bc-a78c-7e8179b8066f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/cdd37af6-0879-4401-bc63-66ba86baf443.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/11785752-37bc-4d45-8d4f-0f0868fb3b98.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/684e6ef2-f238-4969-b412-edc9073ba904.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire046.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/2e9b126c-a599-4abc-bc27-dc2a0feb78e4.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (32).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/c47046ce-a2a9-414c-bf01-9ab95369e6dd.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e1d056da-b73f-4443-ab26-153bdb9a1b8e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire084.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_41.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/e770768a-7938-486e-b65e-160d8575e52f.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/20200713172645.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4caa5a44-69cd-4def-87b4-1a7ddfe81417.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/29843511-c207-43b5-92d6-3c4c787499c7.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/21cf44cd-c2d5-4209-b35d-b92ac07b8f27.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_9.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/c62b11f4-8421-4db2-9439-fda01d2e4e94.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ad7d8dba-1632-4510-bd7b-59cd6898e41e.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ac0722c2-5c48-4f68-a791-f8efd510b39c.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (117).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (27).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire109.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/28c91459-0a93-401f-8d0e-96edd26d4071.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/8ff712d2-20bb-4282-8ed5-f644dc4a5336.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/1_75.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/c1872e17-536c-45f3-bd77-913cca11adf2.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/3d2efc34-f767-4083-a1e7-d543fc38dab9.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (212).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/8a02ba65-f32c-44c8-8c60-ce1a8784aa36.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (29).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (127).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire075.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/ee8afe53-4905-420c-a537-5721c562701a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/bb838b80-a759-4f7a-a7b8-f67946f0f405.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/15250e34-0a22-47b3-9d04-0d0d53e051ab.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/24312a97-eb96-4449-955b-5bdc51536105.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/61343b86-1237-419e-9ad2-2606fa0cf15a.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (23).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/bec8cbdb-83eb-40f1-9f3e-5f2b96629102.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/60ce329a-ce7d-4a5d-802b-2cb8b918ed24.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (97).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/4a0f3459-360c-4f0f-9d17-3cd6490b0b76.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/81293b19-9fa5-493c-ba96-e7961b28e155.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/hqdefaultsdfsdf.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/eff6024d-726d-44cc-b943-a73174e23966.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (99).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (129).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/small (6).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/407723be-ccfe-4ca3-918f-4d56c0f749e3.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/02a344d7-c94d-41a6-8dfb-ae00c9ce5237.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/f3de7e9f-c444-45c3-8b97-91396a4fb029.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/incendie-noel.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (70).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/img (131).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/pic (93).jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/eb5142a4-c8a1-4b18-8362-19887dd54de0.jpg
+E:\fire-smoke-detect-yolov4\VOC2020/JPEGImages/fire094.jpg

@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+
+# Fire/smoke detector runtime output
+/fire_smoke_detection/output/

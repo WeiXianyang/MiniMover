@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+  <Bank3TypeList>
+    <Member Name="GD25Q127C" Value="1" Size="16MB" />
+    <Member Name="GD25Q64C" Value="1" Size="8MB" />
+    <Member Name="GD25Q32C" Value="1" Size="4MB" />
+    <Member Name="GD25Q16C" Value="1" Size="2MB" />
+    <Member Name="GD25Q80C" Value="1" Size="1MB" />
+    <Member Name="W25Q128V" Value="1" Size="16MB" />
+    <Member Name="EN25QH128A" Value="2" Size="16MB" />
+    <Member Name="Common Type1" Value="1" Size="16MB" />
+    <Member Name="Common Type2" Value="2" Size="16MB" />
+  </Bank3TypeList>
+  <MultiFileList>
+    <Member Path="\\wsl.localhost\Ubuntu-20.04\root\OpenHarmony\at32_OpenHarmony_sdk\out\slhsp104\HIHOPE-HH-SLHSP104\bin\HIHOPE-HH-SLHSP104.bin" Address="08000000" />
+  </MultiFileList>
+</Configuration>

@@ -1,0 +1,3 @@
+# Install torch and torchvision from NVIDIA wheels matching JetPack/CUDA first.
+# Then install this file; already-satisfied packages will be retained.
+-r requirements.txt
