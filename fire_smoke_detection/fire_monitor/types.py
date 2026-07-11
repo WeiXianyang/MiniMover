@@ -59,3 +59,13 @@ class AlarmEvent:
 
 
 FIRE_CLASSES: Tuple[str, ...] = ("fire", "smoke")
+
+
+def build_fire_detections(names, rows):
+    detections = []
+    for row in rows:
+        confidence = float(row[-2])
+        class_name = str(names[int(row[-1])]).lower()
+        if class_name in FIRE_CLASSES:
+            detections.append(Detection(class_name, confidence))
+    return detections
