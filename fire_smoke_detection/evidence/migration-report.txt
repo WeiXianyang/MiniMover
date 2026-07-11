@@ -1,0 +1,28 @@
+Migration verification: PASS
+Verified on: 2026-07-11
+Source path: E:\fire-smoke-detect-yolov4
+Target path: E:\MiniMover\fire_smoke_detection
+Model SHA256: d1eae6859229ac1f5699c60f9445fa054dafc6a2cc59f00fc30ea6379dc3247e
+Model bytes: 14758954
+Dataset files: 8241
+Dataset bytes: 186978694
+Run-record files: 78
+Run-record bytes: 210063043
+Git bundle bytes: 374243975
+Source/target tree verification: PASS
+Git bundle verification: PASS
+Unit tests: PASS (7 tests)
+Python syntax compilation: PASS
+Model load on CPU: PASS (classes: fire, smoke)
+Sample inference: PASS (1 fire detected; output/result_demo.jpg generated)
+Windows launcher help: PASS
+Linux launcher static inspection: PASS
+Linux Bash dynamic syntax check: NOT RUN (WSL environment has no bash executable)
+Jetson GPU inference: NOT RUN (Jetson hardware unavailable)
+Source deletion authorized by completed critical verification.
+Source deletion: PASS
+Deleted source path: E:\fire-smoke-detect-yolov4
+Initial deletion issue: empty yolov5 directory remained locked by cmd.exe PID 233796.
+Lock root cause: the legacy interactive cmd.exe current directory was the source yolov5 directory.
+Lock resolution: confirmed the exact handle owner with Microsoft Sysinternals Handle, stopped only PID 233796, and retried deletion.
+Post-deletion target audit: PASS
