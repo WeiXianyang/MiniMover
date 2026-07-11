@@ -224,3 +224,7 @@ __marimo__/
 
 # Local isolated development worktrees
 /.worktrees/
+
+/fire_smoke_detection/runtime/
+/fire_smoke_detection/.env
+!/fire_smoke_detection/.env.example
