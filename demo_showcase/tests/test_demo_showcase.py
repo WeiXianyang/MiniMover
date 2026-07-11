@@ -65,5 +65,21 @@ class VideoBuilderTests(unittest.TestCase):
                 capture.release()
 
 
+class LauncherTests(unittest.TestCase):
+    def test_root_launcher_starts_three_independent_players(self):
+        root = Path(__file__).resolve().parents[2]
+        launcher = (root / "\u4e00\u952e\u542f\u52a8\u4e09\u9879\u8bc6\u522b\u6f14\u793a.bat").read_text(encoding="utf-8-sig")
+        self.assertEqual(3, launcher.lower().count('start "demo'))
+        self.assertIn("%~dp0", launcher)
+        self.assertIn("--check", launcher)
+        self.assertNotIn("E:\\MiniMover", launcher)
+
+    def test_answer_defense_readme_exists(self):
+        root = Path(__file__).resolve().parents[1]
+        text = (root / "README.md").read_text(encoding="utf-8")
+        self.assertIn("5 \u5206\u949f\u7b54\u8fa9", text)
+        self.assertIn("\u4e09\u9879\u8bc6\u522b\u7b54\u8fa9\u6f14\u793a.mp4", text)
+
+
 if __name__ == "__main__":
     unittest.main()
