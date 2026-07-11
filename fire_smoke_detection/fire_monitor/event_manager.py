@@ -35,9 +35,12 @@ class FireEventManager:
     def state(self): return self._event.state if self._event else EventState.IDLE
 
     def process_frame(self, detections: Sequence[Detection], raw_frame, annotated_frame, now_monotonic: float, captured_at) -> None:
-        self._consume_results(captured_at)
         qualifying=[d for d in detections if d.class_name.lower() in FIRE_CLASSES and d.confidence >= self.minimum_confidence]
         hit=bool(qualifying)
+        if (self._event and not hit and self._event.in_flight and
+                now_monotonic - self._event.last_hit >= self.config.event_clear_seconds):
+            self._event.local_detection_gone = True
+        self._consume_results(captured_at)
         if self._event:
             if hit:
                 self._event.last_hit=now_monotonic

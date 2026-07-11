@@ -64,8 +64,16 @@ class EventManagerTests(unittest.TestCase):
   self.trigger();req=self.r.requests[-1];self.m.process_frame([],self.frame,self.frame,11.2,self.dt);self.assertEqual(self.m.state,EventState.AI_REVIEWING)
   self.r.results=[AIReviewResult(req.event_id,1,True,1,AIResultKind.CONFIRMED_FIRE,.9,'fire')];self.m.process_frame([],self.frame,self.frame,12,self.dt)
   self.assertEqual(len(self.a.fire),1);self.assertTrue(self.a.fire[0].local_detection_gone);self.assertEqual(self.m.state,EventState.IDLE)
+
+ def test_result_arriving_on_first_clear_frame_marks_detection_gone(self):
+  self.trigger();req=self.r.requests[-1]
+  self.r.results=[AIReviewResult(req.event_id,1,True,1,AIResultKind.CONFIRMED_FIRE,.9,'fire')]
+  self.m.process_frame([],self.frame,self.frame,11.2,self.dt)
+  self.assertEqual(len(self.a.fire),1)
+  self.assertTrue(self.a.fire[0].local_detection_gone)
+  self.assertEqual(self.m.state,EventState.IDLE)
+
  def test_stale_result_ignored(self):
   self.trigger();self.r.results=[AIReviewResult('other',99,True,1,AIResultKind.CONFIRMED_FIRE,.9,'x')];self.hit(2);self.assertEqual(self.m.state,EventState.AI_REVIEWING);self.assertFalse(self.a.fire)
 
 if __name__=='__main__':unittest.main()
-
