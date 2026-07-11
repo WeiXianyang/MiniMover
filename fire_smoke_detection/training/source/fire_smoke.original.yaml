@@ -1,0 +1,4 @@
+train: E:\fire-smoke-detect-yolov4\VOC2020\train.txt
+val: E:\fire-smoke-detect-yolov4\VOC2020\val.txt
+nc: 2
+names: ['fire', 'smoke']
