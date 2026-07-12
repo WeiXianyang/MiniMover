@@ -91,6 +91,7 @@ def detect(save_img=False):
     telemetry.event("source_ready", "Source opened and model loaded")
     img = torch.zeros((1, 3, imgsz, imgsz), device=device)  # init img
     _ = model(img.half() if half else img) if device.type != 'cpu' else None  # run once
+    failure = None
     try:
         for path, img, im0s, vid_cap in dataset:
             img = torch.from_numpy(img).to(device)
@@ -188,10 +189,16 @@ def detect(save_img=False):
             fire_manager.drain_results(datetime.now().astimezone())
     except StopIteration:
         pass
+    except Exception as exc:
+        failure = f"{type(exc).__name__}: {exc}"
+        telemetry.update(process={"state": "failed", "error": failure})
+        telemetry.event("detector_failed", failure)
+        raise
     finally:
         fire_manager.close()
-        telemetry.update(process={"state": "stopped"})
-        telemetry.event("stopped", "Detector process stopped")
+        if failure is None:
+            telemetry.update(process={"state": "stopped", "error": ""})
+            telemetry.event("stopped", "Detector process stopped")
         if isinstance(vid_writer, cv2.VideoWriter):
             vid_writer.release()
 
@@ -209,7 +216,7 @@ if __name__ == '__main__':
     parser.add_argument('--source', type=str, default='inference/images', help='source')  # file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='inference/output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.7, help='object confidence threshold (default: 0.7)')
     parser.add_argument('--iou-thres', type=float, default=0.5, help='IOU threshold for NMS')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', action='store_true', help='display results')

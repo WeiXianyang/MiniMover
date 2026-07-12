@@ -122,3 +122,6 @@ python fire_smoke_detection/fire_monitor_test_window.py
 ```
 
 使用前请在 `fire_smoke_detection/.env` 配置 `FIRE_AI_API_KEY`。选择摄像头编号或视频后点击“启动”。调试数据位于 `fire_smoke_detection/runtime/debug/`，不计入最多 10 张正式证据图；窗口关闭时会终止检测子进程并释放摄像头。
+
+
+The temporary window and detector use a minimum confidence of `0.70`. Lower fire/smoke detections do not count toward the two-second trigger window. AI review runs on a background thread, so live camera capture and YOLO inference continue while the request is in progress.

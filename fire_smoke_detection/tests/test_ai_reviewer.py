@@ -50,6 +50,27 @@ class AIReviewerTests(unittest.TestCase):
         empty=FakeTransport([]); result=AIReviewer(self.config(""),empty).review_now(self.request())
         self.assertEqual(result.attempts,0); self.assertFalse(empty.calls)
 
+    def test_submit_does_not_block_while_real_transport_is_slow(self):
+        import threading
+        import time
+        release = threading.Event()
+
+        def slow_transport(url, headers, body, timeout):
+            release.wait(1)
+            return response('{"result":"no_fire","confidence":0.9,"reason":"clear"}')
+
+        reviewer = AIReviewer(self.config(), slow_transport)
+        started = time.monotonic()
+        self.assertTrue(reviewer.submit(self.request()))
+        self.assertLess(time.monotonic() - started, 0.1)
+        self.assertTrue(reviewer.busy)
+        release.set()
+        deadline = time.time() + 1
+        while reviewer.busy and time.time() < deadline:
+            time.sleep(0.01)
+        reviewer.close()
+        self.assertFalse(reviewer.busy)
+
     def test_worker_rejects_second_task_and_returns_tagged_result(self):
         reviewer=AIReviewer(self.config(),FakeTransport([response('{"result":"suspected_smoke","confidence":0.8,"reason":"烟雾"}')]))
         self.assertTrue(reviewer.submit(self.request())); self.assertFalse(reviewer.submit(self.request()))

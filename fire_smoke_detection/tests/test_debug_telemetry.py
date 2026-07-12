@@ -32,6 +32,17 @@ class DebugTelemetryTests(unittest.TestCase):
             self.assertEqual(event["stage"], "yolo_hit")
             self.assertEqual(event["hit_count"], 3)
 
+    def test_write_failures_do_not_stop_detection(self):
+        class BrokenTelemetry(DebugTelemetry):
+            @staticmethod
+            def _atomic_json(path, payload):
+                raise PermissionError("preview reader holds the file")
+
+        with tempfile.TemporaryDirectory() as directory:
+            telemetry = BrokenTelemetry(Path(directory))
+            telemetry.update(process={"state": "running"})
+            self.assertEqual(telemetry.last_error, "PermissionError: preview reader holds the file")
+
     def test_rejects_sensitive_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             telemetry = DebugTelemetry(Path(directory))

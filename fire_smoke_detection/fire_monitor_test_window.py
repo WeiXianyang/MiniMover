@@ -25,7 +25,7 @@ def build_detector_command(source_kind: str, source_value: str, debug_dir: Path,
     elif not source.isdigit():
         raise ValueError("摄像头编号必须是非负整数")
     return [sys.executable, str(DETECTOR), "--source", source, "--device", device.strip() or "cpu",
-            "--no-view", "--monitor-debug-dir", str(Path(debug_dir).resolve())]
+            "--conf-thres", "0.7", "--no-view", "--monitor-debug-dir", str(Path(debug_dir).resolve())]
 
 
 def read_debug_snapshot(debug_dir: Path, event_offset: int):
@@ -140,7 +140,10 @@ class MonitorTestWindow(tk.Tk):
         self.debug_dir.mkdir(parents=True, exist_ok=True)
         self.event_offset = 0
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-        self.process = subprocess.Popen(command, cwd=str(ROOT), creationflags=flags)
+        log_path = self.debug_dir / "detector_console.log"
+        self.process_log = log_path.open("w", encoding="utf-8")
+        self.process = subprocess.Popen(command, cwd=str(ROOT), creationflags=flags,
+                                        stdout=self.process_log, stderr=subprocess.STDOUT)
         self.summary.set("正在启动真实检测链路……")
         self._append_log("窗口", "已启动检测子进程")
 

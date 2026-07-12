@@ -16,6 +16,7 @@ class MonitorTestWindowTests(unittest.TestCase):
         self.assertIn("--source", camera)
         self.assertEqual(camera[camera.index("--source") + 1], "2")
         self.assertIn("--no-view", camera)
+        self.assertEqual(camera[camera.index("--conf-thres") + 1], "0.7")
         video = build_detector_command("video", "C:/clips/fire demo.mp4", debug, "0")
         self.assertEqual(video[video.index("--source") + 1], str(Path("C:/clips/fire demo.mp4").resolve()))
         self.assertEqual(video[video.index("--device") + 1], "0")

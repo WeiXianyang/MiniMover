@@ -47,6 +47,7 @@ class DebugTelemetry:
         self.root.mkdir(parents=True, exist_ok=True)
         self._status: dict[str, Any] = {}
         self._lock = threading.RLock()
+        self.last_error = ""
 
     def reset(self) -> None:
         with self._lock:
@@ -59,15 +60,23 @@ class DebugTelemetry:
         with self._lock:
             self._status = _merge(self._status, changes)
             self._status["updated_at"] = datetime.now().astimezone().isoformat()
-            self._atomic_json(self.root / "status.json", self._status)
+            try:
+                self._atomic_json(self.root / "status.json", self._status)
+                self.last_error = ""
+            except OSError as exc:
+                self.last_error = f"{type(exc).__name__}: {exc}"
 
     def event(self, stage: str, detail: str, **fields) -> None:
         payload = {"time": datetime.now().astimezone().isoformat(), "stage": stage, "detail": detail, **fields}
         _validate(payload)
         line = json.dumps(payload, ensure_ascii=False) + "\n"
-        with self._lock, (self.root / "events.jsonl").open("a", encoding="utf-8") as stream:
-            stream.write(line)
-            stream.flush()
+        try:
+            with self._lock, (self.root / "events.jsonl").open("a", encoding="utf-8") as stream:
+                stream.write(line)
+                stream.flush()
+            self.last_error = ""
+        except OSError as exc:
+            self.last_error = f"{type(exc).__name__}: {exc}"
 
     def write_image(self, name: str, frame) -> None:
         ok, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 82])
@@ -80,9 +89,14 @@ class DebugTelemetry:
             raise ValueError("debug image name must be a JPEG file name")
         path = self.root / name
         temporary = path.with_suffix(path.suffix + ".tmp")
-        with self._lock:
-            temporary.write_bytes(data)
-            temporary.replace(path)
+        try:
+            with self._lock:
+                temporary.write_bytes(data)
+                temporary.replace(path)
+            self.last_error = ""
+        except OSError as exc:
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            temporary.unlink(missing_ok=True)
 
     @staticmethod
     def _atomic_json(path: Path, payload: dict) -> None:
