@@ -218,3 +218,22 @@ __marimo__/
 .streamlit/secrets.toml
 
 
+
+# Fire/smoke detector runtime output
+/fire_smoke_detection/output/
+
+# Local isolated development worktrees
+/.worktrees/
+
+/fire_smoke_detection/runtime/
+/fire_smoke_detection/.env
+!/fire_smoke_detection/.env.example
+
+# Local external repositories and generated demo artifacts
+/oh-ai-car-ros-app/
+/traffic_light/gitee-traffic_light_detection/
+/traffic_light/lp-HyperLPR/
+/traffic_light/lp-HyperLPR3/
+/traffic_light/Traffic-Light-Detection-Using-YOLOv3/
+/traffic_light/test_images/
+/traffic_light/test_plate.jpg

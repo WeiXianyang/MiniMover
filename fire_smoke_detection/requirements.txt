@@ -1,0 +1,10 @@
+# AI image review uses Python urllib; no additional OpenAI SDK is required.
+matplotlib>=3.2.2
+numpy>=1.18.5
+opencv-python>=4.1.2
+Pillow
+PyYAML>=5.3
+scipy>=1.4.1
+torch>=1.6.0
+torchvision>=0.7.0
+tqdm>=4.41.0

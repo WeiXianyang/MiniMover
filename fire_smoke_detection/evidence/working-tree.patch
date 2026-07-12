@@ -1,0 +1,224 @@
+diff --git a/yolov5/data/fire_smoke.yaml b/yolov5/data/fire_smoke.yaml
+index 490324c..dc62739 100644
+--- a/yolov5/data/fire_smoke.yaml
++++ b/yolov5/data/fire_smoke.yaml
+@@ -1,9 +1,4 @@
+-# train and val data as 1) directory: path/images/, 2) file: path/images.txt, or 3) list: [path1/images/, path2/images/]
+-train: /home/ailab/dataset/hlw_fire_data/VOC2020/txt_yolov5/2020_train.txt
+-val: /home/ailab/dataset/hlw_fire_data/VOC2020/txt_yolov5/2020_test.txt
+-
+-# number of classes
++train: E:\fire-smoke-detect-yolov4\VOC2020\train.txt
++val: E:\fire-smoke-detect-yolov4\VOC2020\val.txt
+ nc: 2
+-
+-# class names
+ names: ['fire', 'smoke']
+\ No newline at end of file
+diff --git a/yolov5/detect.py b/yolov5/detect.py
+index b0e1c53..3132442 100644
+--- a/yolov5/detect.py
++++ b/yolov5/detect.py
+@@ -38,7 +38,7 @@ def detect(save_img=False):
+     classify = False
+     if classify:
+         modelc = load_classifier(name='resnet101', n=2)  # initialize
+-        modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model'])  # load weights
++        modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=device, weights_only=False)['model'])  # load weights
+         modelc.to(device).eval()
+ 
+     # Set Dataloader
+diff --git a/yolov5/hubconf.py b/yolov5/hubconf.py
+index 98416a5..2d41ebe 100644
+--- a/yolov5/hubconf.py
++++ b/yolov5/hubconf.py
+@@ -32,7 +32,7 @@ def create(name, pretrained, channels, classes):
+         if pretrained:
+             ckpt = '%s.pt' % name  # checkpoint filename
+             attempt_download(ckpt)  # download if not found locally
+-            state_dict = torch.load(ckpt, map_location=torch.device('cpu'))['model'].float().state_dict()  # to FP32
++            state_dict = torch.load(ckpt, map_location=torch.device('cpu'), weights_only=False)['model'].float().state_dict()  # to FP32
+             state_dict = {k: v for k, v in state_dict.items() if model.state_dict()[k].shape == v.shape}  # filter
+             model.load_state_dict(state_dict, strict=False)  # load
+         return model
+diff --git a/yolov5/models/experimental.py b/yolov5/models/experimental.py
+index 1b99ce4..d7e0573 100644
+--- a/yolov5/models/experimental.py
++++ b/yolov5/models/experimental.py
+@@ -134,7 +134,7 @@ def attempt_load(weights, map_location=None):
+     model = Ensemble()
+     for w in weights if isinstance(weights, list) else [weights]:
+         attempt_download(w)
+-        model.append(torch.load(w, map_location=map_location)['model'].float().fuse().eval())  # load FP32 model
++        model.append(torch.load(w, map_location=map_location, weights_only=False)['model'].float().fuse().eval())  # load FP32 model
+ 
+     if len(model) == 1:
+         return model[-1]  # return model
+diff --git a/yolov5/models/export.py b/yolov5/models/export.py
+index 7ccd392..932893e 100644
+--- a/yolov5/models/export.py
++++ b/yolov5/models/export.py
+@@ -24,7 +24,7 @@ if __name__ == '__main__':
+ 
+     # Load PyTorch model
+     attempt_download(opt.weights)
+-    model = torch.load(opt.weights, map_location=torch.device('cpu'))['model'].float()
++    model = torch.load(opt.weights, map_location=torch.device('cpu'), weights_only=False)['model'].float()
+     model.eval()
+     model.model[-1].export = True  # set Detect() layer export=True
+     y = model(img)  # dry run
+diff --git a/yolov5/models/yolo.py b/yolov5/models/yolo.py
+index f30de99..57a0e31 100644
+--- a/yolov5/models/yolo.py
++++ b/yolov5/models/yolo.py
+@@ -135,13 +135,12 @@ class Model(nn.Module):
+             print('%.1fms total' % sum(dt))
+         return x
+ 
+-    def _initialize_biases(self, cf=None):  # initialize biases into Detect(), cf is class frequency
+-        # cf = torch.bincount(torch.tensor(np.concatenate(dataset.labels, 0)[:, 0]).long(), minlength=nc) + 1.
+-        m = self.model[-1]  # Detect() module
+-        for mi, s in zip(m.m, m.stride):  # from
+-            b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
+-            b[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+-            b[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
++    def _initialize_biases(self, cf=None):
++        m = self.model[-1]
++        for mi, s in zip(m.m, m.stride):
++            b = mi.bias.data.view(m.na, -1).clone()
++            b[:, 4] += math.log(8 / (640 / s) ** 2)
++            b[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())
+             mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
+ 
+     def _print_biases(self):
+diff --git a/yolov5/train.py b/yolov5/train.py
+index c72a7fe..b77b988 100644
+--- a/yolov5/train.py
++++ b/yolov5/train.py
+@@ -64,7 +64,7 @@ def train(hyp, opt, device, tb_writer=None):
+     if pretrained:
+         with torch_distributed_zero_first(rank):
+             attempt_download(weights)  # download if not found locally
+-        ckpt = torch.load(weights, map_location=device)  # load checkpoint
++        ckpt = torch.load(weights, map_location=device, weights_only=False)  # load checkpoint
+         model = Model(opt.cfg or ckpt['model'].yaml, ch=3, nc=nc).to(device)  # create
+         exclude = ['anchor'] if opt.cfg else []  # exclude keys
+         state_dict = ckpt['model'].float().state_dict()  # to FP32
+@@ -415,7 +415,7 @@ if __name__ == '__main__':
+         last = get_latest_run() if opt.resume == 'get_last' else opt.resume  # resume from most recent run
+         if last and not opt.weights:
+             logger.info(f'Resuming training from {last}')
+-        opt.weights = last if opt.resume and not opt.weights else opt.weights
++        opt.weights = last if opt.resume and last else opt.weights
+     if opt.global_rank in [-1,0]:
+         check_git_status()
+ 
+diff --git a/yolov5/utils/datasets.py b/yolov5/utils/datasets.py
+index 143c427..804576e 100644
+--- a/yolov5/utils/datasets.py
++++ b/yolov5/utils/datasets.py
+@@ -314,7 +314,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
+ 
+         n = len(self.img_files)
+         assert n > 0, 'No images found in %s. See %s' % (path, help_url)
+-        bi = np.floor(np.arange(n) / batch_size).astype(np.int)  # batch index
++        bi = np.floor(np.arange(n) / batch_size).astype(int)  # batch index
+         nb = bi[-1] + 1  # number of batches
+ 
+         self.n = n  # number of images
+@@ -335,7 +335,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
+         # Check cache
+         cache_path = str(Path(self.label_files[0]).parent) + '.cache'  # cached labels
+         if os.path.isfile(cache_path):
+-            cache = torch.load(cache_path)  # load
++            cache = torch.load(cache_path, weights_only=False)  # load
+             if cache['hash'] != get_hash(self.label_files + self.img_files):  # dataset changed
+                 cache = self.cache_labels(cache_path)  # re-cache
+         else:
+@@ -368,7 +368,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
+                 elif mini > 1:
+                     shapes[i] = [1, 1 / mini]
+ 
+-            self.batch_shapes = np.ceil(np.array(shapes) * img_size / stride + pad).astype(np.int) * stride
++            self.batch_shapes = np.ceil(np.array(shapes) * img_size / stride + pad).astype(int) * stride
+ 
+         # Cache labels
+         create_datasubset, extract_bounding_boxes, labels_loaded = False, False, False
+@@ -414,7 +414,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
+                         b = x[1:] * [w, h, w, h]  # box
+                         b[2:] = b[2:].max()  # rectangle to square
+                         b[2:] = b[2:] * 1.3 + 30  # pad
+-                        b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(np.int)
++                        b = xywh2xyxy(b.reshape(-1, 4)).ravel().astype(int)
+ 
+                         b[[0, 2]] = np.clip(b[[0, 2]], 0, w)  # clip boxes outside of image
+                         b[[1, 3]] = np.clip(b[[1, 3]], 0, h)
+diff --git a/yolov5/utils/general.py b/yolov5/utils/general.py
+index dce9b15..86b74b2 100644
+--- a/yolov5/utils/general.py
++++ b/yolov5/utils/general.py
+@@ -165,7 +165,7 @@ def labels_to_class_weights(labels, nc=80):
+         return torch.Tensor()
+ 
+     labels = np.concatenate(labels, 0)  # labels.shape = (866643, 5) for COCO
+-    classes = labels[:, 0].astype(np.int)  # labels = [class xywh]
++    classes = labels[:, 0].astype(int)  # labels = [class xywh]
+     weights = np.bincount(classes, minlength=nc)  # occurences per class
+ 
+     # Prepend gridpoint count (for uCE trianing)
+@@ -181,7 +181,7 @@ def labels_to_class_weights(labels, nc=80):
+ def labels_to_image_weights(labels, nc=80, class_weights=np.ones(80)):
+     # Produces image weights based on class mAPs
+     n = len(labels)
+-    class_counts = np.array([np.bincount(labels[i][:, 0].astype(np.int), minlength=nc) for i in range(n)])
++    class_counts = np.array([np.bincount(labels[i][:, 0].astype(int), minlength=nc) for i in range(n)])
+     image_weights = (class_weights.reshape(1, nc) * class_counts).sum(1)
+     # index = random.choices(range(n), weights=image_weights, k=1)  # weight image sample
+     return image_weights
+@@ -327,7 +327,7 @@ def compute_ap(recall, precision):
+     method = 'interp'  # methods: 'continuous', 'interp'
+     if method == 'interp':
+         x = np.linspace(0, 1, 101)  # 101-point interp (COCO)
+-        ap = np.trapz(np.interp(x, mrec, mpre), x)  # integrate
++        ap = np.trapezoid(np.interp(x, mrec, mpre), x)  # integrate
+     else:  # 'continuous'
+         i = np.where(mrec[1:] != mrec[:-1])[0]  # points where x axis (recall) changes
+         ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])  # area under curve
+@@ -672,7 +672,7 @@ def non_max_suppression(prediction, conf_thres=0.1, iou_thres=0.6, merge=False,
+ 
+ def strip_optimizer(f='weights/best.pt', s=''):  # from utils.general import *; strip_optimizer()
+     # Strip optimizer from 'f' to finalize training, optionally save as 's'
+-    x = torch.load(f, map_location=torch.device('cpu'))
++    x = torch.load(f, map_location=torch.device('cpu'), weights_only=False)
+     x['optimizer'] = None
+     x['training_results'] = None
+     x['epoch'] = -1
+@@ -937,16 +937,22 @@ def output_to_target(output, width, height):
+ 
+                 targets.append([i, cls, x, y, w, h, conf])
+ 
+-    return np.array(targets)
++    return np.array([[x.cpu() if hasattr(x, 'cpu') else x for x in t] for t in targets])
+ 
+ 
+ def increment_dir(dir, comment=''):
+-    # Increments a directory runs/exp1 --> runs/exp2_comment
+-    n = 0  # number
+-    dir = str(Path(dir))  # os-agnostic
+-    d = sorted(glob.glob(dir + '*'))  # directories
++    n = 0
++    dir = str(Path(dir))
++    d = sorted(glob.glob(dir + '*'))
+     if len(d):
+-        n = max([int(x[len(dir):x.find('_') if '_' in x else None]) for x in d]) + 1  # increment
++        nums = []
++        for x in d:
++            suffix = x[len(dir):]
++            idx = suffix.find('_')
++            num_str = suffix[:idx] if idx != -1 else suffix
++            if num_str.isdigit():
++                nums.append(int(num_str))
++        n = max(nums) + 1 if nums else 1
+     return dir + str(n) + ('_' + comment if comment else '')
+ 
+ 
