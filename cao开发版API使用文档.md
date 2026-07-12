@@ -129,6 +129,37 @@ curl -X POST http://<小车IP>:5000/api/navigate \
 | `/` | 控制面板（传感器 + 视频 + 方向控制 + 速度调节） |
 | `/nav` | 地图导航页面（点击地图选点 → 自动导航） |（还未实现导航）
 
+### 2.6 视频流访问
+
+**直接访问小车：**
+
+| 说明 | 地址 |
+|---|---|
+| 控制面板（含视频） | `http://<小车IP>:5000/` |
+| 纯 MJPEG 视频流 | `http://<小车IP>:5000/video_feed` |
+| ROS 话题列表 | `http://<小车IP>:8080/` |
+| 直播流查看器 | `http://<小车IP>:8080/stream_viewer?topic=/camera/color/image_raw` |
+
+**通过协调中心代理：**
+
+| 说明 | 地址 |
+|---|---|
+| 多车控制面板 | `http://localhost:8888/dashboard` |
+| car_A 视频代理 | `http://localhost:8888/proxy/camera/car_A` |
+| car_B 视频代理 | `http://localhost:8888/proxy/camera/car_B` |
+
+**供开发用（Python/OpenCV 拉取）：**
+```python
+# 直接从 ROS 流拉取（推荐，低延迟）
+cap = cv2.VideoCapture("http://<小车IP>:8080/stream?topic=/camera/color/image_raw")
+
+# 通过 API 拉取（多一层转发）
+cap = cv2.VideoCapture("http://<小车IP>:5000/video_feed")
+
+# 通过协调中心拉取
+cap = cv2.VideoCapture("http://localhost:8888/proxy/camera/car_A")
+```
+
 ---
 
 ## 三、Android APP 调用示例 (Kotlin)
@@ -177,4 +208,46 @@ while True:
 # 方式 2：从 API 取（多一层转发）
 url = "http://<小车IP>:5000/video_feed"
 cap = cv2.VideoCapture(url)
+```
+
+---
+
+## 五、关闭后端
+
+### 一键停止（推荐）
+
+```bash
+# 在小车终端执行，停止所有服务
+bash ~/MiniMover/scripts/stop_services.sh
+```
+
+自动停止：API 服务 → 视频流 → 相机驱动 → VNC → Docker 容器，并检查残留进程。
+
+### 分开控制
+
+```bash
+# 仅停止 API（摄像头流仍可独立访问 :8080）
+sudo systemctl stop fireguard-api
+
+# 仅停止摄像头和视频流（API 仍可控制底盘）
+sudo docker stop fireguard_cam
+
+# 重启 API
+sudo systemctl restart fireguard-api
+
+# 查看服务状态
+sudo systemctl status fireguard-api
+sudo docker ps
+```
+
+### 完全禁用（开机不自启）
+
+```bash
+sudo systemctl disable fireguard-api
+```
+
+### 重新启动所有服务
+
+```bash
+bash ~/MiniMover/scripts/start_services.sh
 ```
