@@ -6,6 +6,8 @@ import threading, time, os, sys, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sensors.icar_sensor_driver import iCarSensorDriver
 from Rosmaster_Lib import Rosmaster
+from audio.icar_audio import record_start, record_status, record_stop, record_get
+from audio.icar_audio import play_wav, stop_playback, say as tts_say, get_devices as audio_devices
 
 app = Flask(__name__)
 CORS(app)
@@ -51,6 +53,101 @@ def get_sensors():
 @app.route('/api/health')
 def health():
     return jsonify({'code':0,'msg':'FireGuard API Running'})
+
+@app.route('/api/camera')
+def camera_info():
+    """返回视频流地址信息"""
+    ip = get_ip()
+    return jsonify({'code': 0, 'data': {
+        'mjpeg': f'http://{ip}:5000/video_feed',
+        'ros_stream': f'http://{ip}:8080/stream?topic=/camera/color/image_raw',
+        'snapshot': f'http://{ip}:8080/snapshot?topic=/camera/color/image_raw',
+    }})
+
+# ===== 音频接口 =====
+
+# 上一次录音的 ID (用于 stop 后前端知道下载哪个文件)
+_last_record_id = ""
+
+@app.route('/api/audio/devices')
+def audio_devices_api():
+    """返回音频设备信息"""
+    return jsonify({'code': 0, 'data': audio_devices()})
+
+@app.route('/api/audio/record/start', methods=['POST'])
+def audio_record_start():
+    """开始录音, POST: {"duration": 3}(可选秒数, 0=手动停止)"""
+    global _last_record_id
+    try:
+        dur = float(request.json.get('duration', 0)) if request.json else 0
+        rid = record_start(duration_sec=dur)
+        _last_record_id = rid
+        return jsonify({'code': 0, 'data': {'record_id': rid, 'msg': '录音已开始'}})
+    except RuntimeError as e:
+        return jsonify({'code': -1, 'msg': str(e)}), 409
+
+@app.route('/api/audio/record/status')
+def audio_record_status():
+    """查询录音状态"""
+    return jsonify({'code': 0, 'data': record_status()})
+
+@app.route('/api/audio/record/stop', methods=['POST'])
+def audio_record_stop():
+    """停止录音, 返回 record_id 供前端下载"""
+    global _last_record_id
+    try:
+        rid, wav_data = record_stop()
+        _last_record_id = rid
+        return jsonify({'code': 0, 'data': {
+            'record_id': rid,
+            'size': len(wav_data),
+            'msg': f'录音完成 ({len(wav_data)} bytes)'
+        }})
+    except RuntimeError as e:
+        return jsonify({'code': -1, 'msg': str(e)}), 409
+
+@app.route('/api/audio/record/<record_id>.wav')
+def audio_record_download(record_id):
+    """下载指定录音的 WAV 文件"""
+    try:
+        wav_data = record_get(record_id)
+        return Response(wav_data, mimetype='audio/wav',
+                        headers={'Content-Disposition': f'attachment; filename="{record_id}.wav"'})
+    except FileNotFoundError:
+        return jsonify({'code': -1, 'msg': f'录音 {record_id} 不存在'}), 404
+
+@app.route('/api/audio/play', methods=['POST'])
+def audio_play():
+    """上传 WAV 文件并播放 (multipart/form-data, field: file)"""
+    if 'file' not in request.files:
+        return jsonify({'code': -1, 'msg': '缺少 file 字段'}), 400
+    f = request.files['file']
+    try:
+        play_wav(f.read())
+        return jsonify({'code': 0, 'msg': '播放中'})
+    except Exception as e:
+        return jsonify({'code': -1, 'msg': str(e)}), 500
+
+@app.route('/api/audio/say', methods=['POST'])
+def audio_say():
+    """TTS 文本转语音并播放, POST: {"text": "...", "lang": "zh"}"""
+    data = request.json
+    text = data.get('text', '')
+    lang = data.get('lang', 'zh')
+    if not text:
+        return jsonify({'code': -1, 'msg': 'text 为空'}), 400
+    try:
+        wav = tts_say(text, lang)
+        play_wav(wav)
+        return jsonify({'code': 0, 'msg': f'TTS: {text[:20]}...' if len(text)>20 else f'TTS: {text}'})
+    except Exception as e:
+        return jsonify({'code': -1, 'msg': str(e)}), 500
+
+@app.route('/api/audio/stop', methods=['POST'])
+def audio_stop():
+    """停止当前音频播放"""
+    stop_playback()
+    return jsonify({'code': 0, 'msg': '已停止'})
 
 # ===== 地图导航 =====
 
@@ -267,6 +364,17 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 
 .speed-bar{display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0;font-size:13px}
 .speed-bar input{width:120px}
+
+/* 语音控制 */
+.audio-bar{display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;margin:4px 0}
+.audio-bar button{padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:14px;min-width:60px}
+.audio-bar button:active{transform:scale(.92)}
+.audio-bar .mic-btn{background:#0f3460;color:#eee}
+.audio-bar .mic-btn.recording{background:#e94560;animation:pulse 1s infinite}
+.audio-bar .say-btn{background:#1a3a6e;color:#eee}
+.audio-bar input[type=text]{padding:6px 10px;border:none;border-radius:6px;font-size:13px;width:120px;background:#16213e;color:#eee}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.audio-status{font-size:12px;color:#aaa;margin:2px 0}
 </style></head><body>
 <h1>FIRECUARD</h1>
 <a class="nav-link" href="/nav">🗺️ 地图导航</a>
@@ -295,8 +403,76 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 <span id="sv">50</span>
 </div>
 
+<div class="audio-bar">
+<button class="mic-btn" id="micBtn" onclick="toggleMic()">🎤 录音</button>
+<button class="mic-btn" id="playBtn" onclick="playLast()" style="display:none">▶ 播放</button>
+<input type="text" id="ttsText" placeholder="输入文字..." value="你好小车">
+<button class="say-btn" onclick="speak()">🔊 朗读</button>
+</div>
+<div class="audio-status" id="audioStatus"></div>
+<audio id="audioPlayer" controls style="display:none"></audio>
+
 <script>
 var API=window.location.origin;
+var recording=false,lastRecordId='';
+function toggleMic(){
+ if(recording){
+  var r=new XMLHttpRequest();
+  r.open('POST',API+'/api/audio/record/stop',true);
+  r.setRequestHeader('Content-Type','application/json');
+  r.onload=function(){
+   var j=JSON.parse(r.responseText);
+   if(j.code==0){
+    lastRecordId=j.data.record_id;
+    document.getElementById('audioStatus').textContent='录音完成: '+(j.data.size/1024).toFixed(1)+'KB';
+    document.getElementById('playBtn').style.display='inline-block';
+   }else{
+    document.getElementById('audioStatus').textContent='错误: '+j.msg;
+   }
+   document.getElementById('micBtn').textContent='🎤 录音';
+   document.getElementById('micBtn').classList.remove('recording');
+   recording=false;
+  };
+  r.send();
+ }else{
+  var r=new XMLHttpRequest();
+  r.open('POST',API+'/api/audio/record/start',true);
+  r.setRequestHeader('Content-Type','application/json');
+  r.onload=function(){
+   var j=JSON.parse(r.responseText);
+   if(j.code==0){
+    document.getElementById('audioStatus').textContent='录音中...';
+    document.getElementById('micBtn').textContent='⏹ 停止';
+    document.getElementById('micBtn').classList.add('recording');
+    document.getElementById('playBtn').style.display='none';
+    recording=true;
+   }else{
+    document.getElementById('audioStatus').textContent='错误: '+j.msg;
+   }
+  };
+  r.send(JSON.stringify({duration:0}));
+ }
+}
+function playLast(){
+ if(!lastRecordId) return;
+ var a=document.getElementById('audioPlayer');
+ a.style.display='block';
+ a.src=API+'/api/audio/record/'+lastRecordId+'.wav';
+ a.play();
+ document.getElementById('audioStatus').textContent='播放中...';
+}
+function speak(){
+ var t=document.getElementById('ttsText').value;
+ if(!t)return;
+ document.getElementById('audioStatus').textContent='TTS: '+t;
+ var r=new XMLHttpRequest();
+ r.open('POST',API+'/api/audio/say',true);
+ r.setRequestHeader('Content-Type','application/json');
+ r.onload=function(){
+  document.getElementById('audioStatus').textContent='播放完毕';
+ };
+ r.send(JSON.stringify({text:t,lang:'zh'}));
+}
 function f(){
  var r=new XMLHttpRequest();
  r.open("GET",API+"/api/status",true);

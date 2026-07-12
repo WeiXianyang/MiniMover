@@ -133,31 +133,116 @@ curl -X POST http://<小车IP>:5000/api/navigate \
 
 **直接访问小车：**
 
-| 说明 | 地址 |
-|---|---|
-| 控制面板（含视频） | `http://<小车IP>:5000/` |
-| 纯 MJPEG 视频流 | `http://<小车IP>:5000/video_feed` |
-| ROS 话题列表 | `http://<小车IP>:8080/` |
-| 直播流查看器 | `http://<小车IP>:8080/stream_viewer?topic=/camera/color/image_raw` |
+| 说明 | car_A (192.168.137.23) | car_B (192.168.137.254) |
+|---|---|---|
+| 控制面板（含视频） | `http://192.168.137.23:5000/` | `http://192.168.137.254:5000/` |
+| 纯 MJPEG 流 | `http://192.168.137.23:5000/video_feed` | `http://192.168.137.254:5000/video_feed` |
+| ROS 话题列表 | `http://192.168.137.23:8080/` | `http://192.168.137.254:8080/` |
+| 直播流查看器 | `http://192.168.137.23:8080/stream_viewer?topic=/camera/color/image_raw` | 同 car_A |
 
 **通过协调中心代理：**
 
 | 说明 | 地址 |
 |---|---|
-| 多车控制面板 | `http://localhost:8888/dashboard` |
-| car_A 视频代理 | `http://localhost:8888/proxy/camera/car_A` |
-| car_B 视频代理 | `http://localhost:8888/proxy/camera/car_B` |
+| 多车面板 | `http://localhost:8888/dashboard` |
+| car_A 代理流 | `http://localhost:8888/proxy/camera/car_A` |
+| car_B 代理流 | `http://localhost:8888/proxy/camera/car_B` |
 
-**供开发用（Python/OpenCV 拉取）：**
+**供开发用（Python/OpenCV 直接拉取）：**
 ```python
-# 直接从 ROS 流拉取（推荐，低延迟）
-cap = cv2.VideoCapture("http://<小车IP>:8080/stream?topic=/camera/color/image_raw")
+# 直接从小车取（推荐，低延迟）
+cap = cv2.VideoCapture("http://192.168.137.23:8080/stream?topic=/camera/color/image_raw")
 
-# 通过 API 拉取（多一层转发）
-cap = cv2.VideoCapture("http://<小车IP>:5000/video_feed")
+# 通过 API 取（多一层转发）
+cap = cv2.VideoCapture("http://192.168.137.23:5000/video_feed")
 
-# 通过协调中心拉取
+# 通过协调中心取
 cap = cv2.VideoCapture("http://localhost:8888/proxy/camera/car_A")
+```
+
+---
+
+### 2.7 音频（录音 / 播放 / TTS）
+
+| 接口 | 方法 | 功能 | 说明 |
+|---|---|---|---|
+| `/api/audio/devices` | GET | 音频设备信息 | 麦克风+扬声器+语音引擎状态 |
+| `/api/audio/record/start` | POST | 开始录音 | `{"duration": 3}` 定秒, 0=手动停止 |
+| `/api/audio/record/status` | GET | 查询录音状态 | `{"status":"idle\|recording\|done"}` |
+| `/api/audio/record/stop` | POST | 停止录音 | 返回 record_id + 文件大小 |
+| `/api/audio/record/<id>.wav` | GET | 下载录音 WAV | 可直接用作 `<audio src>` |
+| `/api/audio/play` | POST | 上传 WAV 播放 | multipart/form-data, field: `file` |
+| `/api/audio/say` | POST | TTS 文本转语音 | `{"text":"你好","lang":"zh"}` |
+| `/api/audio/stop` | POST | 停止播放 | |
+
+**语音识别对接流程：**
+```
+[点击录音] → start → [用户说话] → stop → 拿到 record_id
+→ 下载 WAV → 发给语音识别服务 → 拿到文本
+→ 执行指令或通过 /api/audio/say 语音反馈
+```
+
+**调用示例：**
+```bash
+# 查看设备
+curl http://<小车IP>:5000/api/audio/devices
+
+# 开始录音
+curl -X POST http://<小车IP>:5000/api/audio/record/start \
+  -H "Content-Type: application/json" -d '{"duration":0}'
+
+# 停止录音
+curl -X POST http://<小车IP>:5000/api/audio/record/stop
+
+# TTS 朗读
+curl -X POST http://<小车IP>:5000/api/audio/say \
+  -H "Content-Type: application/json" -d '{"text":"你好小车","lang":"zh"}'
+```
+
+**前端 JavaScript 调用（语音识别流程）：**
+```javascript
+// 开始录音
+fetch(API+'/api/audio/record/start', {method:'POST',
+  headers:{'Content-Type':'application/json'}, body:'{"duration":0}'});
+
+// 停止录音 + 下载播放
+fetch(API+'/api/audio/record/stop', {method:'POST'})
+  .then(r=>r.json()).then(j=>{
+    var audio = new Audio(API+'/api/audio/record/'+j.data.record_id+'.wav');
+    audio.play();
+  });
+
+// TTS 朗读
+fetch(API+'/api/audio/say', {method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({text:'你好小车', lang:'zh'})});
+```
+
+**硬件信息：**
+
+| 组件 | 设备 | 规格 |
+|---|---|---|
+| 麦克风 | 讯飞 XFM-DP-V0.0.18 | mono 16kHz, ALSA hw:2,0 |
+| 扬声器 | PulseAudio 默认输出 | 自动格式转换（mono→stereo） |
+| TTS引擎 | espeak-ng 1.50 | 中文/英文/日文 |
+
+**Python 直接调用（绕过 HTTP）：**
+```python
+from audio.icar_audio import *
+
+# 设备信息
+print(get_devices())
+
+# 录音
+rid = record_start(duration_sec=3)    # 录 3 秒
+_, wav_bytes = record_stop()          # 返回 (record_id, wav数据)
+
+# 播放
+play_wav(wav_bytes)                   # 播放 WAV 字节
+
+# TTS
+wav = say('你好', lang='zh')          # 生成 WAV
+play_wav(wav)                         # 直接播放
 ```
 
 ---
@@ -178,14 +263,31 @@ interface FireGuardApi {
     
     @POST("api/navigate")
     suspend fun navigate(@Body goal: GoalPose): ApiResponse
+
+    // 音频
+    @GET("api/audio/devices")
+    suspend fun getAudioDevices(): DeviceResponse
+
+    @POST("api/audio/record/start")
+    suspend fun recordStart(@Body body: Map<String, Int>): ApiResponse
+
+    @POST("api/audio/record/stop")
+    suspend fun recordStop(): ApiResponse
+
+    @POST("api/audio/say")
+    suspend fun say(@Body body: Map<String, String>): ApiResponse
 }
 
 // 数据结构
 data class MoveCmd(val cmd: String, val speed: Int, val duration: Double)
 data class GoalPose(val x: Double, val y: Double, val theta: Double = 0.0)
+data class SayCmd(val text: String, val lang: String = "zh")
 
 // 视频流 (用 ImageView 或 WebView)
 // val url = "http://<小车IP>:5000/video_feed"
+
+// 录音 WAV 下载
+// val wavUrl = "http://<小车IP>:5000/api/audio/record/${recordId}.wav"
 ```
 
 ---
