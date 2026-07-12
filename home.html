@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>巡检主页 - FireGuard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="prototype-title">
+        <span>S02</span>
+        <h1>FireGuard 工业巡检 APP</h1>
+      </header>
+      <section class="phone">
+        <div class="speaker"></div>
+        <div class="content">
+          <header class="page-head">
+            <div>
+              <h2>巡检主页</h2>
+              <p>今日任务总览</p>
+            </div>
+            <span class="pill green">自动巡检待命</span>
+          </header>
+
+          <div class="card">
+            <div class="row"><span>当前区域</span><strong>园区 A 栋一层</strong></div>
+            <div class="row"><span>当前任务</span><strong>配电房与仓储通道巡检</strong></div>
+          </div>
+
+          <div class="metrics">
+            <div class="metric"><strong>86%</strong><span>电量</span></div>
+            <div class="metric"><strong>4</strong><span>待巡检点</span></div>
+            <div class="metric"><strong>正常</strong><span>烟雾值</span></div>
+            <div class="metric"><strong>29°C</strong><span>机柜环境温度</span></div>
+          </div>
+
+          <div class="card recommend">
+            <span class="card-label">推荐动作</span>
+            <strong>开始自动巡检，预计 6 分钟完成</strong>
+          </div>
+
+          <div class="actions">
+            <a class="btn primary" href="./map.html">开始自动巡检</a>
+            <a class="btn" href="./manual.html">手动控制</a>
+          </div>
+        </div>
+        <nav class="tabbar" aria-label="手机菜单">
+          <a href="./index.html">连接</a>
+          <a class="active" href="./home.html">主页</a>
+          <a href="./map.html">地图</a>
+          <a href="./alert.html">告警</a>
+          <a href="./delivery.html">配送</a>
+          <a href="./manual.html">接管</a>
+          <a href="./report.html">报告</a>
+        </nav>
+      </section>
+    </main>
+  </body>
+</html>

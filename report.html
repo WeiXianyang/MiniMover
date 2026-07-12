@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>巡检报告 - FireGuard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="prototype-title">
+        <span>S07</span>
+        <h1>FireGuard 工业巡检 APP</h1>
+      </header>
+      <section class="phone">
+        <div class="speaker"></div>
+        <div class="content">
+          <header class="page-head">
+            <div>
+              <h2>巡检报告</h2>
+              <p>一次任务结束后的摘要视图</p>
+            </div>
+            <span class="pill green">已归档</span>
+          </header>
+
+          <div class="metrics">
+            <div class="metric"><strong>6m 28s</strong><span>巡检耗时</span></div>
+            <div class="metric"><strong>4/4</strong><span>完成点位</span></div>
+            <div class="metric"><strong>1 次</strong><span>高等级告警</span></div>
+            <div class="metric"><strong>2 次</strong><span>动态避障</span></div>
+          </div>
+
+          <div class="card">
+            <div class="row"><span>事件 01</span><strong>配电柜A 发现疑似烟雾</strong></div>
+            <div class="row"><span>事件 02</span><strong>仓储通道纸箱避障成功</strong></div>
+            <div class="row"><span>处理结果</span><strong>应急配送完成，车辆已返航</strong></div>
+          </div>
+
+          <div class="card recommend">
+            <strong>导出能力</strong>
+            <p>支持导出图片、视频片段、任务时间线和组会汇报摘要。</p>
+          </div>
+
+          <div class="actions">
+            <a class="btn" href="./report.html">导出 PDF</a>
+            <a class="btn" href="./report.html">分享报告</a>
+          </div>
+        </div>
+        <nav class="tabbar" aria-label="手机菜单">
+          <a href="./index.html">连接</a>
+          <a href="./home.html">主页</a>
+          <a href="./map.html">地图</a>
+          <a href="./alert.html">告警</a>
+          <a href="./delivery.html">配送</a>
+          <a href="./manual.html">接管</a>
+          <a class="active" href="./report.html">报告</a>
+        </nav>
+      </section>
+    </main>
+  </body>
+</html>

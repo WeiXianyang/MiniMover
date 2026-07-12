@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>地图导航 - FireGuard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="prototype-title">
+        <span>S03</span>
+        <h1>FireGuard 工业巡检 APP</h1>
+      </header>
+      <section class="phone">
+        <div class="speaker"></div>
+        <div class="content">
+          <header class="page-head">
+            <div>
+              <h2>地图导航</h2>
+              <p>实时路径与点位</p>
+            </div>
+            <span class="pill orange">避障中</span>
+          </header>
+
+          <div class="map">
+            <i class="route-x"></i>
+            <i class="route-y"></i>
+            <span class="map-node node-a">A</span>
+            <span class="map-node node-b">B</span>
+            <span class="map-node node-c">C</span>
+            <span class="car"></span>
+          </div>
+
+          <div class="legend">
+            <span><i class="cyan"></i>当前路径</span>
+            <span><i class="orange-dot"></i>小车位置</span>
+            <span><i class="red-dot"></i>告警点</span>
+          </div>
+
+          <div class="card">
+            <div class="row"><span>巡检进度</span><strong>41%</strong></div>
+            <div class="bar"><i style="width: 41%"></i></div>
+            <p>已到达 B2 区域，正在靠近配电柜 A。</p>
+          </div>
+
+          <div class="actions">
+            <a class="btn" href="./home.html">暂停任务</a>
+            <a class="btn" href="./manual.html">手动接管</a>
+          </div>
+        </div>
+        <nav class="tabbar" aria-label="手机菜单">
+          <a href="./index.html">连接</a>
+          <a href="./home.html">主页</a>
+          <a class="active" href="./map.html">地图</a>
+          <a href="./alert.html">告警</a>
+          <a href="./delivery.html">配送</a>
+          <a href="./manual.html">接管</a>
+          <a href="./report.html">报告</a>
+        </nav>
+      </section>
+    </main>
+  </body>
+</html>

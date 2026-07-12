@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设备连接 - FireGuard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="prototype-title">
+        <span>S01</span>
+        <h1>FireGuard 工业巡检 APP</h1>
+      </header>
+      <section class="phone">
+        <div class="speaker"></div>
+        <div class="content">
+          <header class="page-head">
+            <div>
+              <h2>设备连接</h2>
+              <p>OpenHarmony 控制入口</p>
+            </div>
+            <span class="pill green">最近在线</span>
+          </header>
+
+          <label class="field">
+            <span>小车 IP</span>
+            <input value="192.168.1.11" />
+          </label>
+          <label class="field">
+            <span>TCP 控制端口</span>
+            <input value="6000" />
+          </label>
+          <label class="field">
+            <span>视频端口</span>
+            <input value="6500" />
+          </label>
+
+          <div class="card">
+            <div class="row"><span>设备状态</span><strong>Jetson / ROS2 / 视频服务正常</strong></div>
+            <div class="row"><span>最近任务</span><strong>07-07 上午巡检</strong></div>
+            <div class="row"><span>上次连接</span><strong>09:26</strong></div>
+          </div>
+
+          <div class="actions single">
+            <a class="btn primary" href="./home.html">连接并进入巡检控制台</a>
+          </div>
+        </div>
+        <nav class="tabbar" aria-label="手机菜单">
+          <a class="active" href="./index.html">连接</a>
+          <a href="./home.html">主页</a>
+          <a href="./map.html">地图</a>
+          <a href="./alert.html">告警</a>
+          <a href="./delivery.html">配送</a>
+          <a href="./manual.html">接管</a>
+          <a href="./report.html">报告</a>
+        </nav>
+      </section>
+    </main>
+  </body>
+</html>
