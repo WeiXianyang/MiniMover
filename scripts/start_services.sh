@@ -14,6 +14,15 @@ sudo modprobe uvcvideo 2>/dev/null
 sleep 2
 sudo ln -sf /dev/video0 /dev/camera_depth 2>/dev/null
 
+# 1.5 修复底盘串口 (某台小车 /dev/myserial 可能指向错误的 ttyUSB)
+if [ -L /dev/myserial ]; then
+    ACTUAL=$(readlink /dev/myserial)
+    if [ "$ACTUAL" = "/dev/ttyUSB2" ]; then
+        sudo rm /dev/myserial && sudo ln -s /dev/ttyUSB1 /dev/myserial
+        echo -e "  ${GREEN}✅ 修复底盘串口: /dev/myserial -> /dev/ttyUSB1${NC}"
+    fi
+fi
+
 # 2. 启动 yahboom 容器 (底盘+雷达用)
 sudo docker start $YAHBOOM_CONTAINER >/dev/null 2>&1
 echo -e "  ${GREEN}✅ yahboom 容器已启动${NC}"
