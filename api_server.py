@@ -30,11 +30,13 @@ def get_status():
 def move():
     data = request.json; cmd = data.get('cmd','stop')
     s = min(data.get('speed',50),100); t = data.get('duration',0.5)
-    speed = s/100.0*50; vx=vy=vz=0
+    speed = s/100.0; vx=vy=vz=0
     if cmd=='forward': vx=speed
     elif cmd=='backward': vx=-speed
-    elif cmd=='left': vz=speed*0.5
-    elif cmd=='right': vz=-speed*0.5
+    elif cmd=='left': vz=speed*3
+    elif cmd=='right': vz=-speed*3
+    elif cmd=='rotate_left': vz=speed*3
+    elif cmd=='rotate_right': vz=-speed*3
     elif cmd=='left_shift': vy=speed
     elif cmd=='right_shift': vy=-speed
     bot.set_car_motion(vx,vy,vz)
@@ -239,35 +241,60 @@ def dashboard():
     return '''<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no"><title>FireGuard</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#1a1a2e;color:#eee;font-family:Arial;text-align:center;padding:10px}
-h1{font-size:18px;color:#e94560;margin:8px 0}
-.video-wrap{background:#16213e;border-radius:10px;padding:8px;margin:8px auto;max-width:700px}
+body{background:#1a1a2e;color:#eee;font-family:Arial;text-align:center;padding:10px;max-width:480px;margin:0 auto}
+h1{font-size:18px;color:#e94560;margin:6px 0}
+.nav-link{font-size:13px;color:#38bdf8;text-decoration:none;margin:4px;display:inline-block}
+.ip-bar{font-size:12px;color:#aaa;margin:4px 0}
+.sensors{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin:6px 0}
+.sensors span{background:#0f3460;padding:3px 10px;border-radius:12px;font-size:12px}
+.video-wrap{background:#16213e;border-radius:10px;padding:6px;margin:6px auto}
 .video-wrap img{width:100%;border-radius:6px;display:block}
-.ip-bar{font-size:13px;color:#aaa;margin:6px 0}
-.sensors{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:8px 0}
-.sensors span{background:#0f3460;padding:4px 12px;border-radius:15px;font-size:13px}
-.ctrl-grid{display:inline-grid;grid-template-columns:70px 70px 70px;gap:6px;margin:10px 0}
-.ctrl-grid button{height:60px;border:none;border-radius:10px;font-size:22px;cursor:pointer;background:#16213e;color:#eee}
-.ctrl-grid button:active{transform:scale(.92)}
-.ctrl-grid .fwd{grid-column:2;background:#0f3460}
-.ctrl-grid .bk{grid-column:2;background:#0f3460}
-.ctrl-grid .stop{grid-column:2;background:#e94560;font-size:16px;height:44px}
-.speed-bar{display:flex;align-items:center;justify-content:center;gap:10px;margin:8px 0;font-size:14px}
-.nav-link{display:inline-block;margin:6px;padding:6px 16px;border-radius:8px;background:#0f3460;color:#38bdf8;text-decoration:none;font-size:13px}
+
+/* D-pad 方向控制 - 3x3 网格固定位置 */
+.dpad{display:inline-grid;grid-template-columns:64px 64px 64px;grid-template-rows:56px 56px 56px;gap:5px;margin:8px auto}
+.dpad button{height:56px;border:none;border-radius:10px;font-size:20px;cursor:pointer;background:#16213e;color:#eee;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.dpad button:active{transform:scale(.92);opacity:.8}
+.dpad .fwd{grid-column:2;grid-row:1;background:#1a3a6e}
+.dpad .left{grid-column:1;grid-row:2}
+.dpad .stop{grid-column:2;grid-row:2;background:#e94560;font-size:14px;height:46px}
+.dpad .right{grid-column:3;grid-row:2}
+.dpad .bk{grid-column:2;grid-row:3;background:#1a3a6e}
+
+/* 功能按钮行 */
+.func-row{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:4px 0}
+.func-row button{padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:13px;background:#0f3460;color:#eee;min-width:70px}
+.func-row button:active{transform:scale(.92)}
+
+.speed-bar{display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0;font-size:13px}
+.speed-bar input{width:120px}
 </style></head><body>
 <h1>FIRECUARD</h1>
 <a class="nav-link" href="/nav">🗺️ 地图导航</a>
 <div class="ip-bar" id="ipBar">连接中...</div>
 <div class="sensors" id="sensorBar"></div>
 <div class="video-wrap"><img id="videoFeed" src="" alt="video"></div>
-<div class="ctrl-grid">
-<button class="fwd" ontouchstart="m("forward")" onmousedown="m("forward")">^</button>
-<button ontouchstart="m("left")" onmousedown="m("left")"><</button>
-<button class="stop" ontouchstart="m("stop")" onmousedown="m("stop")">STOP</button>
-<button ontouchstart="m("right")" onmousedown="m("right")">></button>
-<button class="bk" ontouchstart="m("backward")" onmousedown="m("backward")">v</button>
+
+<div class="dpad">
+<button class="fwd" onpointerdown="m('forward')">▲</button>
+<button class="left" onpointerdown="m('left')">◀</button>
+<button class="stop" onpointerdown="m('stop')">■ STOP</button>
+<button class="right" onpointerdown="m('right')">▶</button>
+<button class="bk" onpointerdown="m('backward')">▼</button>
 </div>
-<div class="speed-bar"><span>速度</span><input type="range" id="sp" min="10" max="100" value="50" oninput="document.getElementById("sv").textContent=this.value"><span id="sv">50</span></div>
+
+<div class="func-row">
+<button onpointerdown="m('rotate_left')">↺ 左旋</button>
+<button onpointerdown="m('rotate_right')">⟳ 右旋</button>
+<button onpointerdown="m('left_shift')">← 平移</button>
+<button onpointerdown="m('right_shift')">平移 →</button>
+</div>
+
+<div class="speed-bar">
+<span>速度</span>
+<input type="range" id="sp" min="10" max="100" value="50" oninput="document.getElementById('sv').textContent=this.value">
+<span id="sv">50</span>
+</div>
+
 <script>
 var API=window.location.origin;
 function f(){
