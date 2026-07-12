@@ -2,7 +2,9 @@ import argparse
 import os
 import platform
 import shutil
+import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -16,16 +18,43 @@ from utils.general import (
     check_img_size, non_max_suppression, apply_classifier, scale_coords, xyxy2xywh, plot_one_box, strip_optimizer)
 from utils.torch_utils import select_device, load_classifier, time_synchronized
 
+MODULE_ROOT = Path(__file__).resolve().parents[1]
+if str(MODULE_ROOT) not in sys.path:
+    sys.path.insert(0, str(MODULE_ROOT))
+
+from fire_monitor.ai_reviewer import AIReviewer
+from fire_monitor.alarm_service import LoggingAlarmService, configure_monitor_logger
+from fire_monitor.config import FireMonitorConfig
+from fire_monitor.debug_telemetry import DebugTelemetry, NullTelemetry
+from fire_monitor.evidence_store import EvidenceStore
+from fire_monitor.event_manager import FireEventManager
+from fire_monitor.types import build_fire_detections
+
 def detect(save_img=False):
     out, source, weights, view_img, save_txt, imgsz = \
         opt.output, opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size
-    webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
+    webcam = source.isdigit() or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
 
     # Initialize
     device = select_device(opt.device)
     if os.path.exists(out):
         shutil.rmtree(out)  # delete output folder
     os.makedirs(out)  # make new output folder
+    monitor_config = FireMonitorConfig.from_env(MODULE_ROOT)
+    monitor_logger = configure_monitor_logger(monitor_config.runtime_dir)
+    telemetry = DebugTelemetry(Path(opt.monitor_debug_dir)) if opt.monitor_debug_dir else NullTelemetry()
+    if telemetry.enabled:
+        telemetry.reset()
+        telemetry.update(source=source, process={"state": "starting"}, detector={"state": "loading", "hit_count": 0,
+                         "trigger_min_hits": monitor_config.trigger_min_hits}, ai={"state": "idle", "configured": bool(monitor_config.ai_api_key)},
+                         alarm={"state": "idle"}, event={"state": "idle", "event_id": ""})
+        telemetry.event("started", f"Detector process started; source: {source}")
+    reviewer = AIReviewer(monitor_config, telemetry=telemetry)
+    fire_manager = FireEventManager(
+        monitor_config, reviewer,
+        EvidenceStore(monitor_config.evidence_dir, monitor_config.max_evidence_images),
+        LoggingAlarmService(monitor_config.runtime_dir, monitor_logger),
+        minimum_confidence=opt.conf_thres, logger=monitor_logger, telemetry=telemetry)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
     # Load model
@@ -44,7 +73,7 @@ def detect(save_img=False):
     # Set Dataloader
     vid_path, vid_writer = None, None
     if webcam:
-        view_img = True
+        view_img = not opt.no_view
         cudnn.benchmark = True  # set True to speed up constant image size inference
         dataset = LoadStreams(source, img_size=imgsz)
     else:
@@ -57,84 +86,121 @@ def detect(save_img=False):
 
     # Run inference
     t0 = time.time()
+    last_debug_frame = 0.0
+    telemetry.update(process={"state": "running"}, detector={"state": "running"})
+    telemetry.event("source_ready", "Source opened and model loaded")
     img = torch.zeros((1, 3, imgsz, imgsz), device=device)  # init img
     _ = model(img.half() if half else img) if device.type != 'cpu' else None  # run once
-    for path, img, im0s, vid_cap in dataset:
-        img = torch.from_numpy(img).to(device)
-        img = img.half() if half else img.float()  # uint8 to fp16/32
-        img /= 255.0  # 0 - 255 to 0.0 - 1.0
-        if img.ndimension() == 3:
-            img = img.unsqueeze(0)
+    failure = None
+    try:
+        for path, img, im0s, vid_cap in dataset:
+            img = torch.from_numpy(img).to(device)
+            img = img.half() if half else img.float()  # uint8 to fp16/32
+            img /= 255.0  # 0 - 255 to 0.0 - 1.0
+            if img.ndimension() == 3:
+                img = img.unsqueeze(0)
 
-        # Inference
-        t1 = time_synchronized()
-        pred = model(img, augment=opt.augment)[0]
+            # Inference
+            t1 = time_synchronized()
+            pred = model(img, augment=opt.augment)[0]
 
-        # Apply NMS
-        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
-        t2 = time_synchronized()
+            # Apply NMS
+            pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
+            t2 = time_synchronized()
 
-        # Apply Classifier
-        if classify:
-            pred = apply_classifier(pred, modelc, img, im0s)
+            # Apply Classifier
+            if classify:
+                pred = apply_classifier(pred, modelc, img, im0s)
 
-        # Process detections
-        for i, det in enumerate(pred):  # detections per image
-            if webcam:  # batch_size >= 1
-                p, s, im0 = path[i], '%g: ' % i, im0s[i].copy()
-            else:
-                p, s, im0 = path, '', im0s
-
-            save_path = str(Path(out) / Path(p).name)
-            txt_path = str(Path(out) / Path(p).stem) + ('_%g' % dataset.frame if dataset.mode == 'video' else '')
-            s += '%gx%g ' % img.shape[2:]  # print string
-            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
-            if det is not None and len(det):
-                # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
-
-                # Print results
-                for c in det[:, -1].unique():
-                    n = (det[:, -1] == c).sum()  # detections per class
-                    s += '%g %ss, ' % (n, names[int(c)])  # add to string
-
-                # Write results
-                for *xyxy, conf, cls in det:
-                    if save_txt:  # Write to file
-                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                        with open(txt_path + '.txt', 'a') as f:
-                            f.write(('%g ' * 5 + '\n') % (cls, *xywh))  # label format
-
-                    if save_img or view_img:  # Add bbox to image
-                        label = '%s %.2f' % (names[int(cls)], conf)
-                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
-                        # plot_one_box(xyxy, im0, label=None, color=colors[int(cls)], line_thickness=3)  # 只画框，不画类别 置信度
-
-            # Print time (inference + NMS)
-            print('%sDone. (%.3fs)' % (s, t2 - t1))
-
-            # Stream results
-            if view_img:
-                cv2.imshow(p, im0)
-                if cv2.waitKey(1) == ord('q'):  # q to quit
-                    raise StopIteration
-
-            # Save results (image with detections)
-            if save_img:
-                if dataset.mode == 'images':
-                    cv2.imwrite(save_path, im0)
+            # Process detections
+            for i, det in enumerate(pred):  # detections per image
+                if webcam:  # batch_size >= 1
+                    p, s, im0 = path[i], '%g: ' % i, im0s[i].copy()
                 else:
-                    if vid_path != save_path:  # new video
-                        vid_path = save_path
-                        if isinstance(vid_writer, cv2.VideoWriter):
-                            vid_writer.release()  # release previous video writer
+                    p, s, im0 = path, '', im0s
 
-                        fourcc = 'mp4v'  # output video codec
-                        fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                        w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
-                    vid_writer.write(im0)
+                raw_frame = im0.copy()
+                fire_detections = []
+                save_path = str(Path(out) / Path(p).name)
+                txt_path = str(Path(out) / Path(p).stem) + ('_%g' % dataset.frame if dataset.mode == 'video' else '')
+                s += '%gx%g ' % img.shape[2:]  # print string
+                gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+                if det is not None and len(det):
+                    # Rescale boxes from img_size to im0 size
+                    det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                    fire_detections = build_fire_detections(names, det)
+
+                    # Print results
+                    for c in det[:, -1].unique():
+                        n = (det[:, -1] == c).sum()  # detections per class
+                        s += '%g %ss, ' % (n, names[int(c)])  # add to string
+
+                    # Write results
+                    for *xyxy, conf, cls in det:
+                        if save_txt:  # Write to file
+                            xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                            with open(txt_path + '.txt', 'a') as f:
+                                f.write(('%g ' * 5 + '\n') % (cls, *xywh))  # label format
+
+                        if save_img or view_img:  # Add bbox to image
+                            label = '%s %.2f' % (names[int(cls)], conf)
+                            plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
+                            # plot_one_box(xyxy, im0, label=None, color=colors[int(cls)], line_thickness=3)  # 只画框，不画类别 置信度
+
+                now_monotonic = time.monotonic()
+                fire_manager.process_frame(
+                    detections=fire_detections, raw_frame=raw_frame, annotated_frame=im0,
+                    now_monotonic=now_monotonic, captured_at=datetime.now().astimezone())
+                if telemetry.enabled and now_monotonic - last_debug_frame >= 0.2:
+                    telemetry.write_image("latest_frame.jpg", im0)
+                    telemetry.update(detector={"frame_time_seconds": round(t2 - t1, 3)})
+                    last_debug_frame = now_monotonic
+
+                # Print time (inference + NMS)
+                print('%sDone. (%.3fs)' % (s, t2 - t1))
+
+                # Stream results
+                if view_img:
+                    cv2.imshow(p, im0)
+                    if cv2.waitKey(1) == ord('q'):  # q to quit
+                        raise StopIteration
+
+                # Save results (image with detections)
+                if save_img:
+                    if dataset.mode == 'images':
+                        cv2.imwrite(save_path, im0)
+                    else:
+                        if vid_path != save_path:  # new video
+                            vid_path = save_path
+                            if isinstance(vid_writer, cv2.VideoWriter):
+                                vid_writer.release()  # release previous video writer
+
+                            fourcc = 'mp4v'  # output video codec
+                            fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                            w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                            h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
+                        vid_writer.write(im0)
+        if not webcam and reviewer.busy:
+            telemetry.event("video_waiting_ai", "Video ended; waiting for final real AI review")
+            deadline = time.monotonic() + monitor_config.ai_timeout_seconds * (1 + monitor_config.ai_retries) + 5
+            while reviewer.busy and time.monotonic() < deadline:
+                time.sleep(0.1)
+            fire_manager.drain_results(datetime.now().astimezone())
+    except StopIteration:
+        pass
+    except Exception as exc:
+        failure = f"{type(exc).__name__}: {exc}"
+        telemetry.update(process={"state": "failed", "error": failure})
+        telemetry.event("detector_failed", failure)
+        raise
+    finally:
+        fire_manager.close()
+        if failure is None:
+            telemetry.update(process={"state": "stopped", "error": ""})
+            telemetry.event("stopped", "Detector process stopped")
+        if isinstance(vid_writer, cv2.VideoWriter):
+            vid_writer.release()
 
     if save_txt or save_img:
         print('Results saved to %s' % Path(out))
@@ -150,10 +216,12 @@ if __name__ == '__main__':
     parser.add_argument('--source', type=str, default='inference/images', help='source')  # file/folder, 0 for webcam
     parser.add_argument('--output', type=str, default='inference/output', help='output folder')  # output folder
     parser.add_argument('--img-size', type=int, default=640, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.4, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.7, help='object confidence threshold (default: 0.7)')
     parser.add_argument('--iou-thres', type=float, default=0.5, help='IOU threshold for NMS')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', action='store_true', help='display results')
+    parser.add_argument('--no-view', action='store_true', help='disable OpenCV preview window')
+    parser.add_argument('--monitor-debug-dir', type=str, default='', help='write monitor debug telemetry to this directory')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 0 2 3')
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
