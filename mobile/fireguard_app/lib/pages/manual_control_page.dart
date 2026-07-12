@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../services/tcp_service.dart';
 import '../models/control_layout.dart';
 import 'manual_control_settings_page.dart';
+import '../widgets/mjpeg_stream.dart';
 
 /// S06 - 手动接管（横屏游戏风格）
 /// 所有组件位置/大小/透明度由 ControlLayout 驱动，可进入设置页拖拽调整
@@ -176,14 +177,28 @@ class _ManualControlPageState extends State<ManualControlPage> {
   // 视频背景
   // ═══════════════════════════════════════════
   Widget _buildVideoBackground(Size size) {
+    final connected = widget.tcpService.connected;
     return Positioned.fill(
-      child: CustomPaint(
-        size: size,
-        painter: _RoadPainter(),
-        child: const Center(
-          child: Icon(Icons.videocam,
-              color: Color.fromRGBO(255, 255, 255, 0.06), size: 80),
-        ),
+      child: connected
+          ? MjpegStream(
+              host: widget.tcpService.host,
+              port: 6500,
+              width: size.width,
+              height: size.height,
+              placeholder: (ctx) => _buildVideoFallback(size),
+              errorBuilder: (ctx) => _buildVideoFallback(size),
+            )
+          : _buildVideoFallback(size),
+    );
+  }
+
+  Widget _buildVideoFallback(Size size) {
+    return CustomPaint(
+      size: size,
+      painter: _RoadPainter(),
+      child: const Center(
+        child: Icon(Icons.videocam,
+            color: Color.fromRGBO(255, 255, 255, 0.06), size: 80),
       ),
     );
   }
@@ -480,6 +495,11 @@ class _ManualControlPageState extends State<ManualControlPage> {
             Icons.fiber_manual_record,
             _recording ? AppTheme.statusRed : AppTheme.textPrimary, () {
           setState(() => _recording = !_recording);
+          if (_recording) {
+            widget.tcpService.startRecordVideo();
+          } else {
+            widget.tcpService.stopRecordVideo();
+          }
         }),
         _sideBtnItem(_layout.btnMap, parent, Icons.map_outlined,
             AppTheme.textPrimary, () {}),

@@ -1,23 +1,46 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
-import '../services/tcp_service.dart';
+import '../services/car_state.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/page_shell.dart';
 import 'delivery_page.dart';
 import 'manual_control_page.dart';
 
 /// S04 - 告警详情页面
-class AlarmDetailPage extends StatelessWidget {
-  final TcpService tcpService;
+class AlarmDetailPage extends StatefulWidget {
+  final CarState carState;
   final bool embedded;
   const AlarmDetailPage({
     super.key,
-    required this.tcpService,
+    required this.carState,
     this.embedded = false,
   });
 
   @override
+  State<AlarmDetailPage> createState() => _AlarmDetailPageState();
+}
+
+class _AlarmDetailPageState extends State<AlarmDetailPage> {
+  @override
+  void initState() {
+    super.initState();
+    widget.carState.addListener(_onChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.carState.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final cs = widget.carState;
+
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -31,84 +54,126 @@ class AlarmDetailPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const PageHeader(
+              PageHeader(
                 title: '告警详情',
                 subTitle: '视觉 + 传感器联合判定',
-                badgeText: '高等级告警',
-                badgeActive: false,
+                badgeText: cs.hasAlarm ? cs.alarmLevel : '无告警',
+                badgeActive: cs.hasAlarm,
               ),
               const SizedBox(height: 20),
+              // 告警可视化区域
               GlassCard(
-                height: 182,
+                height: cs.hasAlarm ? 182 : 120,
                 padding: const EdgeInsets.all(12),
                 child: Stack(children: [
                   Center(
                     child: Container(
                       width: 280,
-                      height: 140,
+                      height: cs.hasAlarm ? 140 : 80,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [
-                            Colors.red.shade900.withAlpha(77),
-                            Colors.orange.shade900.withAlpha(51),
-                          ],
+                          colors: cs.hasAlarm
+                              ? [
+                                  Colors.red.shade900.withAlpha(77),
+                                  Colors.orange.shade900.withAlpha(51),
+                                ]
+                              : [
+                                  Colors.grey.shade900.withAlpha(40),
+                                  Colors.grey.shade800.withAlpha(30),
+                                ],
                         ),
                       ),
-                      child: const Center(
-                        child: Icon(Icons.smoke_free,
-                            color: AppTheme.textSecondary, size: 40),
+                      child: Center(
+                        child: Icon(
+                          cs.hasAlarm
+                              ? Icons.smoke_free
+                              : Icons.check_circle_outline,
+                          color: AppTheme.textSecondary,
+                          size: 40,
+                        ),
                       ),
                     ),
                   ),
-                  const Positioned(
-                    bottom: 8,
-                    right: 16,
-                    child: Text('疑似烟雾区', style: AppTheme.bodyValue),
-                  ),
+                  if (cs.hasAlarm)
+                    const Positioned(
+                      bottom: 8,
+                      right: 16,
+                      child: Text('疑似烟雾区', style: AppTheme.bodyValue),
+                    ),
                 ]),
               ),
               const SizedBox(height: 14),
               GlassCard(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: const Column(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Column(
                   children: [
-                    InfoRow(label: '告警位置', value: '配电柜A 北侧'),
-                    Divider(color: AppTheme.dividerLine, height: 20),
-                    InfoRow(label: '视觉置信度', value: '0.93'),
-                    Divider(color: AppTheme.dividerLine, height: 20),
-                    InfoRow(label: '烟雾值', value: '86 ppm'),
-                    Divider(color: AppTheme.dividerLine, height: 20),
-                    InfoRow(label: '温度', value: '67°C'),
+                    InfoRow(
+                      label: '告警位置',
+                      value: cs.hasAlarm ? cs.alarmLocation : '—',
+                    ),
+                    const Divider(color: AppTheme.dividerLine, height: 20),
+                    InfoRow(
+                      label: '视觉置信度',
+                      value: cs.hasAlarm
+                          ? cs.alarmConfidence.toStringAsFixed(2)
+                          : '—',
+                    ),
+                    const Divider(color: AppTheme.dividerLine, height: 20),
+                    const InfoRow(label: '烟雾值', value: '86 ppm'),
+                    const Divider(color: AppTheme.dividerLine, height: 20),
+                    const InfoRow(label: '温度', value: '67°C'),
                   ],
                 ),
               ),
               const SizedBox(height: 14),
               GlassCard(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: const Column(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('处置建议', style: AppTheme.bodyValue),
-                    SizedBox(height: 8),
-                    Text('建议先停车并拉起远程接管，同时发起应急物资配送。',
-                        style: AppTheme.bodyLabel),
+                    const Text('处置建议', style: AppTheme.bodyValue),
+                    const SizedBox(height: 8),
+                    Text(
+                      cs.hasAlarm
+                          ? '建议先停车并拉起远程接管，同时发起应急物资配送。'
+                          : '当前无告警，可正常巡检。',
+                      style: AppTheme.bodyLabel,
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
               GradientButton(
                 text: '发起应急配送',
-                onTap: () => _push(context, '定点配送', DeliveryPage(tcpService: tcpService, embedded: true)),
+                onTap: () {
+                  cs.startDelivery();
+                  _push(context, '定点配送',
+                      DeliveryPage(carState: cs, embedded: true));
+                },
               ),
               const SizedBox(height: 12),
               GradientButton(
-                text: '进入远程接管',
+                text: cs.hasAlarm ? '进入远程接管' : '手动接管',
                 secondary: true,
-                onTap: () => _push(context, '手动接管', ManualControlPage(tcpService: tcpService, embedded: true)),
+                onTap: () => _push(
+                    context,
+                    '手动接管',
+                    ManualControlPage(
+                        tcpService: cs.tcpService, embedded: true)),
               ),
+              if (cs.hasAlarm) ...[
+                const SizedBox(height: 12),
+                GradientButton(
+                  text: '清除告警',
+                  secondary: true,
+                  onTap: () => cs.clearAlarm(),
+                ),
+              ],
             ],
           ),
         ),
@@ -135,9 +200,10 @@ class AlarmDetailPage extends StatelessWidget {
       );
 
   Widget _wrap(BuildContext context, Widget content) {
-    if (embedded) {
+    if (widget.embedded) {
       return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(AppTheme.pagePadding, 16, AppTheme.pagePadding, 8),
+        padding: const EdgeInsets.fromLTRB(
+            AppTheme.pagePadding, 16, AppTheme.pagePadding, 8),
         child: content,
       );
     }
