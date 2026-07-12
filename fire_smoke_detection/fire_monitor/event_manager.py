@@ -8,6 +8,7 @@ from typing import Dict, Optional, Sequence
 import cv2
 
 from .types import AIReviewRequest, AIResultKind, AlarmEvent, Detection, EventState, FIRE_CLASSES
+from .debug_telemetry import NullTelemetry
 
 
 @dataclass
@@ -26,9 +27,9 @@ class _Event:
 
 
 class FireEventManager:
-    def __init__(self, config, reviewer, evidence_store, alarm_service, minimum_confidence: float, logger):
+    def __init__(self, config, reviewer, evidence_store, alarm_service, minimum_confidence: float, logger, telemetry=None):
         self.config=config; self.reviewer=reviewer; self.store=evidence_store; self.alarms=alarm_service
-        self.minimum_confidence=minimum_confidence; self.logger=logger
+        self.minimum_confidence=minimum_confidence; self.logger=logger; self.telemetry=telemetry or NullTelemetry()
         self._hits=deque(); self._event: Optional[_Event]=None; self._counter=0
 
     @property
@@ -37,6 +38,17 @@ class FireEventManager:
     def process_frame(self, detections: Sequence[Detection], raw_frame, annotated_frame, now_monotonic: float, captured_at) -> None:
         qualifying=[d for d in detections if d.class_name.lower() in FIRE_CLASSES and d.confidence >= self.minimum_confidence]
         hit=bool(qualifying)
+        cutoff=now_monotonic-self.config.trigger_window_seconds
+        while self._hits and self._hits[0] < cutoff:self._hits.popleft()
+        if not self._event and hit:self._hits.append(now_monotonic)
+        self.telemetry.update(detector={"hit": hit, "hit_count": len(self._hits),
+                                       "trigger_min_hits": self.config.trigger_min_hits,
+                                       "classes": sorted({d.class_name.lower() for d in qualifying}),
+                                       "max_confidence": max((d.confidence for d in qualifying), default=0.0)},
+                              event={"state": self.state.value, "event_id": self._event.event_id if self._event else ""})
+        if hit and not self._event:
+            self.telemetry.event("yolo_hit", ", ".join(f"{d.class_name} {d.confidence:.2f}" for d in qualifying),
+                                 hit_count=len(self._hits), trigger_min_hits=self.config.trigger_min_hits)
         if (self._event and not hit and self._event.in_flight and
                 now_monotonic - self._event.last_hit >= self.config.event_clear_seconds):
             self._event.local_detection_gone = True
@@ -60,9 +72,6 @@ class FireEventManager:
                 self._save_evidence(annotated_frame,now_monotonic,captured_at,"periodic")
             return
         if not hit:return
-        self._hits.append(now_monotonic)
-        cutoff=now_monotonic-self.config.trigger_window_seconds
-        while self._hits and self._hits[0] < cutoff:self._hits.popleft()
         if len(self._hits) >= self.config.trigger_min_hits:
             self._counter+=1
             event_id=f"fire_{captured_at.strftime('%Y%m%d_%H%M%S_%f')}_{self._counter:03d}"
@@ -79,13 +88,23 @@ class FireEventManager:
         ok,encoded=cv2.imencode('.jpg',raw,[cv2.IMWRITE_JPEG_QUALITY,90])
         if not ok:raise RuntimeError('failed to encode AI review JPEG')
         path=self.store.save(e.event_id,e.review_id,capture_type,captured_at,annotated,self._metadata())
-        request=AIReviewRequest(e.event_id,e.review_id,encoded.tobytes(),captured_at)
+        jpeg_bytes=encoded.tobytes()
+        self.telemetry.write_jpeg_bytes("latest_ai_upload.jpg", jpeg_bytes)
+        self.telemetry.update(event={"state": e.state.value, "event_id": e.event_id, "review_id": e.review_id,
+                                     "evidence_path": str(path), "capture_type": capture_type},
+                              ai={"state": "queued", "attempt": 0, "result": "", "error": ""})
+        self.telemetry.event("captured", f"Evidence captured: {path}", event_id=e.event_id, review_id=e.review_id,
+                             evidence_path=str(path), capture_type=capture_type)
+        self.telemetry.event("ai_upload", "Unannotated image queued for real AI upload", event_id=e.event_id, review_id=e.review_id)
+        request=AIReviewRequest(e.event_id,e.review_id,jpeg_bytes,captured_at)
         if not self.reviewer.submit(request):raise RuntimeError('AI reviewer rejected an expected task')
         e.evidence_paths[e.review_id]=path;e.in_flight=True;e.state=EventState.AI_REVIEWING;e.last_review_capture=now;e.last_evidence_capture=now
 
     def _save_evidence(self,annotated,now,captured_at,capture_type):
         e=self._event
-        self.store.save(e.event_id,e.review_id,capture_type,captured_at,annotated,self._metadata("not_requested"));e.last_evidence_capture=now
+        path=self.store.save(e.event_id,e.review_id,capture_type,captured_at,annotated,self._metadata("not_requested"));e.last_evidence_capture=now
+        self.telemetry.update(event={"evidence_path": str(path), "capture_type": capture_type})
+        self.telemetry.event("evidence", f"Periodic evidence saved: {path}", evidence_path=str(path), capture_type=capture_type)
 
     def _consume_results(self,captured_at):
         for result in self.reviewer.poll():
@@ -104,10 +123,20 @@ class FireEventManager:
                 e.state=EventState.AI_REJECTED
             else:
                 e.state=EventState.AI_FAILED;alarm=("ai_unavailable",result.error or "AI服务失效，需人工介入",None,self.alarms.report_ai_unavailable)
+            self.telemetry.update(event={"state": e.state.value, "event_id": e.event_id})
             if alarm:
                 kind,reason,confidence,method=alarm
-                method(AlarmEvent(e.event_id,kind,captured_at,reason,confidence,str(path) if path else None,e.local_detection_gone))
+                sent=method(AlarmEvent(e.event_id,kind,captured_at,reason,confidence,str(path) if path else None,e.local_detection_gone))
+                self.telemetry.update(alarm={"state": "triggered" if sent else "duplicate", "type": kind, "reason": reason})
+                self.telemetry.event("alarm", f"{kind}: {reason}", alarm_type=kind, sent=sent)
             if e.local_detection_gone:self._reset()
 
-    def _reset(self):self._event=None;self._hits.clear()
+    def _reset(self):
+        previous=self._event.event_id if self._event else ""
+        self._event=None;self._hits.clear()
+        self.telemetry.update(event={"state": EventState.IDLE.value, "event_id": ""}, detector={"hit_count": 0})
+        if previous:self.telemetry.event("event_cleared", f"Event cleared: {previous}", event_id=previous)
+    def drain_results(self, captured_at) -> None:
+        self._consume_results(captured_at)
+
     def close(self):self.reviewer.close()

@@ -25,6 +25,7 @@ if str(MODULE_ROOT) not in sys.path:
 from fire_monitor.ai_reviewer import AIReviewer
 from fire_monitor.alarm_service import LoggingAlarmService, configure_monitor_logger
 from fire_monitor.config import FireMonitorConfig
+from fire_monitor.debug_telemetry import DebugTelemetry, NullTelemetry
 from fire_monitor.evidence_store import EvidenceStore
 from fire_monitor.event_manager import FireEventManager
 from fire_monitor.types import build_fire_detections
@@ -32,7 +33,7 @@ from fire_monitor.types import build_fire_detections
 def detect(save_img=False):
     out, source, weights, view_img, save_txt, imgsz = \
         opt.output, opt.source, opt.weights, opt.view_img, opt.save_txt, opt.img_size
-    webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
+    webcam = source.isdigit() or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
 
     # Initialize
     device = select_device(opt.device)
@@ -41,12 +42,19 @@ def detect(save_img=False):
     os.makedirs(out)  # make new output folder
     monitor_config = FireMonitorConfig.from_env(MODULE_ROOT)
     monitor_logger = configure_monitor_logger(monitor_config.runtime_dir)
-    reviewer = AIReviewer(monitor_config)
+    telemetry = DebugTelemetry(Path(opt.monitor_debug_dir)) if opt.monitor_debug_dir else NullTelemetry()
+    if telemetry.enabled:
+        telemetry.reset()
+        telemetry.update(source=source, process={"state": "starting"}, detector={"state": "loading", "hit_count": 0,
+                         "trigger_min_hits": monitor_config.trigger_min_hits}, ai={"state": "idle", "configured": bool(monitor_config.ai_api_key)},
+                         alarm={"state": "idle"}, event={"state": "idle", "event_id": ""})
+        telemetry.event("started", f"Detector process started; source: {source}")
+    reviewer = AIReviewer(monitor_config, telemetry=telemetry)
     fire_manager = FireEventManager(
         monitor_config, reviewer,
         EvidenceStore(monitor_config.evidence_dir, monitor_config.max_evidence_images),
         LoggingAlarmService(monitor_config.runtime_dir, monitor_logger),
-        minimum_confidence=opt.conf_thres, logger=monitor_logger)
+        minimum_confidence=opt.conf_thres, logger=monitor_logger, telemetry=telemetry)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
     # Load model
@@ -65,7 +73,7 @@ def detect(save_img=False):
     # Set Dataloader
     vid_path, vid_writer = None, None
     if webcam:
-        view_img = True
+        view_img = not opt.no_view
         cudnn.benchmark = True  # set True to speed up constant image size inference
         dataset = LoadStreams(source, img_size=imgsz)
     else:
@@ -78,6 +86,9 @@ def detect(save_img=False):
 
     # Run inference
     t0 = time.time()
+    last_debug_frame = 0.0
+    telemetry.update(process={"state": "running"}, detector={"state": "running"})
+    telemetry.event("source_ready", "Source opened and model loaded")
     img = torch.zeros((1, 3, imgsz, imgsz), device=device)  # init img
     _ = model(img.half() if half else img) if device.type != 'cpu' else None  # run once
     try:
@@ -135,9 +146,14 @@ def detect(save_img=False):
                             plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
                             # plot_one_box(xyxy, im0, label=None, color=colors[int(cls)], line_thickness=3)  # 只画框，不画类别 置信度
 
+                now_monotonic = time.monotonic()
                 fire_manager.process_frame(
                     detections=fire_detections, raw_frame=raw_frame, annotated_frame=im0,
-                    now_monotonic=time.monotonic(), captured_at=datetime.now().astimezone())
+                    now_monotonic=now_monotonic, captured_at=datetime.now().astimezone())
+                if telemetry.enabled and now_monotonic - last_debug_frame >= 0.2:
+                    telemetry.write_image("latest_frame.jpg", im0)
+                    telemetry.update(detector={"frame_time_seconds": round(t2 - t1, 3)})
+                    last_debug_frame = now_monotonic
 
                 # Print time (inference + NMS)
                 print('%sDone. (%.3fs)' % (s, t2 - t1))
@@ -164,10 +180,18 @@ def detect(save_img=False):
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                             vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*fourcc), fps, (w, h))
                         vid_writer.write(im0)
+        if not webcam and reviewer.busy:
+            telemetry.event("video_waiting_ai", "Video ended; waiting for final real AI review")
+            deadline = time.monotonic() + monitor_config.ai_timeout_seconds * (1 + monitor_config.ai_retries) + 5
+            while reviewer.busy and time.monotonic() < deadline:
+                time.sleep(0.1)
+            fire_manager.drain_results(datetime.now().astimezone())
     except StopIteration:
         pass
     finally:
         fire_manager.close()
+        telemetry.update(process={"state": "stopped"})
+        telemetry.event("stopped", "Detector process stopped")
         if isinstance(vid_writer, cv2.VideoWriter):
             vid_writer.release()
 
@@ -189,6 +213,8 @@ if __name__ == '__main__':
     parser.add_argument('--iou-thres', type=float, default=0.5, help='IOU threshold for NMS')
     parser.add_argument('--device', default='0', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', action='store_true', help='display results')
+    parser.add_argument('--no-view', action='store_true', help='disable OpenCV preview window')
+    parser.add_argument('--monitor-debug-dir', type=str, default='', help='write monitor debug telemetry to this directory')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class: --class 0, or --class 0 2 3')
     parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')

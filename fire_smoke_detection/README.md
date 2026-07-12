@@ -112,3 +112,13 @@ bash run.sh --source 0 --view-img
 ```powershell
 python -m unittest discover -s fire_smoke_detection/tests -v
 ```
+
+## 临时火情链路测试窗口
+
+窗口支持真实摄像头和本地视频，运行现有 YOLO、抓拍、真实 AI 复审及报警链路，并显示实际发送给 AI 的无框原图：
+
+```powershell
+python fire_smoke_detection/fire_monitor_test_window.py
+```
+
+使用前请在 `fire_smoke_detection/.env` 配置 `FIRE_AI_API_KEY`。选择摄像头编号或视频后点击“启动”。调试数据位于 `fire_smoke_detection/runtime/debug/`，不计入最多 10 张正式证据图；窗口关闭时会终止检测子进程并释放摄像头。
