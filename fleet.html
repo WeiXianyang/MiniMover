@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>车队编队 - FireGuard</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="prototype-title">
+        <span>S08</span>
+        <h1>FireGuard 工业巡检 APP</h1>
+      </header>
+      <section class="phone">
+        <div class="speaker"></div>
+        <div class="content">
+          <header class="page-head">
+            <div>
+              <h2>车队编队</h2>
+              <p>主车领航 + 多从车跟随编队</p>
+            </div>
+            <span class="pill green">编队就绪</span>
+          </header>
+
+          <div class="fleet-list">
+            <div class="fleet-item active">
+              <div class="icon">△</div>
+              <div class="meta">
+                <strong>主车 · 队长</strong>
+                <span>192.168.1.11 · 任务: 编队领航</span>
+              </div>
+              <div class="fleet-status"><span class="dot"></span>86%</div>
+            </div>
+
+            <div class="fleet-item">
+              <div class="icon">△</div>
+              <div class="meta">
+                <strong>从车 1</strong>
+                <span>编队距离: 1.2m · 速度: 0.5 m/s</span>
+              </div>
+              <div class="fleet-status"><span class="dot"></span>72%</div>
+            </div>
+
+            <div class="fleet-item">
+              <div class="icon">△</div>
+              <div class="meta">
+                <strong>从车 2</strong>
+                <span>编队距离: 1.5m · 速度: 0.5 m/s</span>
+              </div>
+              <div class="fleet-status"><span class="dot"></span>65%</div>
+            </div>
+
+            <div class="fleet-add">+ 添加从车</div>
+          </div>
+
+          <div class="section-divider"></div>
+          <div class="section-title">编队命令</div>
+          <div class="fleet-commands">
+            <div class="actions">
+              <a class="btn primary" href="./home.html">🚀 出发</a>
+              <a class="btn" href="./home.html">🛑 停止</a>
+            </div>
+            <div class="actions single">
+              <a class="btn warning" href="./home.html">⚠ 解散编队</a>
+            </div>
+          </div>
+
+          <div class="section-divider"></div>
+          <div class="section-title">编队统计</div>
+          <div class="fleet-stats">
+            <div class="fleet-stat">
+              <strong>3</strong>
+              <span>车辆总数</span>
+            </div>
+            <div class="fleet-stat green">
+              <strong>74%</strong>
+              <span>平均电量</span>
+            </div>
+            <div class="fleet-stat orange">
+              <strong>05s</strong>
+              <span>编队运行</span>
+            </div>
+          </div>
+
+          <div class="fleet-footer-hint">左滑卡片移除从车 · 点击查看详情</div>
+        </div>
+        <nav class="tabbar" aria-label="手机菜单">
+          <a href="./index.html">连接</a>
+          <a href="./home.html">主页</a>
+          <a href="./map.html">地图</a>
+          <a href="./alert.html">告警</a>
+          <a href="./delivery.html">配送</a>
+          <a href="./manual.html">接管</a>
+          <a class="active" href="./fleet.html">编队</a>
+          <a href="./report.html">报告</a>
+        </nav>
+      </section>
+    </main>
+  </body>
+</html>
