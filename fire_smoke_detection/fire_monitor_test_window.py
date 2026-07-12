@@ -51,6 +51,38 @@ def read_debug_snapshot(debug_dir: Path, event_offset: int):
     return status, events, event_offset
 
 
+def format_ai_error(error):
+    """Render an empty AI error field as an explicit non-error status."""
+    return str(error).strip() if error else "无"
+
+
+def stop_process_tree(process, platform: str | None = None):
+    """Stop a detector and every descendant that may own the camera."""
+    if process is None or process.poll() is not None:
+        return
+    current_platform = sys.platform if platform is None else platform
+    if current_platform == "win32":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+        return
+
+    process.terminate()
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=5)
+
+
 def _nested(payload, *keys, default="-"):
     value = payload
     for key in keys:
@@ -67,6 +99,7 @@ class MonitorTestWindow(tk.Tk):
         self.geometry("1180x780")
         self.minsize(920, 650)
         self.process = None
+        self.process_log = None
         self.event_offset = 0
         self.preview_refs = {}
         self.debug_dir = DEFAULT_DEBUG_DIR
@@ -148,15 +181,15 @@ class MonitorTestWindow(tk.Tk):
         self._append_log("窗口", "已启动检测子进程")
 
     def stop_detector(self):
-        if self.process and self.process.poll() is None:
-            self.process.terminate()
-            try:
-                self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-            self._append_log("窗口", "检测进程已停止")
+        process = self.process
         self.process = None
-        self.summary.set("已停止")
+        if process and process.poll() is None:
+            stop_process_tree(process)
+            self._append_log("窗口", "检测进程树已停止，摄像头已释放")
+        if self.process_log:
+            self.process_log.close()
+            self.process_log = None
+        self.summary.set("已停止，摄像头已释放")
 
     def _refresh(self):
         status, events, self.event_offset = read_debug_snapshot(self.debug_dir, self.event_offset)
@@ -185,7 +218,7 @@ class MonitorTestWindow(tk.Tk):
         self.summary.set(f"进程: {process}  |  触发进度: {hit_count}/{required}  |  事件: {event_state}  |  AI: {ai_state} 第{ai_attempt}次  |  报警: {alarm}")
         detail = (f"YOLO: {_nested(status, 'detector', 'classes', default=[])}，最高置信度 {_nested(status, 'detector', 'max_confidence', default=0)}\n"
                   f"AI结果: {result or '-'}，置信度 {_nested(status, 'ai', 'confidence')}，原因 {_nested(status, 'ai', 'reason')}\n"
-                  f"AI错误: {_nested(status, 'ai', 'error')}\n证据路径: {evidence or '-'}")
+                  f"AI错误: {format_ai_error(_nested(status, 'ai', 'error', default=''))}\n证据路径: {evidence or '-'}")
         self._set_text(self.status_text, detail)
 
     def _show_image(self, label, path: Path, key: str):

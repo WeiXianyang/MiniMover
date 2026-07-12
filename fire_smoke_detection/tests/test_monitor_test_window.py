@@ -1,15 +1,42 @@
 ﻿import json
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from fire_monitor_test_window import build_detector_command, read_debug_snapshot
+from fire_monitor_test_window import (
+    build_detector_command,
+    format_ai_error,
+    read_debug_snapshot,
+    stop_process_tree,
+)
 
 
 class MonitorTestWindowTests(unittest.TestCase):
+    def test_formats_empty_ai_error_as_none(self):
+        self.assertEqual(format_ai_error(""), "\u65e0")
+        self.assertEqual(format_ai_error(None), "\u65e0")
+        self.assertEqual(format_ai_error("timeout"), "timeout")
+
+    @patch("fire_monitor_test_window.subprocess.run")
+    def test_stops_entire_process_tree_on_windows(self, run):
+        process = Mock(pid=1234)
+        process.poll.return_value = None
+
+        stop_process_tree(process, platform="win32")
+
+        run.assert_called_once_with(
+            ["taskkill", "/PID", "1234", "/T", "/F"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        process.wait.assert_called_once_with(timeout=5)
+
     def test_builds_real_camera_and_video_commands(self):
         debug = ROOT / "runtime" / "debug"
         camera = build_detector_command("camera", "2", debug, "cpu")
