@@ -134,11 +134,41 @@ class _ManualControlSettingsPageState
   // ═══ 组件（拖拽 + 双指缩放 + 点击选中）══════
   double _lastScale = 1.0;
 
+  /// 根据组件类型计算在设置页中的显示尺寸（匹配实际页面渲染形状）
+  Size _displaySize(ComponentConfig c, Size parent) {
+    final w = (c.width * parent.width).clamp(20.0, parent.width);
+    final h = (c.height * parent.height).clamp(20.0, parent.height);
+    switch (c.type) {
+      case ControlComponent.moveJoystick:
+        // 圆形摇杆 → 正方形
+        final s = (w < h ? w : h);
+        return Size(s, s);
+      case ControlComponent.viewJoystick:
+        // 扁椭圆 → 保持矩形比例
+        return Size(w, h);
+      case ControlComponent.btnLight:
+      case ControlComponent.btnMic:
+      case ControlComponent.btnRecord:
+      case ControlComponent.btnMap:
+      case ControlComponent.btnRadar:
+        // 方形按钮 → 正方形
+        final s = (w < h ? w : h);
+        return Size(s, s);
+      case ControlComponent.radarOverlay:
+        // 雷达小窗 → 正方形（宽当边长）
+        final s = w.clamp(80.0, parent.width * 0.5);
+        return Size(s, s);
+      default:
+        return Size(w, h);
+    }
+  }
+
   Widget _buildComponent(ComponentConfig c, Size parent) {
     final isSelected = _selected?.type == c.type;
     final pos = Offset(c.x * parent.width, c.y * parent.height);
-    final w = (c.width * parent.width).clamp(20.0, parent.width);
-    final h = (c.height * parent.height).clamp(20.0, parent.height);
+    final display = _displaySize(c, parent);
+    final w = display.width;
+    final h = display.height;
 
     return Positioned(
       left: pos.dx, top: pos.dy,
@@ -194,6 +224,8 @@ class _ManualControlSettingsPageState
       case ControlComponent.btnSpeed: return Icons.speed;
       case ControlComponent.btnBack: return Icons.arrow_back;
       case ControlComponent.topBar: return Icons.info_outline;
+      case ControlComponent.btnRadar: return Icons.radar;
+      case ControlComponent.radarOverlay: return Icons.track_changes;
     }
   }
 

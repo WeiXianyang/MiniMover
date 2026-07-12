@@ -33,6 +33,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
   bool _micOn = false;
   bool _recording = false;
   bool _emergencyStopped = false;
+  bool _radarOn = false;
   double _speed = 0.5;
   int _fps = 0;
   Timer? _fpsTimer;
@@ -113,6 +114,46 @@ class _ManualControlPageState extends State<ManualControlPage> {
     widget.tcpService.emergencyStop();
   }
 
+  // ═══════════════════════════════════════════
+  // 雷达小窗
+  // ═══════════════════════════════════════════
+  Widget _buildRadarOverlay(Size parent) {
+    final cfg = _layout.radarOverlay;
+    final sz = cfg.toSize(parent);
+    final pos = cfg.toOffset(parent);
+    // 用小窗宽度做方形边长
+    final side = sz.width.clamp(80.0, parent.width * 0.5);
+
+    return Positioned(
+      left: pos.dx,
+      top: pos.dy,
+      child: Opacity(
+        opacity: cfg.opacity,
+        child: GestureDetector(
+          onTap: () => setState(() => _radarOn = false),
+          child: Container(
+            width: side,
+            height: side,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color.fromRGBO(0, 0, 0, 0.55),
+              border: Border.all(
+                  color: AppTheme.statusGreen.withAlpha(100), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                    color: AppTheme.statusGreen.withAlpha(60),
+                    blurRadius: 12),
+              ],
+            ),
+            child: ClipOval(
+              child: CustomPaint(painter: _RadarPainter()),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _cycleSpeed() {
     setState(() {
       final speeds = [0.25, 0.50, 0.75, 1.0];
@@ -152,6 +193,8 @@ class _ManualControlPageState extends State<ManualControlPage> {
                 Positioned.fill(child: _buildSideButtons(parent)),
                 // 底部控制
                 Positioned.fill(child: _buildBottomBar(parent)),
+                // 雷达小窗
+                if (_radarOn) _buildRadarOverlay(parent),
               ],
             );
           },
@@ -503,6 +546,10 @@ class _ManualControlPageState extends State<ManualControlPage> {
         }),
         _sideBtnItem(_layout.btnMap, parent, Icons.map_outlined,
             AppTheme.textPrimary, () {}),
+        _sideBtnItem(_layout.btnRadar, parent, Icons.radar,
+            _radarOn ? AppTheme.statusGreen : AppTheme.textPrimary, () {
+          setState(() => _radarOn = !_radarOn);
+        }),
       ],
     );
   }
@@ -641,6 +688,84 @@ class _ManualControlPageState extends State<ManualControlPage> {
       ),
     );
   }
+}
+
+// ═══════════════════════════════════════════
+// 雷达绘制
+// ═══════════════════════════════════════════
+class _RadarPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 2;
+
+    // 同心圆
+    for (int i = 1; i <= 4; i++) {
+      final r = radius * i / 4;
+      canvas.drawCircle(
+        center,
+        r,
+        Paint()
+          ..color = AppTheme.statusGreen.withAlpha(20)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.5,
+      );
+    }
+
+    // 十字线
+    canvas.drawLine(
+        Offset(center.dx - radius, center.dy),
+        Offset(center.dx + radius, center.dy),
+        Paint()
+          ..color = AppTheme.statusGreen.withAlpha(20)
+          ..strokeWidth = 0.5);
+    canvas.drawLine(
+        Offset(center.dx, center.dy - radius),
+        Offset(center.dx, center.dy + radius),
+        Paint()
+          ..color = AppTheme.statusGreen.withAlpha(20)
+          ..strokeWidth = 0.5);
+
+    // 模拟障碍点
+    final points = [
+      Offset(0.4, 0.2),
+      Offset(-0.35, 0.45),
+      Offset(0.5, -0.15),
+      Offset(-0.2, -0.5),
+      Offset(0.6, 0.35),
+    ];
+    for (final p in points) {
+      final px = center.dx + p.dx * radius;
+      final py = center.dy + p.dy * radius;
+      canvas.drawCircle(
+        Offset(px, py),
+        3,
+        Paint()..color = AppTheme.statusGreen.withAlpha(160),
+      );
+    }
+
+    // 圆心
+    canvas.drawCircle(
+        center, 4, Paint()..color = AppTheme.statusGreen.withAlpha(220));
+    canvas.drawCircle(center, 2, Paint()..color = AppTheme.statusGreen);
+
+    // 标签
+    final tp = TextPainter(
+      text: const TextSpan(
+        text: 'LiDAR',
+        style: TextStyle(
+            color: AppTheme.statusGreen,
+            fontSize: 9,
+            fontWeight: FontWeight.w700),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy + 8));
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter o) => false;
 }
 
 // ═══════════════════════════════════════════

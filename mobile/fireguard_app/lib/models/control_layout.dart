@@ -12,6 +12,8 @@ enum ControlComponent {
   btnSpeed,
   btnBack,
   topBar,
+  btnRadar,
+  radarOverlay,
 }
 
 /// 单个组件的布局配置
@@ -93,6 +95,8 @@ class ControlLayout {
   late ComponentConfig btnSpeed;
   late ComponentConfig btnBack;
   late ComponentConfig topBar;
+  late ComponentConfig btnRadar;
+  late ComponentConfig radarOverlay;
 
   ControlLayout() {
     initDefaults();
@@ -198,6 +202,25 @@ class ControlLayout {
       width: 1.0,
       height: 0.14,
     );
+    // 雷达按钮
+    btnRadar = ComponentConfig(
+      type: ControlComponent.btnRadar,
+      label: '雷达按钮',
+      x: 0.935,
+      y: 0.69,
+      width: 0.053,
+      height: 0.118,
+    );
+    // 雷达小窗
+    radarOverlay = ComponentConfig(
+      type: ControlComponent.radarOverlay,
+      label: '雷达小窗',
+      x: 0.28,
+      y: 0.08,
+      width: 0.18, // ~160px / parent.width
+      height: 0.20, // ~160px / parent.width (用width做正方形)
+      opacity: 0.85,
+    );
   }
 
   List<ComponentConfig> get all => [
@@ -211,6 +234,8 @@ class ControlLayout {
         btnSpeed,
         btnBack,
         topBar,
+        btnRadar,
+        radarOverlay,
       ];
 
   /// 深拷贝整个布局（用于设置页编辑，不保存不生效）
@@ -226,6 +251,8 @@ class ControlLayout {
     copy.btnSpeed = btnSpeed.clone();
     copy.btnBack = btnBack.clone();
     copy.topBar = topBar.clone();
+    copy.btnRadar = btnRadar.clone();
+    copy.radarOverlay = radarOverlay.clone();
     return copy;
   }
 
@@ -241,14 +268,8 @@ class ControlLayout {
     btnSpeed = other.btnSpeed.clone();
     btnBack = other.btnBack.clone();
     topBar = other.topBar.clone();
-  }
-
-  ComponentConfig? findByType(ControlComponent type) {
-    try {
-      return all.firstWhere((c) => c.type == type);
-    } catch (_) {
-      return null;
-    }
+    btnRadar = other.btnRadar.clone();
+    radarOverlay = other.radarOverlay.clone();
   }
 
   /// 从 Map 恢复（用于持久化）
