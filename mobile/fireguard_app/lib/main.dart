@@ -4,6 +4,8 @@ import 'services/tcp_service.dart';
 import 'pages/device_connect_page.dart';
 import 'pages/inspection_home_page.dart';
 import 'pages/alarm_detail_page.dart';
+import 'pages/fleet_page.dart';
+import 'services/fleet_service.dart';
 
 void main() {
   runApp(const FireGuardApp());
@@ -35,11 +37,13 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
   final _tcpService = TcpService();
+  final _fleetService = FleetService();
 
   static const _tabs = [
     ('设备连接', Icons.wifi),
     ('巡检主页', Icons.dashboard),
     ('告警详情', Icons.warning),
+    ('车队编队', Icons.precision_manufacturing),
   ];
 
   @override
@@ -64,6 +68,7 @@ class _MainShellState extends State<MainShell> {
             ),
             InspectionHomePage(embedded: true, tcpService: _tcpService),
             AlarmDetailPage(embedded: true, tcpService: _tcpService),
+            FleetPage(embedded: true, fleetService: _fleetService),
           ],
         ),
       ),

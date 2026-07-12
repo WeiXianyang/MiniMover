@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="876" height="390" viewBox="0 0 876 390">
+  <defs>
+    <linearGradient id="phoneBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111A27"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </linearGradient>
+    <linearGradient id="joystickOuter" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.25)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.15)"/>
+    </linearGradient>
+    <linearGradient id="joystickKnob" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF8C42"/>
+      <stop offset="100%" stop-color="#FFB870"/>
+    </linearGradient>
+    <linearGradient id="vidOverlay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(0,0,0,0.4)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0.6)"/>
+    </linearGradient>
+    <linearGradient id="btnSide" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.10)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.04)"/>
+    </linearGradient>
+    <filter id="glowO" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#FF8C42" flood-opacity="0.4"/>
+    </filter>
+    <filter id="glowR" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#FF4D4D" flood-opacity="0.5"/>
+    </filter>
+    <filter id="glowG" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#2DCF9F" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- ═══════════ 手机横屏外壳 ═══════════ -->
+  <rect x="0" y="0" width="876" height="390" rx="16" fill="url(#phoneBg)"/>
+
+  <!-- ═══════════ 视频背景 (模拟实时画面) ═══════════ -->
+  <!-- 道路/车间场景模拟 -->
+  <rect x="0" y="0" width="876" height="390" rx="16" fill="#0A0F18"/>
+  <!-- 地面 -->
+  <rect x="0" y="240" width="876" height="150" rx="0" fill="#151D28"/>
+  <!-- 地面网格线 (透视感) -->
+  <line x1="438" y1="160" x2="0" y2="340" stroke="rgba(255,140,66,0.15)" stroke-width="1"/>
+  <line x1="438" y1="160" x2="200" y2="340" stroke="rgba(255,140,66,0.15)" stroke-width="1"/>
+  <line x1="438" y1="160" x2="438" y2="340" stroke="rgba(255,140,66,0.15)" stroke-width="1"/>
+  <line x1="438" y1="160" x2="676" y2="340" stroke="rgba(255,140,66,0.15)" stroke-width="1"/>
+  <line x1="438" y1="160" x2="876" y2="340" stroke="rgba(255,140,66,0.15)" stroke-width="1"/>
+  <!-- 水平参考线 -->
+  <line x1="0" y1="190" x2="876" y2="190" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+  <!-- 障碍物示意 -->
+  <rect x="600" y="280" width="60" height="40" rx="4" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+  <text x="614" y="305" font-family="Inter, sans-serif" font-size="9" fill="rgba(255,255,255,0.2)">纸箱</text>
+  <!-- 边缘车道线 -->
+  <line x1="0" y1="300" x2="876" y2="300" stroke="rgba(255,255,255,0.05)" stroke-width="1.5" stroke-dasharray="30,20"/>
+  <line x1="0" y1="360" x2="876" y2="360" stroke="rgba(255,255,255,0.05)" stroke-width="1.5" stroke-dasharray="30,20"/>
+
+  <!-- ═══════════ 视频暗角叠加 ═══════════ -->
+  <rect x="0" y="0" width="876" height="390" rx="16" fill="url(#vidOverlay)"/>
+
+  <!-- ═══════════ 顶部信息栏 ═══════════ -->
+  <!-- 左上角：标题 + 状态 -->
+  <rect x="16" y="12" width="180" height="48" rx="12" fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <text x="32" y="33" font-family="Inter, sans-serif" font-weight="bold" font-size="15" fill="#EEF4FF">手动接管</text>
+  <circle cx="32" cy="45" r="4" fill="#2DCF9F"/>
+  <text x="42" y="48" font-family="Inter, sans-serif" font-weight="normal" font-size="11" fill="#2DCF9F">接管中</text>
+  <text x="88" y="48" font-family="Inter, sans-serif" font-weight="normal" font-size="11" fill="#9AA8BF">| 86% 🔋</text>
+
+  <!-- 右上角：FPS + 信号 -->
+  <rect x="720" y="12" width="140" height="28" rx="10" fill="rgba(0,0,0,0.45)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <text x="740" y="31" font-family="Inter, sans-serif" font-weight="bold" font-size="12" fill="#2DCF9F">30 FPS</text>
+  <text x="790" y="31" font-family="Inter, sans-serif" font-weight="normal" font-size="12" fill="#9AA8BF">|</text>
+  <text x="802" y="31" font-family="Inter, sans-serif" font-weight="bold" font-size="12" fill="#EEF4FF">●●●●○</text>
+
+  <!-- ═══════════ 左下：移动摇杆 ═══════════ -->
+  <text x="66" y="240" font-family="Inter, sans-serif" font-weight="bold" font-size="10" fill="rgba(255,255,255,0.4)" text-anchor="middle">移动</text>
+  <!-- 底座 -->
+  <circle cx="80" cy="270" r="60" fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.12)" stroke-width="2" filter="url(#glowO)"/>
+  <!-- 十字参考线 -->
+  <line x1="20" y1="270" x2="140" y2="270" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <line x1="80" y1="210" x2="80" y2="330" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <!-- 方向标签 -->
+  <text x="80" y="208" font-family="Inter, sans-serif" font-weight="bold" font-size="9" fill="rgba(255,255,255,0.25)" text-anchor="middle">前</text>
+  <text x="80" y="342" font-family="Inter, sans-serif" font-weight="bold" font-size="9" fill="rgba(255,255,255,0.25)" text-anchor="middle">后</text>
+  <text x="10" y="274" font-family="Inter, sans-serif" font-weight="bold" font-size="9" fill="rgba(255,255,255,0.25)" text-anchor="middle">左</text>
+  <text x="150" y="274" font-family="Inter, sans-serif" font-weight="bold" font-size="9" fill="rgba(255,255,255,0.25)" text-anchor="middle">右</text>
+  <!-- 旋钮 (居中位置，微微前推) -->
+  <circle cx="80" cy="255" r="26" fill="url(#joystickKnob)" filter="url(#glowO)"/>
+  <circle cx="80" cy="255" r="12" fill="rgba(255,255,255,0.15)"/>
+
+  <!-- ═══════════ 右下：视角摇杆 ═══════════ -->
+  <text x="796" y="240" font-family="Inter, sans-serif" font-weight="bold" font-size="10" fill="rgba(255,255,255,0.4)" text-anchor="middle">视角</text>
+  <!-- 底座 (横向椭圆) -->
+  <rect x="726" y="240" width="140" height="60" rx="30" fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.12)" stroke-width="2"/>
+  <!-- 水平参考线 -->
+  <line x1="726" y1="270" x2="866" y2="270" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <!-- 方向标签 -->
+  <text x="706" y="274" font-family="Inter, sans-serif" font-weight="bold" font-size="9" fill="rgba(255,255,255,0.25)" text-anchor="middle">◀</text>
+  <text x="886" y="274" font-family="Inter, sans-serif" font-weight="bold" font-size="9" fill="rgba(255,255,255,0.25)" text-anchor="middle">▶</text>
+  <!-- 旋钮 (偏右，即正在右转) -->
+  <circle cx="820" cy="270" r="22" fill="url(#joystickKnob)"/>
+  <circle cx="820" cy="270" r="10" fill="rgba(255,255,255,0.15)"/>
+
+  <!-- ═══════════ 右侧功能按钮列 ═══════════ -->
+  <!-- 灯光按钮 -->
+  <rect x="820" y="56" width="42" height="42" rx="12" fill="url(#btnSide)" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+  <text x="841" y="68" font-family="Inter, sans-serif" font-size="18" fill="#FFD93D" text-anchor="middle">💡</text>
+  <text x="841" y="88" font-family="Inter, sans-serif" font-weight="bold" font-size="7" fill="rgba(255,255,255,0.5)" text-anchor="middle">灯光</text>
+
+  <!-- 麦克风按钮 -->
+  <rect x="820" y="106" width="42" height="42" rx="12" fill="url(#btnSide)" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+  <text x="841" y="118" font-family="Inter, sans-serif" font-size="18" fill="#EEF4FF" text-anchor="middle">🎤</text>
+  <text x="841" y="138" font-family="Inter, sans-serif" font-weight="bold" font-size="7" fill="rgba(255,255,255,0.5)" text-anchor="middle">麦克风</text>
+
+  <!-- 录制按钮 -->
+  <rect x="820" y="156" width="42" height="42" rx="12" fill="url(#btnSide)" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+  <text x="841" y="168" font-family="Inter, sans-serif" font-size="18" fill="#EEF4FF" text-anchor="middle">⏺</text>
+  <text x="841" y="188" font-family="Inter, sans-serif" font-weight="bold" font-size="7" fill="rgba(255,255,255,0.5)" text-anchor="middle">录制</text>
+
+  <!-- 地图小窗口 -->
+  <rect x="818" y="210" width="46" height="46" rx="10" fill="rgba(0,0,0,0.5)" stroke="rgba(255,255,255,0.10)" stroke-width="1"/>
+  <text x="841" y="238" font-family="Inter, sans-serif" font-size="20" fill="rgba(255,255,255,0.3)" text-anchor="middle">🗺</text>
+
+  <!-- ═══════════ 底部中央：急停 ═══════════ -->
+  <rect x="380" y="330" width="116" height="42" rx="21" fill="rgba(255,77,77,0.15)" stroke="rgba(255,77,77,0.25)" stroke-width="2" filter="url(#glowR)"/>
+  <text x="438" y="358" font-family="Inter, sans-serif" font-weight="bold" font-size="16" fill="#FF4D4D" text-anchor="middle">⚠ 急停</text>
+
+  <!-- ═══════════ 底部中央：返回按钮 ═══════════ -->
+  <rect x="284" y="338" width="28" height="28" rx="8" fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <text x="298" y="358" font-family="Inter, sans-serif" font-weight="bold" font-size="16" fill="rgba(255,255,255,0.5)" text-anchor="middle">←</text>
+
+  <!-- ═══════════ 底部中央：速度档位 ═══════════ -->
+  <rect x="508" y="336" width="72" height="32" rx="8" fill="rgba(0,0,0,0.4)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+  <text x="520" y="358" font-family="Inter, sans-serif" font-weight="bold" font-size="11" fill="#9AA8BF">速度</text>
+  <text x="560" y="358" font-family="Inter, sans-serif" font-weight="bold" font-size="14" fill="#FF8C42" text-anchor="middle">50%</text>
+
+</svg>

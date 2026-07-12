@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="876" viewBox="0 0 390 876">
+  <defs>
+    <!-- 背景渐变 -->
+    <linearGradient id="phoneBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#111A27"/>
+      <stop offset="100%" stop-color="#0B1220"/>
+    </linearGradient>
+    <!-- 卡片背景 -->
+    <linearGradient id="cardBg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#172233"/>
+      <stop offset="100%" stop-color="#0F1622"/>
+    </linearGradient>
+    <!-- 主车卡片边框 -->
+    <linearGradient id="leaderBorder" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF8C42"/>
+      <stop offset="100%" stop-color="#FFB870"/>
+    </linearGradient>
+    <!-- 出发按钮渐变 -->
+    <linearGradient id="btnPrimary" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FF8C42"/>
+      <stop offset="100%" stop-color="#FFB870"/>
+    </linearGradient>
+    <!-- 解散按钮 -->
+    <linearGradient id="btnDanger" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3A1515"/>
+      <stop offset="100%" stop-color="#2A1010"/>
+    </linearGradient>
+
+    <!-- 阴影 -->
+    <filter id="glow">
+      <feDropShadow dx="0" dy="0" stdDeviation="1" flood-color="#FF8C42" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- ===== 手机外壳背景 ===== -->
+  <rect x="0" y="0" width="390" height="876" rx="16" fill="url(#phoneBg)"/>
+
+  <!-- 状态栏模拟 -->
+  <text x="32" y="36" font-family="Inter, sans-serif" font-weight="bold" font-size="11" fill="#EEF4FF">9:41</text>
+  <circle cx="358" cy="33" r="4" fill="#2DCF9F"/>
+
+  <!-- ===== S08 标签 ===== -->
+  <text x="32" y="72" font-family="Inter, sans-serif" font-weight="bold" font-size="14" fill="#FF8C42">S08-车队编队</text>
+
+  <!-- ===== 内层卡片区域 ===== -->
+  <rect x="32" y="88" width="326" height="756" rx="16" fill="url(#cardBg)" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+
+  <!-- 标题行 -->
+  <text x="52" y="124" font-family="Inter, sans-serif" font-weight="bold" font-size="20" fill="#EEF4FF">车队编队</text>
+  <text x="52" y="147" font-family="Inter, sans-serif" font-weight="normal" font-size="12" fill="#9AA8BF">主车领航 + 多从车跟随编队</text>
+
+  <!-- 编队状态徽章 -->
+  <rect x="236" y="116" width="102" height="28" rx="14" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+  <circle cx="252" cy="130" r="5" fill="#2DCF9F"/>
+  <text x="264" y="134" font-family="Inter, sans-serif" font-weight="bold" font-size="12" fill="#EEF4FF">编队就绪</text>
+
+  <!-- ═══════════ 主车卡片 ═══════════ -->
+  <rect x="52" y="170" width="282" height="82" rx="12" fill="rgba(255,255,255,0.04)" stroke="url(#leaderBorder)" stroke-width="1.5" filter="url(#glow)"/>
+
+  <!-- 主车图标 -->
+  <rect x="68" y="186" width="36" height="36" rx="8" fill="rgba(255,140,66,0.15)"/>
+  <text x="86" y="210" font-family="Inter, sans-serif" font-weight="bold" font-size="18" fill="#FF8C42">△</text>
+
+  <!-- 主车信息 -->
+  <text x="116" y="202" font-family="Inter, sans-serif" font-weight="bold" font-size="14" fill="#FF8C42">主车 · 队长</text>
+  <text x="116" y="222" font-family="Inter, sans-serif" font-weight="normal" font-size="12" fill="#9AA8BF">192.168.1.11 · 任务: 编队领航</text>
+
+  <!-- 电量 + 状态 -->
+  <rect x="256" y="186" width="62" height="22" rx="11" fill="rgba(45,207,159,0.10)" stroke="rgba(45,207,159,0.20)" stroke-width="1"/>
+  <text x="272" y="201" font-family="Inter, sans-serif" font-weight="bold" font-size="12" fill="#2DCF9F">🟢 86%</text>
+
+  <!-- ═══════════ 从车1 ═══════════ -->
+  <rect x="52" y="266" width="282" height="76" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+
+  <rect x="68" y="284" width="32" height="32" rx="8" fill="rgba(255,255,255,0.06)"/>
+  <text x="84" y="305" font-family="Inter, sans-serif" font-weight="bold" font-size="14" fill="#9AA8BF">△</text>
+
+  <text x="112" y="298" font-family="Inter, sans-serif" font-weight="bold" font-size="14" fill="#EEF4FF">从车 1</text>
+  <text x="112" y="316" font-family="Inter, sans-serif" font-weight="normal" font-size="12" fill="#9AA8BF">编队距离: 1.2m  ·  速度: 0.5 m/s</text>
+
+  <rect x="236" y="290" width="42" height="20" rx="10" fill="rgba(45,207,159,0.08)" stroke="rgba(45,207,159,0.15)" stroke-width="1"/>
+  <text x="248" y="304" font-family="Inter, sans-serif" font-weight="bold" font-size="10" fill="#2DCF9F">72%</text>
+
+  <circle cx="326" cy="300" r="4" fill="#2DCF9F"/>
+
+  <!-- ═══════════ 从车2 ═══════════ -->
+  <rect x="52" y="354" width="282" height="76" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+
+  <rect x="68" y="372" width="32" height="32" rx="8" fill="rgba(255,255,255,0.06)"/>
+  <text x="84" y="393" font-family="Inter, sans-serif" font-weight="bold" font-size="14" fill="#9AA8BF">△</text>
+
+  <text x="112" y="386" font-family="Inter, sans-serif" font-weight="bold" font-size="14" fill="#EEF4FF">从车 2</text>
+  <text x="112" y="404" font-family="Inter, sans-serif" font-weight="normal" font-size="12" fill="#9AA8BF">编队距离: 1.5m  ·  速度: 0.5 m/s</text>
+
+  <rect x="236" y="378" width="42" height="20" rx="10" fill="rgba(45,207,159,0.08)" stroke="rgba(45,207,159,0.15)" stroke-width="1"/>
+  <text x="248" y="392" font-family="Inter, sans-serif" font-weight="bold" font-size="10" fill="#2DCF9F">65%</text>
+
+  <circle cx="326" cy="388" r="4" fill="#2DCF9F"/>
+
+  <!-- ═══════════ 添加从车按钮 ═══════════ -->
+  <rect x="52" y="444" width="282" height="44" rx="10" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="6,4"/>
+  <text x="136" y="472" font-family="Inter, sans-serif" font-weight="bold" font-size="13" fill="#9AA8BF">+ 添加从车</text>
+
+  <!-- ═══════════ 分隔线 ═══════════ -->
+  <line x1="52" y1="514" x2="334" y2="514" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+
+  <!-- ═══════════ 编队命令 ═══════════ -->
+  <text x="52" y="538" font-family="Inter, sans-serif" font-weight="bold" font-size="14" fill="#EEF4FF">编队命令</text>
+
+  <!-- 出发按钮 -->
+  <rect x="52" y="556" width="134" height="48" rx="8" fill="url(#btnPrimary)"/>
+  <text x="78" y="586" font-family="Inter, sans-serif" font-weight="bold" font-size="15" fill="#10151D">🚀 出发</text>
+
+  <!-- 停止按钮 -->
+  <rect x="200" y="556" width="134" height="48" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+  <text x="232" y="586" font-family="Inter, sans-serif" font-weight="bold" font-size="15" fill="#EEF4FF">🛑 停止</text>
+
+  <!-- 解散编队按钮 -->
+  <rect x="52" y="618" width="282" height="48" rx="8" fill="url(#btnDanger)" stroke="rgba(255,77,77,0.15)" stroke-width="1"/>
+  <text x="136" y="648" font-family="Inter, sans-serif" font-weight="bold" font-size="15" fill="#FF6B6B">⚠ 解散编队</text>
+
+  <!-- ═══════════ 分隔线 ═══════════ -->
+  <line x1="52" y1="692" x2="334" y2="692" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+
+  <!-- ═══════════ 编队统计 ═══════════ -->
+  <text x="52" y="716" font-family="Inter, sans-serif" font-weight="bold" font-size="14" fill="#EEF4FF">编队统计</text>
+
+  <!-- 统计卡片 3 列 -->
+  <rect x="52" y="734" width="87" height="62" rx="10" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <text x="68" y="760" font-family="Inter, sans-serif" font-weight="bold" font-size="22" fill="#EEF4FF">3</text>
+  <text x="68" y="782" font-family="Inter, sans-serif" font-weight="normal" font-size="11" fill="#9AA8BF">车辆总数</text>
+
+  <rect x="150" y="734" width="87" height="62" rx="10" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <text x="166" y="760" font-family="Inter, sans-serif" font-weight="bold" font-size="22" fill="#2DCF9F">74%</text>
+  <text x="166" y="782" font-family="Inter, sans-serif" font-weight="normal" font-size="11" fill="#9AA8BF">平均电量</text>
+
+  <rect x="248" y="734" width="87" height="62" rx="10" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <text x="264" y="760" font-family="Inter, sans-serif" font-weight="bold" font-size="22" fill="#FF8C42">05s</text>
+  <text x="264" y="782" font-family="Inter, sans-serif" font-weight="normal" font-size="11" fill="#9AA8BF">编队运行</text>
+
+  <!-- ═══════════ 底部提示 ═══════════ -->
+  <text x="120" y="826" font-family="Inter, sans-serif" font-weight="normal" font-size="11" fill="rgba(255,255,255,0.25)">左滑卡片移除从车 · 点击查看详情</text>
+
+</svg>
