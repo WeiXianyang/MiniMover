@@ -37,8 +37,9 @@ export struct VideoComponents {
           })
       }
 
-      .width('300vp')
-      .height('200vp')
+      .width('100%')
+      .aspectRatio(1.5)
+      .constraintSize({ maxWidth: 480 })
 
       Row() {
         if (this.isRecording == false) {
@@ -67,7 +68,9 @@ export struct VideoComponents {
           })
 
       }
-    }.justifyContent(FlexAlign.Center)
+    }
+    .width('100%')
+    .justifyContent(FlexAlign.Center)
 
   }
 

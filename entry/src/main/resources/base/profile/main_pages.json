@@ -1,5 +1,6 @@
 {
   "src": [
+    "pages/MainConsole",
     "pages/Index",
     "pages/MecanumWheel",
     "pages/RemoteControl",

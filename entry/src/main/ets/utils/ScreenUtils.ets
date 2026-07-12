@@ -45,6 +45,25 @@ export namespace ScreenUtils {
 
 
   /**
+   * 获取系统状态栏（顶部安全区）高度，单位 vp。
+   * 全屏布局下内容会延伸到状态栏下方，用此高度做顶部内边距可避免与电量/时间重叠。
+   */
+  export async function getStatusBarHeight(ctx: common.BaseContext): Promise<number> {
+    let windowClass = await window.getLastWindow(ctx)
+    let avoidArea = windowClass.getWindowAvoidArea(window.AvoidAreaType.TYPE_SYSTEM)
+    return px2vp(avoidArea.topRect.height)
+  }
+
+  /**
+   * 获取底部安全区（导航条/手势指示条）高度，单位 vp。
+   */
+  export async function getBottomSafeHeight(ctx: common.BaseContext): Promise<number> {
+    let windowClass = await window.getLastWindow(ctx)
+    let avoidArea = windowClass.getWindowAvoidArea(window.AvoidAreaType.TYPE_NAVIGATION_INDICATOR)
+    return px2vp(avoidArea.bottomRect.height)
+  }
+
+  /**
    * 将应用设置为横屏
    */
   export function setLandscape(ctx: common.BaseContext) {
@@ -53,6 +72,21 @@ export namespace ScreenUtils {
     promise.then((data) => {
       //切换成横屏
       let orientation = window.Orientation.LANDSCAPE;
+      data.setPreferredOrientation(orientation, (err) => {
+      });
+    })
+  }
+
+
+  /**
+   * 将应用设置为竖屏
+   */
+  export function setPortrait(ctx: common.BaseContext) {
+    //将应用设置为竖屏
+    let promise = window.getLastWindow(ctx);
+    promise.then((data) => {
+      //切换成竖屏
+      let orientation = window.Orientation.PORTRAIT;
       data.setPreferredOrientation(orientation, (err) => {
       });
     })

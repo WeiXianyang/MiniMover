@@ -6,11 +6,23 @@
         "material": {
           "certpath": "C:/Users/32599/.ohos/config/openharmony/default_oh-ai-car-ros-app_rhqhle-WGrD5QfGXllm5FXFYMwm8m9GemueNDYb2JGc=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001B172C94588C686A0B334A69FA54906FBBAEEC3319887164652B8C5D5BC12A8E0F95105C0A30D3ED",
+          "keyPassword": "0000001A569C7DF25022F8F012AAB22513D90C2981E32E2480A667D2141C91ADD6BD71BBFCD7B950C2A3",
           "profile": "C:/Users/32599/.ohos/config/openharmony/default_oh-ai-car-ros-app_rhqhle-WGrD5QfGXllm5FXFYMwm8m9GemueNDYb2JGc=.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "C:/Users/32599/.ohos/config/openharmony/default_oh-ai-car-ros-app_rhqhle-WGrD5QfGXllm5FXFYMwm8m9GemueNDYb2JGc=.p12",
-          "storePassword": "0000001B4508EDF0E20F92F700C874B98A4E777BFEA1C523FAA6D03931BB9EFD438BDBEA8691F07C73DEFB"
+          "storePassword": "0000001A985A6862C2C6AA9C64418AE43BDE5BB1705BE7605999FB0D2D390328651DBAEA50BF07AB0CD9"
+        }
+      },
+      {
+        "name": "8Ro8SV66NFCfYl15YT5kkP7T3ow2AyhIf8xTQgVWzmc",
+        "material": {
+          "certpath": "C:/Users/32599/.ohos/config/openharmony/auto_ohos_8Ro8SV66NFCfYl15YT5kkP7T3ow2AyhIf8xTQgVWzmc_oh-ai-car-ros-app_com.hoperun.cmartcar.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B7D6110AA40B88E69D08F55E46A870EC680B70AE597750D5E208F3B967FF3D8E280B6A35DE3600F",
+          "profile": "C:/Users/32599/.ohos/config/openharmony/auto_ohos_8Ro8SV66NFCfYl15YT5kkP7T3ow2AyhIf8xTQgVWzmc_oh-ai-car-ros-app_com.hoperun.cmartcar.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:/Users/32599/.ohos/config/openharmony/auto_ohos_8Ro8SV66NFCfYl15YT5kkP7T3ow2AyhIf8xTQgVWzmc_oh-ai-car-ros-app_com.hoperun.cmartcar.p12",
+          "storePassword": "0000001BC6635F32FBB2601CC157091631EBEEDB03DF10D2FE20FC60CF1CE5BEE9E8C27933B4A64CF89A42"
         }
       }
     ],
@@ -20,7 +32,7 @@
         "signingConfig": "default",
         "compileSdkVersion": 23,
         "compatibleSdkVersion": 23,
-        "runtimeOS": "OpenHarmony",
+        "runtimeOS": "OpenHarmony"
       }
     ]
   },
@@ -31,9 +43,6 @@
       "targets": [
         {
           "name": "default",
-          "applyToProducts": [
-            "default"
-          ]
         }
       ]
     },

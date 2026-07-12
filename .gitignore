@@ -9,3 +9,13 @@
 /.clang-format
 /.clang-tidy
 **/.test/.npmrc
+
+# 构建日志与临时文件
+/build*.log
+/build_*.log
+/build_out.txt
+/nul
+/build2.log
+
+# 大文件文档（手册、签名产物）
+/doc/2408/
