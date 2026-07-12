@@ -1,0 +1,4 @@
+train: ./VOC2020/train.txt
+val: ./VOC2020/val.txt
+nc: 2
+names: ['fire', 'smoke']

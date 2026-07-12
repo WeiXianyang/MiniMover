@@ -235,3 +235,6 @@ build/
 # ── Claude Code ───────────────────────────────────
 .claude/settings.local.json
 
+
+# Fire/smoke detector runtime output
+/fire_smoke_detection/output/
