@@ -1,0 +1,49 @@
+# syntax=docker/dockerfile:1
+#
+# Dockerfile.car — build/validation image for the Rosmaster inspection car app.
+#
+# Reality note (see fireguard guide §10.2 / §10.5):
+#   The real robot runs on a Jetson (aarch64) using a course-provided ROS2 base
+#   image plus hardware-only Python libs (Rosmaster_Lib, RPi.GPIO) and Cython
+#   compiled modules (rosmaster_main, etc.). Those cannot be installed on a
+#   normal x86_64 GitHub Actions runner.
+#
+#   So this image does what CI *can* do reliably:
+#     - install the pip-available runtime deps
+#     - copy the application source
+#     - byte-compile every .py file to catch syntax errors at build time
+#   The genuine hardware image is still built on the Jetson itself.
+
+# Pinned to 3.8 to match the car's Jetson runtime: the Cython .so modules are
+# ABI-locked to cpython-38, so any image that intends to import them must use
+# the same Python minor version (see README §八.4).
+FROM python:3.8-slim
+
+# opencv / pyzbar need a few system libraries even in headless mode.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libzbar0 \
+        libgl1 \
+        libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+# Install Python deps first so this layer is cached across source changes.
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the application source.
+COPY . .
+
+# Fail the build if any Python file has a syntax error.
+RUN python -m compileall -q \
+        app.py app_sim.py app_sim_run.py camera_rosmaster.py \
+        rosmaster_no_control.py wifi_rosmaster.py drive.py \
+        followline.py stopline.py pid.py rosmaster_test.py
+
+EXPOSE 6500
+
+# On real hardware app.py is the entrypoint. Inside this CI image the
+# hardware/Cython modules are absent, so default to printing the app help
+# rather than crash-looping; the Jetson image overrides this.
+CMD ["python", "-c", "print('inspection-car image built. Run app.py on the Jetson with hardware attached.')"]
