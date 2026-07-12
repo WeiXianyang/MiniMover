@@ -1,26 +1,34 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 /// 小车 TCP 通信服务
 ///
-/// 协议格式: $T_CARTYPE T_FUNC T_LEN DATA CHECKSUM#
-/// 所有字段为 2 位十六进制字符串
+/// 协议格式 (ASCII hex 字符串): $TT FF LL DD... CC #
+/// - TT = 车型 (0x01=X3_PLUS)
+/// - FF = 功能码
+/// - LL = 数据字节数
+/// - DD... = 数据 (每个字节 2 个 hex 字符)
+/// - CC = 校验和 (TT+FF+LL+所有数据字节之和 mod 256, 2 hex 字符)
+/// - $ 开头, # 结尾
+///
+/// 对应后端 rosmaster_main_ori.py parse_data()
 class TcpService {
   Socket? _socket;
   String _host = '192.168.1.11';
   int _port = 6000;
+  int _carType = 1; // X3_PLUS
   bool _connected = false;
 
-  final StreamController<Uint8List> _dataController =
-      StreamController<Uint8List>.broadcast();
+  final StreamController<String> _eventController =
+      StreamController<String>.broadcast();
 
   bool get connected => _connected;
-  Stream<Uint8List> get dataStream => _dataController.stream;
+  Stream<String> get events => _eventController.stream;
 
-  void updateConfig(String host, int port) {
+  void updateConfig(String host, int port, {int carType = 1}) {
     _host = host;
     _port = port;
+    _carType = carType;
   }
 
   Future<bool> connect() async {
@@ -31,15 +39,23 @@ class TcpService {
         timeout: const Duration(seconds: 5),
       );
       _connected = true;
+
       _socket!.listen(
-        (data) => _dataController.add(data),
+        (data) {
+          // 后端返回 hex 字符串帧，也以 $ 开头 # 结尾
+          final str = String.fromCharCodes(data);
+          _eventController.add(str);
+        },
         onDone: () {
           _connected = false;
+          _eventController.add('DISCONNECTED');
         },
         onError: (e) {
           _connected = false;
+          _eventController.add('ERROR: $e');
         },
       );
+
       return true;
     } catch (e) {
       _connected = false;
@@ -53,70 +69,85 @@ class TcpService {
     _connected = false;
   }
 
-  /// 计算异或校验和
-  int _checksum(List<int> data) {
-    return data.fold(0, (prev, b) => prev ^ b);
-  }
-
-  /// 发送指令帧
-  /// [cartype] 默认 0x01, [func] 功能码, [payload] 数据字节
-  void sendCommand(int func, List<int> payload) {
+  /// 构建并发送协议帧
+  /// [func] 功能码, [payload] 数据字节列表
+  void _sendFrame(int func, List<int> payload) {
     if (_socket == null || !_connected) return;
 
-    final cartype = 0x01;
-    final len = payload.length;
-    final frame = <int>[
-      0x24, // '$'
-      cartype,
-      func,
-      len,
-      ...payload,
-    ];
-    final checksum = _checksum(frame.sublist(1)); // 跳过 $
-    frame.add(checksum);
-    frame.add(0x23); // '#'
+    // 构建帧：$ TT FF LL D0 D1 ... CC #
+    final buf = StringBuffer();
+    buf.write('\$');
+    buf.write(_hex2(_carType)); // TT
+    buf.write(_hex2(func)); // FF
+    buf.write(_hex2(payload.length)); // LL
 
-    _socket!.add(Uint8List.fromList(frame));
+    int checksum = _carType + func + payload.length;
+    for (final b in payload) {
+      buf.write(_hex2(b));
+      checksum += b;
+    }
+    checksum %= 256;
+
+    buf.write(_hex2(checksum)); // CC
+    buf.write('#'); // 结束符
+
+    _socket!.write(buf.toString());
   }
 
-  /// 查询版本号
-  void queryVersion() {
-    sendCommand(0x02, [0x01]);
+  static String _hex2(int v) => (v & 0xFF).toRadixString(16).padLeft(2, '0');
+
+  /// 将 -100~100 的有符号速度值转为协议所需的 unsigned byte
+  static int _speedByte(int v) => v >= 0 ? v : 256 + v;
+
+  /// 查询版本号 (0x01)
+  void queryVersion() => _sendFrame(0x01, []);
+
+  /// 查询电压 (0x02)
+  void queryVoltage() => _sendFrame(0x02, []);
+
+  /// 移动控制 (0x10)
+  /// [forward] 前后速度：正=前进, 负=后退 (-100~100)
+  /// [lateral] 左右平移：正=右移, 负=左移 (-100~100)
+  void move(int forward, int lateral) {
+    // 后端协议: num_x→lateral(speed_y=-num_x/100), num_y→forward(speed_x=num_y/100)
+    final numX = _speedByte(-lateral); // 右移→speed_y正→-num_x正→num_x负
+    final numY = _speedByte(forward);
+    _sendFrame(0x10, [numX, numY]);
   }
 
-  /// 移动控制
-  /// [speedXY] 前后速度 (-100~100), [speedZ] 旋转速度 (-100~100)
-  void move(int speedXY, int speedZ) {
-    sendCommand(0x03, [speedXY & 0xFF, speedZ & 0xFF]);
-  }
+  /// 舵机控制 (0x11)
+  void servo(int id, int angle) => _sendFrame(0x11, [id, angle]);
 
-  /// 舵机控制
-  void servo(int id, int angle) {
-    sendCommand(0x07, [id & 0xFF, angle & 0xFF]);
-  }
+  /// 蜂鸣器 (0x13)
+  /// [state] 0=关, 非0=响
+  void beep(int state) => _sendFrame(0x13, [state]);
 
-  /// 蜂鸣器
-  void beep(int state) {
-    sendCommand(0x16, [state & 0xFF]);
-  }
+  /// 设置速度百分比 (0x16)
+  void setSpeed(int pct) => _sendFrame(0x16, [pct]);
 
-  /// 灯光控制 (RGB)
-  void setLight(int r, int g, int b) {
-    sendCommand(0x13, [r & 0xFF, g & 0xFF, b & 0xFF]);
-  }
+  /// 灯光控制 RGB (0x30)
+  void setLight(int r, int g, int b) => _sendFrame(0x30, [r, g, b]);
 
-  /// 循线模式
-  void followLine(int state) {
-    sendCommand(0x1A, [state & 0xFF]);
-  }
+  /// 开始循线 (0x63)
+  void startFollowLine() => _sendFrame(0x63, [1]);
+
+  /// 停止循线 (0x64)
+  void stopFollowLine() => _sendFrame(0x64, [0]);
 
   /// 急停
-  void emergencyStop() {
-    move(0, 0);
-  }
+  void emergencyStop() => move(0, 0);
+
+  /// 进入遥控界面 (0x0F, func=1)
+  void enterRemoteMode() => _sendFrame(0x0F, [1]);
+
+  /// 进入首页 (0x0F, func=0)
+  void enterHomeMode() => _sendFrame(0x0F, [0]);
+
+  /// 查询当前速度 (0x22)
+  void queryCurrentSpeed() => _sendFrame(0x22, []);
 
   void dispose() {
     disconnect();
-    _dataController.close();
+    _eventController.close();
   }
 }
