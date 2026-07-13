@@ -1,0 +1,16 @@
+[Unit]
+Description=FireGuard Multi-Car API Server
+After=network.target
+
+[Service]
+Type=simple
+User=jetson
+WorkingDirectory=/home/jetson/MiniMover
+ExecStart=/usr/bin/python3 /home/jetson/MiniMover/api_server.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
