@@ -511,6 +511,9 @@ input {
 
 .tabbar a {
   display: grid;
+  grid-template-rows: 18px auto;
+  align-content: center;
+  gap: 3px;
   place-items: center;
   min-height: 42px;
   border-radius: 12px;
@@ -924,8 +927,18 @@ body.is-connected .state-connected {
 }
 
 .tabbar a.active {
-  color: #10151d;
-  background: var(--orange);
+  color: var(--orange);
+  background: rgba(232, 139, 69, 0.08);
+}
+
+.tabbar .icon {
+  width: 16px;
+  height: 16px;
+  filter: brightness(0) saturate(100%) invert(63%) sepia(12%) saturate(416%) hue-rotate(174deg) brightness(92%) contrast(89%);
+}
+
+.tabbar a.active .icon {
+  filter: brightness(0) saturate(100%) invert(63%) sepia(57%) saturate(786%) hue-rotate(333deg) brightness(100%) contrast(95%);
 }
 
 .fleet-list {
