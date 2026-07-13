@@ -36,15 +36,22 @@ a {
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
+  object-fit: contain;
+  filter: brightness(0) saturate(100%) invert(72%) sepia(13%) saturate(401%) hue-rotate(174deg) brightness(87%) contrast(82%);
 }
 
-.icon-fill {
-  fill: currentColor;
+.btn.primary .icon {
+  filter: brightness(0) saturate(100%) invert(5%) sepia(14%) saturate(1511%) hue-rotate(174deg) brightness(98%) contrast(92%);
+}
+
+.emergency-control .icon,
+.btn.warning .icon,
+.settings-actions .reset .icon {
+  filter: brightness(0) saturate(100%) invert(47%) sepia(27%) saturate(1270%) hue-rotate(308deg) brightness(91%) contrast(88%);
+}
+
+.settings-actions .save .icon {
+  filter: brightness(0) saturate(100%) invert(5%) sepia(14%) saturate(1511%) hue-rotate(174deg) brightness(98%) contrast(92%);
 }
 
 button,
