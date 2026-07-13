@@ -64,29 +64,22 @@ export struct ScreenHome {
         title: '开始自动巡检，预计 6 分钟完成'
       })
 
-      Row() {
-        Column() {
-          FgButton({
-            text: '开始巡检',
-            type: FgBtnType.Primary,
-            onTap: () => { this.gotoTab(FgTab.Delivery) }
-          })
-        }
-        .layoutWeight(1)
-        .margin({ right: 5 })
+      Column({ space: 10 }) {
+        FgButton({
+          text: '开始巡检',
+          type: FgBtnType.Primary,
+          onTap: () => { this.gotoTab(FgTab.Delivery) }
+        })
 
-        Column() {
-          FgButton({
-            text: '切换到手动接管',
-            onTap: () => {
-              router.pushUrl({ url: 'pages/ScreenManualLandscape' })
-            }
-          })
-        }
-        .layoutWeight(1)
-        .margin({ left: 5 })
+        FgButton({
+          text: '切换到手动接管',
+          onTap: () => {
+            router.pushUrl({ url: 'pages/ScreenManualLandscape' })
+          }
+        })
       }
       .width('100%')
+      .margin({ top: 10 })
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

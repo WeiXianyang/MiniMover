@@ -2,6 +2,7 @@
  * 横屏手动接管页面
  * 参照 manual-landscape.html 原型，使用 SVG 图标。
  * 全屏横屏布局：双摇杆 + 视频 + 雷达 + 工具列 + 急停控制。
+ * 未连接设备时显示深灰背景占位，确保所有控件清晰可见。
  */
 import promptAction from '@ohos.promptAction'
 import router from '@ohos.router'
@@ -38,17 +39,43 @@ struct ScreenManualLandscape {
 
   build() {
     Stack() {
-      // 背景层
-      Column()
-        .width('100%')
-        .height('100%')
-        .backgroundColor('#0a1622')
+      // 背景层：始终为深色
+      Column() {
+        // 未连接小车的提示占位
+        if (!BackendState.connected) {
+          Column() {
+            Row()
+              .width(80)
+              .height(80)
+              .borderRadius(40)
+              .border({ width: 2, color: 'rgba(147, 164, 186, 0.3)', style: BorderStyle.Dashed })
+              .margin({ bottom: 16 })
+              .justifyContent(FlexAlign.Center)
+            Text('未连接设备')
+              .fontSize(18)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(FG.text)
+              .margin({ bottom: 8 })
+            Text('请先在"连接"页面连接小车后进入手动接管')
+              .fontSize(FG.bodySize)
+              .fontColor(FG.muted)
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('#0c1826')
 
-      // 视频画面（底层背景）
-      Web({ src: this.getVideoUrl(), controller: this.webCtl })
-        .width('100%')
-        .height('100%')
-        .opacity(0.85)
+      // 视频画面：仅连接设备后显示
+      if (BackendState.connected) {
+        Web({ src: this.getVideoUrl(), controller: this.webCtl })
+          .width('100%')
+          .height('100%')
+      }
 
       // 雷达小窗
       this.radarWidget()
@@ -60,7 +87,28 @@ struct ScreenManualLandscape {
         .backgroundColor('rgba(255, 255, 255, 0.06)')
         .position({ x: 0, y: '85%' })
 
-      // ===== 左上：状态栏 =====
+      // ===== 左上：返回按钮 =====
+      Row() {
+        Image($r('app.media.arrow_left'))
+          .width(18)
+          .height(18)
+          .fillColor(FG.text)
+        Text('返回')
+          .fontSize(FG.bodySize)
+          .fontColor(FG.text)
+          .margin({ left: 4 })
+      }
+      .height(32)
+      .padding({ left: 10, right: 14 })
+      .borderRadius(10)
+      .border({ width: 1, color: 'rgba(147, 164, 186, 0.22)' })
+      .backgroundColor('rgba(28, 37, 50, 0.9)')
+      .position({ x: 16, y: 12 })
+      .onClick(() => {
+        router.back()
+      })
+
+      // ===== 左上：状态栏（返回按钮下方） =====
       Column() {
         Text('手动接管')
           .fontSize(16)
@@ -71,11 +119,11 @@ struct ScreenManualLandscape {
             .width(6)
             .height(6)
             .borderRadius(3)
-            .backgroundColor('#2dcf9f')
+            .backgroundColor(BackendState.connected ? '#2dcf9f' : FG.red)
             .margin({ right: 4 })
-          Text(`接管中 | ${this.signalText}%`)
+          Text(BackendState.connected ? `接管中 | ${this.signalText}%` : '未连接')
             .fontSize(FG.smallSize)
-            .fontColor('#2dcf9f')
+            .fontColor(BackendState.connected ? '#2dcf9f' : FG.red)
         }
         .margin({ top: 4 })
       }
@@ -84,11 +132,10 @@ struct ScreenManualLandscape {
       .borderRadius(12)
       .border({ width: 1, color: 'rgba(147, 164, 186, 0.14)' })
       .backgroundColor('rgba(5, 8, 13, 0.82)')
-      .position({ x: 16, y: 12 })
+      .position({ x: 16, y: 52 })
 
       // ===== 右上：FPS 面板 =====
       Row() {
-        // 设置图标
         Image($r('app.media.settings'))
           .width(24)
           .height(24)
@@ -143,29 +190,11 @@ struct ScreenManualLandscape {
       .height(62)
       .position({ x: '74%', y: '78%' })
 
-      // ===== 底部居中：后退 + 急停 + 速度 =====
+      // ===== 底部居中：急停 + 速度 =====
       Row() {
-        // 后退按钮（圆形）
-        Row() {
-          Image($r('app.media.arrow-left'))
-            .width(18)
-            .height(18)
-            .fillColor(FG.muted)
-        }
-        .width(44)
-        .height(36)
-        .borderRadius(10)
-        .border({ width: 1, color: 'rgba(147, 164, 186, 0.14)' })
-        .backgroundColor('rgba(17, 26, 39, 0.72)')
-        .justifyContent(FlexAlign.Center)
-        .onClick(() => {
-          router.back()
-        })
-        .margin({ right: 12 })
-
         // 急停按钮
         Row() {
-          Image($r('app.media.octagon-alert'))
+          Image($r('app.media.octagon_alert'))
             .width(18)
             .height(18)
             .fillColor('#ff5f66')
@@ -183,7 +212,7 @@ struct ScreenManualLandscape {
         .onClick(() => {
           this.emergencyStop()
         })
-        .margin({ right: 12 })
+        .margin({ right: 16 })
 
         // 速度显示
         Row() {
@@ -206,7 +235,7 @@ struct ScreenManualLandscape {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#0a1622')
+    .backgroundColor('#0c1826')
   }
 
   @Builder
