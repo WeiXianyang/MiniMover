@@ -35,7 +35,7 @@ python3 api_server.py &
 
 ```bash
 cd ~/MiniMover
-python3 multi_car_coordinator.py &
+python multi_car_coordinator.py 
 ```
 
 启动后访问：

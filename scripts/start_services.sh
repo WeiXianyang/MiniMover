@@ -38,6 +38,7 @@ done
 sudo docker start $YAHBOOM_CONTAINER >/dev/null 2>&1
 echo -e "  ${GREEN}[OK] yahboom container started${NC}"
 
+
 # 3. Start camera container
 RUNNING=$(sudo docker ps -q -f name=$CAM_CONTAINER)
 if [ -n "$RUNNING" ]; then
