@@ -123,9 +123,9 @@ class _AlarmDetailPageState extends State<AlarmDetailPage> {
                           : '—',
                     ),
                     const Divider(color: AppTheme.dividerLine, height: 20),
-                    const InfoRow(label: '烟雾值', value: '86 ppm'),
+                    const InfoRow(label: '烟雾值', value: '—'),
                     const Divider(color: AppTheme.dividerLine, height: 20),
-                    const InfoRow(label: '温度', value: '67°C'),
+                    const InfoRow(label: '温度', value: '—'),
                   ],
                 ),
               ),
@@ -164,7 +164,7 @@ class _AlarmDetailPageState extends State<AlarmDetailPage> {
                     context,
                     '手动接管',
                     ManualControlPage(
-                        tcpService: cs.tcpService, embedded: true)),
+                        carState: cs, embedded: true)),
               ),
               if (cs.hasAlarm) ...[
                 const SizedBox(height: 12),

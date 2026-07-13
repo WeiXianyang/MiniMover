@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
-import '../services/tcp_service.dart';
+import '../services/car_state.dart';
 import '../models/control_layout.dart';
 import 'manual_control_settings_page.dart';
 import '../widgets/mjpeg_stream.dart';
@@ -10,11 +10,11 @@ import '../widgets/mjpeg_stream.dart';
 /// S06 - 手动接管（横屏游戏风格）
 /// 所有组件位置/大小/透明度由 ControlLayout 驱动，可进入设置页拖拽调整
 class ManualControlPage extends StatefulWidget {
-  final TcpService tcpService;
+  final CarState carState;
   final bool embedded;
   const ManualControlPage({
     super.key,
-    required this.tcpService,
+    required this.carState,
     this.embedded = false,
   });
 
@@ -80,39 +80,37 @@ class _ManualControlPageState extends State<ManualControlPage> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
-  // ── 摇杆回调 ────────────────────────────
+  DateTime _lastSend = DateTime.now();
+  final _throttle = const Duration(milliseconds: 200);
+
+  // ── 摇杆回调（HTTP 方向指令） ──────────
   void _onMoveUpdate(Offset local, Size size) {
     final dx = (local.dx / (size.width / 2) - 1).clamp(-1.0, 1.0);
     final dy = (local.dy / (size.height / 2) - 1).clamp(-1.0, 1.0);
     setState(() => _moveJoystick = Offset(dx, dy));
-    final forward = (-dy * _speed * 100).round().clamp(-100, 100);
-    final lateral = (dx * _speed * 100).round().clamp(-100, 100);
-    widget.tcpService.move(forward, lateral);
+    if (_emergencyStopped) return;
+    final now = DateTime.now();
+    if (now.difference(_lastSend) < _throttle) return;
+    _lastSend = now;
+    widget.carState.setSpeed((dy.abs() > dx.abs() ? dy.abs() : dx.abs() * _speed * 100).round().clamp(10, 100));
+    if (dy.abs() > dx.abs()) { if (dy < -0.3) widget.carState.moveForward(); else if (dy > 0.3) widget.carState.moveBackward(); else widget.carState.stop(); }
+    else { if (dx < -0.3) widget.carState.moveLeft(); else if (dx > 0.3) widget.carState.moveRight(); else widget.carState.stop(); }
   }
-
   void _onMoveEnd() {
     setState(() => _moveJoystick = Offset.zero);
-    if (!_emergencyStopped) widget.tcpService.move(0, 0);
+    if (!_emergencyStopped) widget.carState.stop();
   }
-
   void _onViewUpdate(Offset local, Size size) {
     final dx = (local.dx / (size.width / 2) - 1).clamp(-1.0, 1.0);
     setState(() => _viewJoystickX = dx);
-    if (!_emergencyStopped) {
-      final rotate = (dx * _speed * 50).round().clamp(-100, 100);
-      widget.tcpService.move(0, rotate);
-    }
+    if (_emergencyStopped) return;
+    final now = DateTime.now();
+    if (now.difference(_lastSend) < _throttle) return;
+    _lastSend = now;
+    if (dx > 0.3) widget.carState.moveRight(); else if (dx < -0.3) widget.carState.moveLeft(); else widget.carState.stop();
   }
-
-  void _onViewEnd() {
-    setState(() => _viewJoystickX = 0);
-    if (!_emergencyStopped) widget.tcpService.move(0, 0);
-  }
-
-  void _emergencyStop() {
-    setState(() => _emergencyStopped = !_emergencyStopped);
-    widget.tcpService.emergencyStop();
-  }
+  void _onViewEnd() { setState(() => _viewJoystickX = 0); if (!_emergencyStopped) widget.carState.stop(); }
+  void _emergencyStop() { setState(() => _emergencyStopped = !_emergencyStopped); widget.carState.emergencyStop(); }
 
   // ═══════════════════════════════════════════
   // 雷达小窗
@@ -220,12 +218,12 @@ class _ManualControlPageState extends State<ManualControlPage> {
   // 视频背景
   // ═══════════════════════════════════════════
   Widget _buildVideoBackground(Size size) {
-    final connected = widget.tcpService.connected;
+    final connected = widget.carState.connected;
     return Positioned.fill(
       child: connected
           ? MjpegStream(
-              host: widget.tcpService.host,
-              port: 6500,
+              host: widget.carState.host,
+              port: widget.carState.port,
               width: size.width,
               height: size.height,
               placeholder: (ctx) => _buildVideoFallback(size),
@@ -270,8 +268,8 @@ class _ManualControlPageState extends State<ManualControlPage> {
                       fontSize: 12,
                       color: AppTheme.statusGreen)),
               const SizedBox(width: 10),
-              const Text('|  86%',
-                  style: TextStyle(
+              Text('|  ${widget.carState.batteryPercent}%',
+                  style: const TextStyle(
                       fontWeight: FontWeight.w400,
                       fontSize: 11,
                       color: AppTheme.textSecondary)),
@@ -525,8 +523,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
         _sideBtnItem(_layout.btnLight, parent, Icons.lightbulb_outline,
             _lightOn ? AppTheme.accent : AppTheme.textPrimary, () {
           setState(() => _lightOn = !_lightOn);
-          widget.tcpService.setLight(
-              _lightOn ? 255 : 0, _lightOn ? 200 : 0, _lightOn ? 100 : 0);
+          // 灯带（API 暂不支持，仅本地切换）
         }),
         _sideBtnItem(_layout.btnMic, parent, Icons.mic,
             _micOn ? AppTheme.statusGreen : AppTheme.textPrimary, () {
@@ -538,11 +535,6 @@ class _ManualControlPageState extends State<ManualControlPage> {
             Icons.fiber_manual_record,
             _recording ? AppTheme.statusRed : AppTheme.textPrimary, () {
           setState(() => _recording = !_recording);
-          if (_recording) {
-            widget.tcpService.startRecordVideo();
-          } else {
-            widget.tcpService.stopRecordVideo();
-          }
         }),
         _sideBtnItem(_layout.btnMap, parent, Icons.map_outlined,
             AppTheme.textPrimary, () {}),
@@ -635,20 +627,23 @@ class _ManualControlPageState extends State<ManualControlPage> {
                   Border.all(color: const Color.fromRGBO(255, 255, 255, 0.08)),
             ),
             alignment: Alignment.center,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon,
-                    size: sz.height * 0.45,
-                    color: accent ? AppTheme.accent : AppTheme.textSecondary),
-                const SizedBox(width: 4),
-                Text(label,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: sz.height * 0.35,
-                        color:
-                            accent ? AppTheme.accent : AppTheme.textSecondary)),
-              ],
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon,
+                      size: sz.height * 0.45,
+                      color: accent ? AppTheme.accent : AppTheme.textSecondary),
+                  const SizedBox(width: 4),
+                  Text(label,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: sz.height * 0.35,
+                          color:
+                              accent ? AppTheme.accent : AppTheme.textSecondary)),
+                ],
+              ),
             ),
           ),
         ),

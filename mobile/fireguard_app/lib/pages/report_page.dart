@@ -54,7 +54,7 @@ class _ReportPageState extends State<ReportPage> {
                     child: GlassCard(
                       padding: EdgeInsets.all(16),
                       child: StatBlock(
-                          value: '6m 28s',
+                          value: '—',
                           label: '巡检耗时',
                           icon: Icons.timer_outlined),
                     ),
@@ -78,7 +78,7 @@ class _ReportPageState extends State<ReportPage> {
                     child: GlassCard(
                       padding: EdgeInsets.all(16),
                       child: StatBlock(
-                          value: '1 次',
+                          value: '—',
                           label: '高等级告警',
                           icon: Icons.warning_amber_outlined),
                     ),
@@ -88,7 +88,7 @@ class _ReportPageState extends State<ReportPage> {
                     child: GlassCard(
                       padding: EdgeInsets.all(16),
                       child: StatBlock(
-                          value: '2 次',
+                          value: '—',
                           label: '动态避障',
                           icon: Icons.alt_route),
                     ),

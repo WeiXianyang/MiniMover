@@ -105,14 +105,14 @@ class _MapTaskPageState extends State<MapTaskPage> {
                     InfoRow(
                       label: '避障状态',
                       value: cs.taskRunning
-                          ? '已绕过纸箱，继续巡检'
-                          : '待命中',
+                          ? '—'
+                          : '—',
                     ),
                     const Divider(
                         color: AppTheme.dividerLine, height: 22),
                     InfoRow(
                         label: '剩余点位',
-                        value: '配电柜A / 仓储通道C / 消防栓B'),
+                        value: '—'),
                   ],
                 ),
               ),

@@ -40,6 +40,7 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
   @override
   Widget build(BuildContext context) {
     final cs = widget.carState;
+    final online = cs.connected;
 
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -56,68 +57,77 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
             children: [
               PageHeader(
                 title: '巡检主页',
-                subTitle: '今日任务总览',
-                badgeText: cs.taskRunning
-                    ? (cs.taskPaused ? '已暂停' : '巡检中')
-                    : '自动巡检待命',
-                badgeActive: cs.taskRunning,
+                subTitle: cs.deviceStatusDisplay,
+                badgeText: online
+                    ? (cs.taskRunning
+                        ? (cs.taskPaused ? '已暂停' : '巡检中')
+                        : '就绪')
+                    : '离线',
+                badgeActive: online,
               ),
               const SizedBox(height: 24),
+              // ── 基本信息（小车返回值） ──
               GlassCard(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 child: Column(
                   children: [
                     InfoRow(
-                        label: '当前区域', value: cs.currentArea),
+                        label: '当前区域',
+                        value: cs.currentAreaDisplay),
                     const Divider(color: AppTheme.dividerLine, height: 20),
                     InfoRow(
                         label: '当前任务',
-                        value: cs.taskRunning ? '配电房与仓储通道巡检' : '待命'),
+                        value: cs.currentTaskDisplay),
+                    const Divider(color: AppTheme.dividerLine, height: 20),
+                    InfoRow(
+                        label: '设备状态',
+                        value: online ? cs.deviceStatusDisplay : '—'),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
+              // ── 统计卡片 ──
               Row(
                 children: [
                   Expanded(
                     child: GlassCard(
                       padding: const EdgeInsets.all(16),
                       child: StatBlock(
-                        value: cs.connected
-                            ? '${cs.batteryPercent}%'
-                            : '—',
+                        value: cs.batteryDisplay,
                         label: '电量',
+                        icon: Icons.battery_charging_full,
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
+                  const Expanded(
                     child: GlassCard(
-                      padding: const EdgeInsets.all(16),
-                      child: StatBlock(
-                        value: '${cs.remainingPoints}',
-                        label: '待巡检点',
-                      ),
+                      padding: EdgeInsets.all(16),
+                      child: StatBlock(value: '—', label: '待巡检点'),
                     ),
                   ),
                 ],
               ),
+              // ── 传感器（来自 /api/status 轮询） ──
               const SizedBox(height: 12),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: GlassCard(
-                      padding: EdgeInsets.all(16),
-                      child:
-                          StatBlock(value: '正常', label: '烟雾值'),
+                      padding: const EdgeInsets.all(16),
+                      child: StatBlock(
+                        value: cs.connected && cs.sensors.smoke > 0 ? '${cs.sensors.smoke}' : '—',
+                        label: '烟雾值'),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: GlassCard(
-                      padding: EdgeInsets.all(16),
-                      child: StatBlock(value: '29°C', label: '机柜环境温度'),
+                      padding: const EdgeInsets.all(16),
+                      child: StatBlock(
+                        value: cs.connected && cs.sensors.temperature > 0 ? '${cs.sensors.temperature.toStringAsFixed(1)}°C' : '—',
+                        label: '环境温度'),
                     ),
                   ),
                 ],
@@ -131,9 +141,11 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                     const Text('推荐动作', style: AppTheme.bodyLabel),
                     const SizedBox(height: 6),
                     Text(
-                      cs.taskRunning
-                          ? '巡检进行中… 约 ${((1 - cs.taskProgress) * 6).ceil()} 分钟'
-                          : '开始自动巡检，预计 6 分钟完成',
+                      online
+                          ? (cs.taskRunning
+                              ? '巡检进行中…'
+                              : '点击下方按钮开始自动巡检')
+                          : '请先在「设备连接」页连接小车',
                       style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 18,
@@ -144,14 +156,16 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
               ),
               const SizedBox(height: 20),
               GradientButton(
-                text: cs.taskRunning ? '巡检进行中…' : '开始自动巡检',
-                onTap: cs.taskRunning
-                    ? null
-                    : () {
+                text: online
+                    ? (cs.taskRunning ? '巡检进行中…' : '开始自动巡检')
+                    : '未连接小车',
+                onTap: (online && !cs.taskRunning)
+                    ? () {
                         cs.startTask();
                         _push(context, '地图任务',
                             MapTaskPage(carState: cs, embedded: true));
-                      },
+                      }
+                    : null,
               ),
               const SizedBox(height: 12),
               GradientButton(
@@ -161,7 +175,7 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                     context,
                     '手动接管',
                     ManualControlPage(
-                        tcpService: cs.tcpService, embedded: true)),
+                        carState: cs, embedded: true)),
               ),
             ],
           ),

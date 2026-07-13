@@ -89,7 +89,7 @@ class TcpService {
   double _batteryVoltage = 0.0;
   CarSpeed? _currentSpeed;
   int _stabilizeState = 0;
-  int _cameraType = 0; // 0=深度相机, 1=USB, 2=广角
+  int _cameraType = -1; // -1=未知, 0=无效, 1=USB, 2=深度相机
 
   // ── 广播流 ──
   final StreamController<String> _rawEventController =
@@ -105,6 +105,11 @@ class TcpService {
   int get port => _port;
   String get deviceVersion => _deviceVersion;
   double get batteryVoltage => _batteryVoltage;
+  int get batteryPercent {
+    if (_batteryVoltage <= 0) return 0;
+    final pct = ((_batteryVoltage - 6.5) / (8.4 - 6.5) * 100).round();
+    return pct.clamp(0, 100);
+  }
   CarSpeed? get currentSpeed => _currentSpeed;
   int get stabilizeState => _stabilizeState;
   int get cameraType => _cameraType;
@@ -142,8 +147,9 @@ class TcpService {
           // 按 $...# 边界提取完整帧
           while (true) {
             final start = buffer.indexOf('\$');
+            if (start == -1) break; // 还没收到帧头
             final end = buffer.indexOf('#', start);
-            if (start == -1 || end == -1) break;
+            if (end == -1) break; // 帧不完整，等更多数据
 
             final frame = buffer.substring(start, end + 1);
             buffer = buffer.substring(end + 1);
@@ -368,7 +374,7 @@ class TcpService {
   void stopRecordVideo() => _sendFrame(0x62, []);
 
   /// 开始循线 (0x63)
-  void startFollowLine() => _sendFrame(0x63, [1]);
+  void startFollowLine() => _sendFrame(0x63, []);
 
   /// 停止循线 (0x64)
   void stopFollowLine() => _sendFrame(0x64, [0]);
