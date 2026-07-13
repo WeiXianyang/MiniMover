@@ -35,6 +35,39 @@ python identify_camera.py
 
 按空格识别当前画面，按 `q` 退出。
 
+### 小车视频流识别（人脸库在百度云，无需在小车注册）
+
+**1. 小车上先启动视频服务**
+
+```bash
+bash ~/MiniMover/scripts/start_services.sh
+```
+
+确认浏览器能打开（把 IP 换成你的小车 IP）：
+
+- `http://<小车IP>:8080/stream?topic=/camera/color/image_raw`
+- 或 `http://<小车IP>:5000/` 控制面板里的视频
+
+**2. 在 PC 上拉流并识别**
+
+```bash
+cd 人脸识别
+pip install opencv-python
+
+# 推荐：ROS 彩色流，延迟低
+python identify_car_stream.py --car-ip 192.168.137.23
+
+# 或走 API 转发流
+python identify_car_stream.py --car-ip 192.168.137.23 --source api
+
+# 每 3 秒自动识别一次
+python identify_car_stream.py --car-ip 192.168.137.23 --auto 3
+```
+
+按键：空格=手动识别，`a`=开关自动识别，`q`=退出。
+
+识别结果优先显示百度云 `user_info` 里的用户名；本地数据库没有该用户也能识别。
+
 ### API 调用
 
 ```bash

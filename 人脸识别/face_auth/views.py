@@ -9,6 +9,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
 from .baidu_face import FACE_MATCH_THRESHOLD, identify_person, match_face, register_faces_for_user
+from .identity_utils import resolve_display_name
 from .crypto import aes_decrypt_text, aes_encrypt_text
 from .models import UserProfile
 from .serializers import UserSerializer
@@ -155,25 +156,37 @@ def face_recognition(request):
             status_code = status.HTTP_404_NOT_FOUND if identified.get('error_code') == 222207 else status.HTTP_400_BAD_REQUEST
             return Response(payload, status=status_code)
 
-        user = UserProfile.objects.get(id=identified['user_id'])
+        local_user = None
         try:
-            email = aes_decrypt_text(user.email)
-        except Exception:
-            email = user.email
-        request.session['username'] = user.username
+            local_user = UserProfile.objects.get(id=identified['user_id'])
+        except UserProfile.DoesNotExist:
+            local_user = None
+
+        identity = resolve_display_name(
+            identified,
+            local_username=local_user.username if local_user else None,
+        )
+        email = None
+        if local_user:
+            try:
+                email = aes_decrypt_text(local_user.email)
+            except Exception:
+                email = local_user.email
+            request.session['username'] = local_user.username
+
         return Response({
             'msg': '识别成功',
-            'identity': user.username,
+            'identity': identity,
             'user': {
-                'id': user.id,
-                'username': user.username,
+                'id': identified['user_id'],
+                'username': identity,
                 'email': email,
                 'score': identified['score'],
+                'user_info': identified.get('user_info', ''),
+                'source': 'local_db' if local_user else 'baidu_cloud',
             },
             'candidates': identified.get('candidates', []),
         })
-    except UserProfile.DoesNotExist:
-        return Response({'msg': '人脸库匹配到用户，但本地用户记录不存在'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as exc:
         return Response({'msg': f'识别过程出错: {str(exc)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:

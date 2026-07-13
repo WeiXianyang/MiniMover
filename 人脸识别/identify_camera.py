@@ -27,6 +27,7 @@ django.setup()
 
 from face_auth.baidu_face import FACE_MATCH_THRESHOLD, identify_person
 from face_auth.crypto import aes_decrypt_text
+from face_auth.identity_utils import overlay_display_name, overlay_error_lines, resolve_display_name
 from face_auth.models import UserProfile
 
 
@@ -66,8 +67,8 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
     status_lines = [
-        '按空格识别，按 q 退出',
-        f'匹配阈值: {FACE_MATCH_THRESHOLD}',
+        'SPACE=identify  Q=quit',
+        f'Threshold: {FACE_MATCH_THRESHOLD}',
     ]
     print('本地 1:N 人脸识别已启动。按空格识别，按 q 退出。')
 
@@ -87,37 +88,27 @@ def main():
         if key != ord(' '):
             continue
 
-        status_lines = ['正在识别...']
+        status_lines = ['Identifying...']
         image_base64 = frame_to_base64(frame)
         if not image_base64:
-            status_lines = ['图片编码失败']
+            status_lines = ['Encode failed']
             continue
 
         result = identify_person(image_base64)
         if not result.get('ok'):
-            status_lines = [
-                '识别失败',
-                result.get('msg', '未知错误'),
-            ]
-            if result.get('score') is not None:
-                status_lines.append(f"score={result['score']:.1f}")
-            print('\n'.join(status_lines))
+            status_lines = overlay_error_lines(result.get('msg'), score=result.get('score'))
+            print(f"[识别失败] {result.get('msg')}")
             continue
 
         user = lookup_user(result['user_id'])
-        if user:
-            status_lines = [
-                f"你是: {user['username']}",
-                f"相似度: {result['score']:.1f}",
-            ]
-            print(f"识别成功 -> {user['username']} ({result['score']:.1f})")
-        else:
-            status_lines = [
-                '百度云已匹配，但本地无用户记录',
-                f"user_id={result['user_id']}",
-                f"score={result['score']:.1f}",
-            ]
-            print('\n'.join(status_lines))
+        local_name = user['username'] if user else None
+        display_name = overlay_display_name(result, local_username=local_name)
+        status_lines = [
+            f'Match: {display_name}',
+            f'Score: {result["score"]:.1f}',
+        ]
+        full_name = resolve_display_name(result, local_username=local_name)
+        print(f"识别成功 -> {full_name} ({result['score']:.1f})")
 
     cap.release()
     cv2.destroyAllWindows()
