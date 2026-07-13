@@ -71,3 +71,50 @@
 ## 六、启动流程
 
 启动 → **主页**（巡检主页）→ 底部标签栏切换各页 → 「连接」页连小车成功后自动回主页。
+
+## 七、v2 升级改造（2025-07）
+
+本次升级将 7 标签页重构为 **5 标签页**，新增 REST API 后端支持、横屏手动接管页面和编队管理标签。
+
+### 关键决策
+
+1. 标签从 7 项（连接/主页/地图/告警/配送/接管/报告）缩减为 **5 项**（连接/主页/告警/配送/编队）
+2. 手动接管从竖屏标签页变为**独立横屏全屏页面**（`router.pushUrl` 导航）
+3. 新增后端类型开关：**TCP 二进制协议**（兼容旧车）与 **REST API**（Flask `api_server.py:5000` HTTP/JSON）可切换
+4. 地图、报告、手动接管（竖屏）标签页从导航移除，源文件保留作参考
+
+### 新增文件
+
+| 文件 | 说明 |
+| --- | --- |
+| `entry/src/main/ets/CarUtill/BackendType.ets` | `BackendType` 枚举（TCP=0, REST=1）、`BackendState` 全局静态类（类型、连接状态、IP、端口） |
+| `entry/src/main/ets/tcp/RestApiClient.ets` | REST API 单例客户端：`initConnection`、`sendMove`、`sendMoveContinuous`、`checkHealth`、`getStatus` |
+| `entry/src/main/ets/components/ViewRockerComponents.ets` | 视角/云台摇杆占位组件（`tiltWidth: 0.4`），当前仅输出调试日志 |
+| `entry/src/main/ets/fireguard/screens/ScreenFleet.ets` | 编队管理标签：车辆列表（1 领航 + 2 从车）、添加从车按钮、编队命令（出发/停止）、解散编队、编队统计 |
+| `entry/src/main/ets/pages/ScreenManualLandscape.ets` | `@Entry` 横屏手动接管页面：全屏 Stack 布局、视频背景、雷达、运动摇杆（左下 120×120）、视角摇杆（右下 140×62）、右侧工具列（灯/麦/录/雷/图）、底部急停/后退/速度显示 |
+| `entry/src/main/resources/base/profile/main_pages.json` | 注册 `pages/ScreenManualLandscape` 页面 |
+
+### 修改文件
+
+| 文件 | 改动 |
+| --- | --- |
+| `Tabs.ets` | `FgTab` 从 7 项缩减为 5 项（Connect/Home/Alert/Delivery/Fleet），标签文字同步更新 |
+| `MainConsole.ets` | 移除 `ScreenMap`/`ScreenReport`/`ScreenManual` 导入和渲染，新增 `ScreenFleet`，`tabList` 更新为 5 项 |
+| `PreferencesUtils.ets` | `NetInfoPreferencesUtils` 新增 `KEY_BACKEND_TYPE`、`KEY_REST_PORT` 及对应的 getter/setter |
+| `CarApi.ets` | `carBtnCtrl` 新增后端路由（REST 时映射 `CarDirection` → REST 命令字符串并 POST）；新增 `sendRestMove`/`sendRestMoveContinuous`/`sendRestStop` 方法 |
+| `CarRockerComponents.ets` | 新增 REST 模式轮询逻辑：XY→方向映射、死区（<15 停止）、速度计算（20-100）、`setInterval(300ms)` 持续发送；`aboutToDisappear` 清理 timer |
+| `ScreenConnect.ets` | 新增 TCP/REST 后端类型切换按钮、REST 端口输入字段、`initRestConfig` 连接方法；连接成功后设置 `BackendState`；读写首选项新增后端类型和 REST 端口 |
+| `ScreenHome.ets` | 替换硬编码布局为状态化布局：已连接时显示巡检信息 + "开始巡检"/"切换到手动接管"；未连接时显示连接提示 + "未连接到设备"按钮 |
+| `ScreenAlert.ets` | "远程接管"按钮改为 `router.pushUrl('pages/ScreenManualLandscape')` 横屏导航 |
+
+### 保留项（已从导航移除，源文件保留）
+
+- `ScreenMap.ets`、`ScreenReport.ets`、`ScreenManual.ets`：不再出现在 5 标签页中，文件保留作参考
+- `ScreenDelivery.ets`：仍为独立标签页，布局未变
+- 底层能力（`tcp/`、`CarUtill/CarEncode.ets`、`CarUtill/CarEnum.ets`、`CarBtnComponents.ets`、`VideoComponents.ets`、Rocker 库）：未改动
+
+### 运行时行为
+
+- TCP 模式：摇杆走 `CarEncode.CtrlCarEncode` → TCP 二进制发送；按钮走 `CarEncode.ButtonCarEncode` → TCP 发送
+- REST 模式：摇杆走 XY→方向映射 + 轮询 → `POST /api/move`（每 300ms 持续发送）；按钮走 `CarDirection` → REST 命令映射 → `POST /api/move`（带 duration）；急停走 `POST /api/move (stop)`
+- 横屏接管页进入时 `ScreenUtils.setLandscape()`，退出时 `ScreenUtils.setPortrait()` 恢复竖屏

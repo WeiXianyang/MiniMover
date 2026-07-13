@@ -1,9 +1,11 @@
 /**
  * S02 巡检主页
- * 今日任务总览。数据暂为原型静态值，后端接入后替换。
+ * 今日任务总览。根据连接状态显示不同内容。
  */
+import router from '@ohos.router'
 import { FgPageHead, FgCard, FgRow, FgMetric, FgRecommend, FgButton, FgStatus, FgBtnType } from '../Widgets'
 import { FgTab } from '../Tabs'
+import { BackendState } from '../../CarUtill/BackendType'
 
 @Component
 export struct ScreenHome {
@@ -13,11 +15,24 @@ export struct ScreenHome {
     Column() {
       FgPageHead({
         title: '巡检主页',
-        subtitle: '今日任务总览',
-        pillText: '自动巡检待命',
-        pillStatus: FgStatus.Green
+        subtitle: '车辆状态与任务入口',
+        pillText: BackendState.connected ? '设备已连接' : '待命',
+        pillStatus: BackendState.connected ? FgStatus.Green : FgStatus.Red
       })
 
+      if (BackendState.connected) {
+        this.buildConnected()
+      } else {
+        this.buildDisconnected()
+      }
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  buildConnected() {
+    Column() {
       FgCard() {
         FgRow({ label: '当前区域', value: '园区 A 栋一层' })
         FgRow({ label: '当前任务', value: '配电房与仓储通道巡检', showBorder: false })
@@ -52,9 +67,9 @@ export struct ScreenHome {
       Row() {
         Column() {
           FgButton({
-            text: '开始自动巡检',
+            text: '开始巡检',
             type: FgBtnType.Primary,
-            onTap: () => this.gotoTab(FgTab.Map)
+            onTap: () => { this.gotoTab(FgTab.Delivery) }
           })
         }
         .layoutWeight(1)
@@ -62,14 +77,34 @@ export struct ScreenHome {
 
         Column() {
           FgButton({
-            text: '手动控制',
-            onTap: () => this.gotoTab(FgTab.Manual)
+            text: '切换到手动接管',
+            onTap: () => {
+              router.pushUrl({ url: 'pages/ScreenManualLandscape' })
+            }
           })
         }
         .layoutWeight(1)
         .margin({ left: 5 })
       }
       .width('100%')
+    }
+    .width('100%')
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  buildDisconnected() {
+    Column() {
+      FgRecommend({
+        label: '设备状态',
+        title: '未连接到设备',
+        desc: '请先完成设备连接，再开始巡检或进入手动接管。'
+      })
+
+      FgButton({
+        text: '未连接到设备',
+        onTap: () => { this.gotoTab(FgTab.Connect) }
+      })
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)

@@ -1,45 +1,86 @@
 import { carApi } from '../CarUtill/CarApi'
 import { CarEncode } from '../CarUtill/CarEncode';
+import { BackendState, BackendType } from '../CarUtill/BackendType';
 
 import { RockerComponent, RockerOptions } from "rocker"
 
 let TAG = 'anran0';
 
+/** XY 摇杆值 → REST 方向命令映射 */
+function tiltToDirection(tiltX: number, tiltY: number): string {
+  if (Math.abs(tiltX) > Math.abs(tiltY)) {
+    return tiltX > 0 ? 'Right' : 'Left';
+  } else {
+    return tiltY > 0 ? 'Back' : 'Forward';
+  }
+}
+
+/** 死区阈值 */
+const DEAD_ZONE: number = 15;
 
 /**
- * 按键控制UI组件
+ * 摇杆控制UI组件
+ * 支持 TCP 和 REST 两种后端模式
  */
 @Component
 struct CarRockerComponents {
-  // 摇杆的手指的样式
   tiltStyle = new ImageBitmap("img/remote.svg");
-  // 摇杆的背景样式
   backgroundStyle = new ImageBitmap("img/remote_background.svg");
 
-  /**
-   * 构建并渲染摇杆控制组件
-   * 此方法定义了摇杆组件的外观和行为。
-   * 它通过配置RockerComponent的参数来设置摇杆的宽度、样式、背景以及倾斜事件的处理。
-   */
+  private restInterval: number = -1;
+
+  aboutToDisappear(): void {
+    if (this.restInterval !== -1) {
+      clearInterval(this.restInterval);
+      this.restInterval = -1;
+    }
+  }
+
   build() {
     RockerComponent({
-      // 摇杆的选项配置
       rockerOptions: {
-        // 摇杆的宽度，这里以屏幕宽度的百分比表示
         tiltWidth: 0.6,
-        // 获取摇杆倾斜时的样式
-        getTiltStyle: () => this.tiltStyle,
-        // 获取摇杆的背景样式
-        getBackgroundStyle: () => this.backgroundStyle,
-        // 摇杆倾斜事件处理函数
-        // 当摇杆倾斜时，此函数被调用，并接收倾斜的X和Y方向值，以及可能的TouchEvent对象
+        getTiltStyle: (): ImageBitmap => this.tiltStyle,
+        getBackgroundStyle: (): ImageBitmap => this.backgroundStyle,
         tiltEvent: (tiltX: number, tiltY: number, event?: TouchEvent) => {
-          // 使用小车API发送控制指令
-          // CarEncode.CtrlCarEncode是一个函数，用于将倾斜的X和Y值编码为小车可识别的控制指令
-          carApi.send(CarEncode.CtrlCarEncode(tiltX, tiltY));
+          if (BackendState.type === BackendType.REST) {
+            this.handleRestTilt(tiltX, tiltY);
+          } else {
+            carApi.send(CarEncode.CtrlCarEncode(tiltX, tiltY));
+          }
         }
       }
     })
+  }
+
+  private handleRestTilt(tiltX: number, tiltY: number): void {
+    const magnitude: number = Math.sqrt(tiltX * tiltX + tiltY * tiltY);
+
+    if (magnitude < DEAD_ZONE) {
+      // 摇杆归零 → 清除轮询并停止
+      if (this.restInterval !== -1) {
+        clearInterval(this.restInterval);
+        this.restInterval = -1;
+      }
+      carApi.sendRestStop();
+      return;
+    }
+
+    const dir: string = tiltToDirection(tiltX, tiltY);
+    const speed: number = Math.min(100, Math.max(20, Math.round(magnitude)));
+
+    // 启动轮询（如果尚未启动）
+    if (this.restInterval === -1) {
+      this.restInterval = setInterval(() => {
+        const curDir: string = tiltToDirection(tiltX, tiltY);
+        const curMag: number = Math.sqrt(tiltX * tiltX + tiltY * tiltY);
+        const curSpeed: number = Math.min(100, Math.max(20, Math.round(curMag)));
+        carApi.sendRestMoveContinuous(curDir, curSpeed);
+      }, 300);
+    }
+
+    // 立即发送一次
+    carApi.sendRestMoveContinuous(dir, speed);
   }
 }
 

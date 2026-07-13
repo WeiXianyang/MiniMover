@@ -11,7 +11,6 @@ export class PreferencesUtils {
 
   /**提供一个公共的静态方法返回实例对象*/
   public static getInstance(): PreferencesUtils {
-    // 如果对象单例不存在那么构建对象
     if (!PreferencesUtils.instance)
       PreferencesUtils.instance = new PreferencesUtils();
     return PreferencesUtils.instance;
@@ -20,10 +19,6 @@ export class PreferencesUtils {
   /**网络工具对象*/
   netUtils!: NetInfoPreferencesUtils
 
-  /*
-    * 初始化preferences实例
-    * @context  应用上下文
-   */
   async init(context: Context) {
     this.netUtils = new NetInfoPreferencesUtils(context)
   }
@@ -33,23 +28,18 @@ export class PreferencesUtils {
  * 网络配置首选项工具
  */
 export class NetInfoPreferencesUtils {
-  /**首选项名称*/
   public static readonly NAME = "net_preferences_utils"
-  /**KEY IP*/
   public static readonly KEY_IP = "KEY_IP";
-  /**KEY IP*/
   public static readonly KEY_TCP_PORT = "KEY_TCP_PORT";
-  /**KEY IP*/
   public static readonly KEY_VIDEO_PORT = "KEY_TCP_VIDEO";
-  /**首选项实例*/
+  public static readonly KEY_BACKEND_TYPE = "KEY_BACKEND_TYPE";
+  public static readonly KEY_REST_PORT = "KEY_REST_PORT";
   private pref!: preferences.Preferences
 
-  /**构造函数*/
   constructor(context: Context) {
     this.init(context)
   }
 
-  /**初始化首首选项实例*/
   private async init(context: Context) {
     let name = NetInfoPreferencesUtils.NAME;
     try {
@@ -72,7 +62,6 @@ export class NetInfoPreferencesUtils {
     this.pref.flush()
   }
 
-
   async getTcpPort(): Promise<string> {
     return (await this.pref.get(NetInfoPreferencesUtils.KEY_TCP_PORT, '6000')).toString()
   }
@@ -90,5 +79,24 @@ export class NetInfoPreferencesUtils {
   async getVideoPort(): Promise<string> {
     return (await this.pref.get(NetInfoPreferencesUtils.KEY_VIDEO_PORT, '6500')).toString()
   }
-}
 
+  // ------------------------------后端类型 + REST 端口------------------------------
+
+  async getBackendType(): Promise<number> {
+    return (await this.pref.get(NetInfoPreferencesUtils.KEY_BACKEND_TYPE, 0)) as number
+  }
+
+  setBackendType(v: number) {
+    this.pref.put(NetInfoPreferencesUtils.KEY_BACKEND_TYPE, v);
+    this.pref.flush()
+  }
+
+  async getRestPort(): Promise<string> {
+    return (await this.pref.get(NetInfoPreferencesUtils.KEY_REST_PORT, '5000')).toString()
+  }
+
+  setRestPort(v: string) {
+    this.pref.put(NetInfoPreferencesUtils.KEY_REST_PORT, v);
+    this.pref.flush()
+  }
+}

@@ -228,6 +228,7 @@ export enum FgBtnType {
 export struct FgButton {
   @Prop text: string = '';
   @Prop type: FgBtnType = FgBtnType.Default;
+  @Prop icon?: Resource;
   onTap: () => void = () => {};
 
   private bgColor(): string {
@@ -247,15 +248,26 @@ export struct FgButton {
   }
 
   build() {
-    Button(this.text)
-      .fontSize(FG.bodySize)
-      .fontWeight(FontWeight.Bold)
-      .fontColor(this.fgColor())
-      .type(ButtonType.Normal)
-      .width('100%')
-      .height(46)
-      .borderRadius(FG.btnRadius)
-      .backgroundColor(this.bgColor())
-      .onClick(() => this.onTap())
+    Button() {
+      Row({ space: 8 }) {
+        if (this.icon !== undefined) {
+          Image(this.icon)
+            .width(18)
+            .height(18)
+            .fillColor(this.fgColor())
+        }
+        Text(this.text)
+          .fontSize(FG.bodySize)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.fgColor())
+      }
+      .justifyContent(FlexAlign.Center)
+    }
+    .type(ButtonType.Normal)
+    .width('100%')
+    .height(46)
+    .borderRadius(FG.btnRadius)
+    .backgroundColor(this.bgColor())
+    .onClick(() => this.onTap())
   }
 }

@@ -1,23 +1,21 @@
 /**
  * FireGuard 工业巡检 APP 主控制台
- * 承载 7 个屏幕（连接/主页/地图/告警/配送/接管/报告），
- * 顶部为可滚动的内容区，底部为固定的 7 项标签栏，整体套用手机框深色风格。
+ * 承载 5 个屏幕（连接/主页/告警/配送/编队），
+ * 顶部为可滚动的内容区，底部为固定的 5 项标签栏，整体套用手机框深色风格。
  */
 import { FG } from '../fireguard/Theme'
 import { FgTab, FG_TAB_LABELS } from '../fireguard/Tabs'
 import { ScreenUtils } from '../utils/ScreenUtils'
 import { ScreenConnect } from '../fireguard/screens/ScreenConnect'
 import { ScreenHome } from '../fireguard/screens/ScreenHome'
-import { ScreenMap } from '../fireguard/screens/ScreenMap'
 import { ScreenAlert } from '../fireguard/screens/ScreenAlert'
 import { ScreenDelivery } from '../fireguard/screens/ScreenDelivery'
-import { ScreenManual } from '../fireguard/screens/ScreenManual'
-import { ScreenReport } from '../fireguard/screens/ScreenReport'
+import { ScreenFleet } from '../fireguard/screens/ScreenFleet'
 
 @Entry
 @Component
 struct MainConsole {
-  /** 当前选中的 tab，默认进入主页；连接小车在“连接”标签内按需操作 */
+  /** 当前选中的 tab，默认进入主页 */
   @State current: FgTab = FgTab.Home
 
   /** 顶部状态栏（电量/时间）安全区高度，vp。全屏布局下用作内容区顶部内边距，避免重叠 */
@@ -26,8 +24,7 @@ struct MainConsole {
   @State bottomSafe: number = 0
 
   private tabList: FgTab[] = [
-    FgTab.Connect, FgTab.Home, FgTab.Map, FgTab.Alert,
-    FgTab.Delivery, FgTab.Manual, FgTab.Report
+    FgTab.Connect, FgTab.Home, FgTab.Alert, FgTab.Delivery, FgTab.Fleet
   ]
 
   aboutToAppear(): void {
@@ -50,16 +47,12 @@ struct MainConsole {
             ScreenConnect({ gotoTab: this.gotoTab })
           } else if (this.current == FgTab.Home) {
             ScreenHome({ gotoTab: this.gotoTab })
-          } else if (this.current == FgTab.Map) {
-            ScreenMap({ gotoTab: this.gotoTab })
           } else if (this.current == FgTab.Alert) {
             ScreenAlert({ gotoTab: this.gotoTab })
           } else if (this.current == FgTab.Delivery) {
             ScreenDelivery({ gotoTab: this.gotoTab })
-          } else if (this.current == FgTab.Manual) {
-            ScreenManual({ gotoTab: this.gotoTab })
           } else {
-            ScreenReport({ gotoTab: this.gotoTab })
+            ScreenFleet({ gotoTab: this.gotoTab })
           }
         }
         .width('100%')

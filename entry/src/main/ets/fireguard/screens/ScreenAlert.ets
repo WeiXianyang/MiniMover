@@ -1,7 +1,9 @@
 /**
  * S04 告警详情
  * 配电柜A疑似烟雾。数据后端接入后替换。
+ * "远程接管"按钮导航至横屏手动接管页面。
  */
+import router from '@ohos.router'
 import { FG } from '../Theme'
 import { FgPageHead, FgCard, FgRow, FgRecommend, FgButton, FgStatus, FgBtnType } from '../Widgets'
 import { FgTab } from '../Tabs'
@@ -14,7 +16,7 @@ export struct ScreenAlert {
     Column() {
       FgPageHead({
         title: '告警详情',
-        subtitle: '配电柜A疑似烟雾',
+        subtitle: '配电柜A · 疑似烟雾',
         pillText: '高等级告警',
         pillStatus: FgStatus.Red
       })
@@ -41,22 +43,27 @@ export struct ScreenAlert {
 
       FgRecommend({
         label: '处置建议',
-        title: '派发应急配送，并通知现场人员确认。'
+        title: '派发定点配送，并通知现场人员确认。'
       })
 
       Row() {
         Column() {
           FgButton({
-            text: '发起应急配送',
+            text: '发起定点配送',
             type: FgBtnType.Primary,
-            onTap: () => this.gotoTab(FgTab.Delivery)
+            onTap: () => { this.gotoTab(FgTab.Delivery) }
           })
         }
         .layoutWeight(1)
         .margin({ right: 5 })
 
         Column() {
-          FgButton({ text: '远程接管', onTap: () => this.gotoTab(FgTab.Manual) })
+          FgButton({
+            text: '进入远程接管',
+            onTap: () => {
+              router.pushUrl({ url: 'pages/ScreenManualLandscape' })
+            }
+          })
         }
         .layoutWeight(1)
         .margin({ left: 5 })
