@@ -1,0 +1,5 @@
+# 云端接收 API 依赖 (x86 云主机, Python 3.8+)
+flask==3.0.3
+PyMySQL==1.1.1
+# 生产建议用 gunicorn 起多进程 (Linux)。Windows 本地调试可直接 python -m cloud_platform.server
+gunicorn==21.2.0; platform_system != "Windows"
