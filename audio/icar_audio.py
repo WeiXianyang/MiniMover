@@ -155,22 +155,22 @@ _player = _Player()
 
 # ---- 百炼 DashScope CosyVoice 云端 TTS ----
 _DASHSCOPE_KEY = os.getenv("MINIMOVER_DASHSCOPE_API_KEY", "")
-_COSYVOICE_MODEL = os.getenv("MINIMOVER_COSYVOICE_MODEL", "cosyvoice-v3-flash")
+_COSYVOICE_MODEL = os.getenv("MINIMOVER_COSYVOICE_MODEL", "cosyvoice-v3")
 _COSYVOICE_VOICE = os.getenv("MINIMOVER_COSYVOICE_VOICE", "longanyang")
 _TTS_PROVIDER   = os.getenv("MINIMOVER_TTS_PROVIDER", "").lower()
 
-_DASHSCOPE_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2speech/synthesize"
+_DASHSCOPE_URL = "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer"
 _DASHSCOPE_TIMEOUT = 30
 
 def _tts_dashscope(text: str) -> bytes:
-    """百炼 CosyVoice TTS -> WAV bytes"""
-    import json as _json, base64 as _b64
+    """百炼 CosyVoice TTS -> WAV bytes（非流式）"""
+    import json as _json
     from urllib import request as _req
 
     payload = _json.dumps({
         "model": _COSYVOICE_MODEL,
-        "input": {"text": text},
-        "parameters": {
+        "input": {
+            "text": text,
             "voice": _COSYVOICE_VOICE,
             "format": "wav",
             "sample_rate": 24000,
@@ -186,10 +186,12 @@ def _tts_dashscope(text: str) -> bytes:
     with _req.urlopen(req, timeout=_DASHSCOPE_TIMEOUT) as resp:
         body = _json.loads(resp.read().decode("utf-8"))
 
-    audio_b64 = body.get("output", {}).get("audio", "")
-    if not audio_b64:
-        raise RuntimeError("DashScope TTS returned no audio: " + str(body))
-    return _b64.b64decode(audio_b64)
+    audio_url = body.get("output", {}).get("audio", {}).get("url", "")
+    if not audio_url:
+        raise RuntimeError("DashScope TTS returned no audio url: " + str(body))
+
+    with _req.urlopen(audio_url, timeout=_DASHSCOPE_TIMEOUT) as resp2:
+        return resp2.read()
 
 
 def _has_espeak() -> bool:
