@@ -152,6 +152,46 @@ _player = _Player()
 
 
 # === TTS ===
+
+# ---- 百炼 DashScope CosyVoice 云端 TTS ----
+_DASHSCOPE_KEY = os.getenv("MINIMOVER_DASHSCOPE_API_KEY", "")
+_COSYVOICE_MODEL = os.getenv("MINIMOVER_COSYVOICE_MODEL", "cosyvoice-v3-flash")
+_COSYVOICE_VOICE = os.getenv("MINIMOVER_COSYVOICE_VOICE", "longanyang")
+_TTS_PROVIDER   = os.getenv("MINIMOVER_TTS_PROVIDER", "").lower()
+
+_DASHSCOPE_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2speech/synthesize"
+_DASHSCOPE_TIMEOUT = 30
+
+def _tts_dashscope(text: str) -> bytes:
+    """百炼 CosyVoice TTS -> WAV bytes"""
+    import json as _json, base64 as _b64
+    from urllib import request as _req
+
+    payload = _json.dumps({
+        "model": _COSYVOICE_MODEL,
+        "input": {"text": text},
+        "parameters": {
+            "voice": _COSYVOICE_VOICE,
+            "format": "wav",
+            "sample_rate": 24000,
+        }
+    }, ensure_ascii=False).encode("utf-8")
+
+    headers = {
+        "Authorization": "Bearer " + _DASHSCOPE_KEY,
+        "Content-Type": "application/json",
+    }
+
+    req = _req.Request(_DASHSCOPE_URL, data=payload, headers=headers, method="POST")
+    with _req.urlopen(req, timeout=_DASHSCOPE_TIMEOUT) as resp:
+        body = _json.loads(resp.read().decode("utf-8"))
+
+    audio_b64 = body.get("output", {}).get("audio", "")
+    if not audio_b64:
+        raise RuntimeError("DashScope TTS returned no audio: " + str(body))
+    return _b64.b64decode(audio_b64)
+
+
 def _has_espeak() -> bool:
     return subprocess.call(["which", "espeak-ng"],
                            stdout=subprocess.DEVNULL,
@@ -161,17 +201,25 @@ def _has_espeak() -> bool:
 def say(text: str, lang: str = "zh") -> bytes:
     """
     TTS 文本转语音, 返回 WAV 字节。
-    优先 espeak-ng, 不可用时尝试 espeak。
+    优先级: 百炼 DashScope CosyVoice > espeak-ng > espeak
     """
     _player.stop()
+
+    # ---- 百炼 CosyVoice ----
+    if _TTS_PROVIDER == "dashscope" and _DASHSCOPE_KEY:
+        try:
+            return _tts_dashscope(text)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    # ---- espeak 离线回退 ----
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         wav_path = tmp.name
-
     try:
         espeak = "espeak-ng" if _has_espeak() else "espeak"
         lang_map = {"zh": "cmn", "en": "en", "ja": "ja"}
         voice = lang_map.get(lang, lang)
-        # -w 输出 WAV  -v 语言  -s 语速  "text"
         subprocess.run([espeak, "-w", wav_path, "-v", voice,
                         "-s", "150", text],
                        check=True, capture_output=True, timeout=10)
