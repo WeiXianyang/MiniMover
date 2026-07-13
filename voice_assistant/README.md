@@ -88,3 +88,27 @@ The following interfaces are intentionally reserved for the next hardware pass:
 The current service requests 16 kHz directly through `sounddevice`; these two
 Linux-specific adapters remain TODOs until the car's actual ALSA devices are
 confirmed.
+## 车载语音控制
+
+链路为：
+
+```text
+小车麦克风 -> 小车 /api/audio/record/* -> Whisper 服务 -> 安全指令解析 -> 小车 /api/move
+                                                                    -> 小车 /api/audio/say
+```
+
+在运行语音服务的电脑上配置：
+
+```powershell
+$env:MINIMOVER_CAR_URL="http://192.168.137.23:5000"
+$env:MINIMOVER_ASR_BACKEND="remote_whisper"
+$env:MINIMOVER_WHISPER_URL="https://your-openai-compatible-endpoint/v1"
+$env:MINIMOVER_API_KEY="replace-me"
+$env:MINIMOVER_CAR_AUDIO_DURATION="4"
+$env:MINIMOVER_CAR_SPEAKER="1"
+python -m voice_assistant.voice_service --asr remote_whisper
+```
+
+`remote_whisper` 使用小车麦克风录制固定时长 WAV，发送到 OpenAI-compatible `/audio/transcriptions`，识别后的动作仍通过小车 API `/api/move` 执行；问答或反馈文本使用小车 `/api/audio/say` 播放。
+
+`MINIMOVER_CAR_SPEAKER=1` 会将 TTS 播放切换到小车扬声器；未设置时保持原来的本机 TTS 行为。

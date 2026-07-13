@@ -21,6 +21,7 @@ class VoiceConfig:
     def __init__(self):
         self.asr_backend = os.getenv("MINIMOVER_ASR_BACKEND", "auto").lower()
         self.car_url = os.getenv("MINIMOVER_CAR_URL", "http://127.0.0.1:5000")
+        self.car_audio_duration = _float("MINIMOVER_CAR_AUDIO_DURATION", 4.0)
         self.speed = _int("MINIMOVER_VOICE_SPEED", 35)
         self.duration = _float("MINIMOVER_VOICE_DURATION", 0.8)
         self.whisper_url = os.getenv("MINIMOVER_WHISPER_URL", "")
@@ -31,3 +32,4 @@ class VoiceConfig:
         self.tts_url = os.getenv("MINIMOVER_TTS_URL", "")
         self.tts_voice = os.getenv("MINIMOVER_TTS_VOICE", "alloy")
         self.tts_command = os.getenv("MINIMOVER_TTS_COMMAND", "aplay -q -")
+        self.car_speaker = os.getenv("MINIMOVER_CAR_SPEAKER", "0").lower() in {"1", "true", "yes", "on"}

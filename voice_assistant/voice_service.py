@@ -1,4 +1,4 @@
-﻿"""Standalone first-version voice control service."""
+"""Standalone first-version voice control service."""
 
 import argparse
 import logging
@@ -7,17 +7,19 @@ import time
 
 try:
     from .asr_backend import FunAsrBackend, WhisperBackend
+    from .remote_audio_backend import RemoteWhisperBackend
     from .config import VoiceConfig
     from .llm_client import LlmClient
-    from .tts_backend import HttpTtsBackend
+    from .tts_backend import CarTtsBackend, HttpTtsBackend
     from .speaker_verifier import SpeakerVerifier
     from .car_client import CarClient
     from .command_parser import parse_command
 except ImportError:
     from asr_backend import FunAsrBackend, WhisperBackend
+    from remote_audio_backend import RemoteWhisperBackend
     from config import VoiceConfig
     from llm_client import LlmClient
-    from tts_backend import HttpTtsBackend
+    from tts_backend import CarTtsBackend, HttpTtsBackend
     from speaker_verifier import SpeakerVerifier
     from car_client import CarClient
     from command_parser import parse_command
@@ -103,7 +105,7 @@ def main():
     parser = argparse.ArgumentParser(description="MiniMover voice control")
     config = VoiceConfig()
     parser.add_argument("--car-url", default=config.car_url)
-    parser.add_argument("--asr", choices=("auto", "funasr", "whisper"), default=config.asr_backend)
+    parser.add_argument("--asr", choices=("auto", "funasr", "whisper", "remote_whisper"), default=config.asr_backend)
     parser.add_argument("--speed", type=int, default=config.speed)
     parser.add_argument("--duration", type=float, default=config.duration)
     parser.add_argument("--log-level", default="INFO")
@@ -112,12 +114,17 @@ def main():
     args = parser.parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level.upper(), logging.INFO), format="%(asctime)s %(levelname)s %(message)s")
     asr = FunAsrBackend()
-    if args.asr == "whisper":
+    if args.asr == "remote_whisper":
+        asr = RemoteWhisperBackend(config.car_url, config.whisper_url, config.api_key, config.whisper_model, config.car_audio_duration)
+    elif args.asr == "whisper":
         asr = WhisperBackend(config.whisper_url, config.api_key, config.whisper_model)
     elif args.asr == "auto":
         LOGGER.info("using FunASR primary backend; use --asr whisper for network fallback")
     llm = LlmClient(config.llm_url, config.api_key, config.llm_model) if config.llm_url else None
-    tts = HttpTtsBackend(config.tts_url, config.api_key, config.tts_voice) if config.tts_url else None
+    if config.car_speaker:
+        tts = CarTtsBackend(config.car_url)
+    else:
+        tts = HttpTtsBackend(config.tts_url, config.api_key, config.tts_voice) if config.tts_url else None
     speaker = SpeakerVerifier(args.speaker_profile, args.speaker_threshold) if args.speaker_profile else None
     if speaker and not speaker.enrolled:
         raise SystemExit("speaker profile does not exist; enroll it first")

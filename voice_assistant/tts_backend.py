@@ -16,6 +16,20 @@ class TtsBackend:
         pass
 
 
+class CarTtsBackend(TtsBackend):
+    """Speak through the selected car's onboard speaker."""
+
+    def __init__(self, car_url, lang="zh", timeout=10.0):
+        from .car_audio_client import CarAudioClient
+        self.car = CarAudioClient(car_url, timeout=timeout)
+        self.lang = lang
+
+    def speak(self, text):
+        self.car.say(text, self.lang)
+
+    def stop(self):
+        self.car.stop_playback()
+
 class HttpTtsBackend(TtsBackend):
     def __init__(self, base_url, api_key, voice="alloy", player_command="aplay -q -", timeout=30.0):
         self.base_url = base_url.rstrip("/")
