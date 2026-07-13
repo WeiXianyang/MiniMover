@@ -130,6 +130,9 @@ def main():
     speaker = SpeakerVerifier(args.speaker_profile, args.speaker_threshold) if args.speaker_profile else None
     if speaker and not speaker.enrolled:
         raise SystemExit("speaker profile does not exist; enroll it first")
+    # ---- ready notification ----
+    if tts and config.wake_word:
+        asr._on_ready = lambda: tts.speak("准备就绪")
     service = VoiceService(CarClient(args.car_url), asr, args.speed, args.duration, llm, tts, speaker)
 
     # ---- wake-word gate ----

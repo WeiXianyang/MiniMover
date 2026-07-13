@@ -84,11 +84,12 @@ class _OnlineWorker:
 class FunAsrBackend(AsrBackend):
     """FunASR Paraformer 2-pass with pre-roll, dual VAD and async online ASR."""
 
-    def __init__(self, sample_rate=SAMPLE_RATE, silence_ms=SILENCE_GAP_MS, vad_threshold=0.35):
+    def __init__(self, sample_rate=SAMPLE_RATE, silence_ms=SILENCE_GAP_MS, vad_threshold=0.35, on_ready=None):
         self.sample_rate = sample_rate
         self.block_samples = sample_rate * BLOCK_MS // 1000
         self.silence_ms = silence_ms
         self.vad_threshold = vad_threshold
+        self._on_ready = on_ready
 
     def run(self, on_final, on_partial=None, stop_event=None):
         try:
@@ -108,6 +109,8 @@ class FunAsrBackend(AsrBackend):
             disable_pbar=True,
         )
         silero = load_silero_vad(onnx=True)
+        if self._on_ready:
+            self._on_ready()
         results = queue.Queue()
         online = _OnlineWorker(online_model, results.put)
         audio_queue = queue.Queue(maxsize=64)
