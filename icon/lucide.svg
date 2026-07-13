@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="settings" viewBox="0 0 24 24">
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.51a2 2 0 0 1 1-1.72l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </symbol>
+  <symbol id="lightbulb" viewBox="0 0 24 24">
+    <path d="M15 14c.2-1 .7-1.7 1.5-2.6A6 6 0 1 0 7.5 11.4C8.3 12.3 8.8 13 9 14"/>
+    <path d="M9 18h6"/>
+    <path d="M10 22h4"/>
+    <path d="M8.8 14h6.4"/>
+  </symbol>
+  <symbol id="mic" viewBox="0 0 24 24">
+    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+    <path d="M12 19v3"/>
+  </symbol>
+  <symbol id="record" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="8"/>
+    <circle cx="12" cy="12" r="3"/>
+  </symbol>
+  <symbol id="map" viewBox="0 0 24 24">
+    <path d="M14.1 4.1 9.9 2.7a2 2 0 0 0-1.3 0L4.4 4.1A2 2 0 0 0 3 6v13.9a1 1 0 0 0 1.3.95l4.3-1.43a2 2 0 0 1 1.3 0l4.2 1.4a2 2 0 0 0 1.3 0l4.2-1.4A2 2 0 0 0 21 17.5V3.6a1 1 0 0 0-1.3-.95l-4.3 1.43a2 2 0 0 1-1.3 0z"/>
+    <path d="M9 3v16"/>
+    <path d="M15 5v16"/>
+  </symbol>
+  <symbol id="signal" viewBox="0 0 24 24">
+    <path d="M2 20h.01"/>
+    <path d="M7 20v-4"/>
+    <path d="M12 20v-8"/>
+    <path d="M17 20V8"/>
+    <path d="M22 20V4"/>
+  </symbol>
+  <symbol id="arrow-left" viewBox="0 0 24 24">
+    <path d="m12 19-7-7 7-7"/>
+    <path d="M19 12H5"/>
+  </symbol>
+  <symbol id="octagon-alert" viewBox="0 0 24 24">
+    <path d="M7.86 2h8.28L22 7.86v8.28L16.14 22H7.86L2 16.14V7.86L7.86 2z"/>
+    <path d="M12 8v4"/>
+    <path d="M12 16h.01"/>
+  </symbol>
+  <symbol id="play" viewBox="0 0 24 24">
+    <path d="M5 5a2 2 0 0 1 3-1.73l11 7a2 2 0 0 1 0 3.46l-11 7A2 2 0 0 1 5 19z"/>
+  </symbol>
+  <symbol id="square" viewBox="0 0 24 24">
+    <rect width="14" height="14" x="5" y="5" rx="2"/>
+  </symbol>
+  <symbol id="unlink" viewBox="0 0 24 24">
+    <path d="m18.84 12.25 1.42-1.42a4 4 0 0 0-5.66-5.66l-2.12 2.12"/>
+    <path d="m5.17 11.75-1.42 1.42a4 4 0 0 0 5.66 5.66l2.12-2.12"/>
+    <path d="m8 2 8 20"/>
+  </symbol>
+  <symbol id="save" viewBox="0 0 24 24">
+    <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
+    <path d="M17 21v-8H7v8"/>
+    <path d="M7 3v5h8"/>
+  </symbol>
+  <symbol id="rotate-ccw" viewBox="0 0 24 24">
+    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+    <path d="M3 3v5h5"/>
+  </symbol>
+  <symbol id="move" viewBox="0 0 24 24">
+    <path d="M12 2v20"/>
+    <path d="m15 5-3-3-3 3"/>
+    <path d="m15 19-3 3-3-3"/>
+    <path d="M2 12h20"/>
+    <path d="m5 9-3 3 3 3"/>
+    <path d="m19 9 3 3-3 3"/>
+  </symbol>
+  <symbol id="radar" viewBox="0 0 24 24">
+    <path d="M19.1 4.9A10 10 0 1 1 4.9 19.1"/>
+    <path d="M12 12 19 5"/>
+    <circle cx="12" cy="12" r="2"/>
+    <path d="M12 6a6 6 0 0 0-6 6"/>
+  </symbol>
+  <symbol id="camera" viewBox="0 0 24 24">
+    <path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3z"/>
+    <circle cx="12" cy="13" r="3"/>
+  </symbol>
+</svg>

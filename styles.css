@@ -32,6 +32,21 @@ a {
   text-decoration: none;
 }
 
+.icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.icon-fill {
+  fill: currentColor;
+}
+
 button,
 input {
   font: inherit;
@@ -278,6 +293,9 @@ input {
 .btn {
   display: grid;
   place-items: center;
+  grid-auto-flow: column;
+  justify-content: center;
+  gap: 8px;
   min-height: 46px;
   padding: 0 12px;
   border-radius: 9px;
@@ -718,6 +736,8 @@ body.is-connected .state-connected {
 .speed-control {
   display: grid;
   place-items: center;
+  grid-auto-flow: column;
+  gap: 6px;
   min-width: 44px;
   height: 36px;
   padding: 0 12px;
@@ -730,6 +750,8 @@ body.is-connected .state-connected {
 .emergency-control {
   display: grid;
   place-items: center;
+  grid-auto-flow: column;
+  gap: 7px;
   min-width: 116px;
   height: 42px;
   border: 1px solid rgba(255, 101, 112, 0.34);
@@ -772,6 +794,10 @@ body.is-connected .state-connected {
 }
 
 .settings-header a {
+  display: inline-grid;
+  grid-auto-flow: column;
+  align-items: center;
+  gap: 8px;
   font-size: 18px;
   font-weight: 800;
 }
@@ -871,6 +897,8 @@ body.is-connected .state-connected {
 .settings-actions a {
   display: grid;
   place-items: center;
+  grid-auto-flow: column;
+  gap: 7px;
   min-width: 120px;
   height: 28px;
   border-radius: 8px;
