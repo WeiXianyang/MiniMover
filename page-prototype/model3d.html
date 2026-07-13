@@ -169,11 +169,14 @@
   /* ── 部件标签列表 ── */
   .partlist { display: flex; flex-wrap: wrap; gap: 8px; }
   .part-tag {
-    display: inline-block; padding: 5px 10px; border: 1px solid var(--line);
-    border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700;
-    background: rgba(24,37,55,0.6); cursor: pointer; transition: all 0.15s ease;
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
+    border: 1px solid var(--line); border-radius: 8px; color: var(--muted);
+    font-size: 11px; font-weight: 700; background: rgba(24,37,55,0.6);
+    cursor: pointer; transition: all 0.15s ease;
   }
   .part-tag:hover { border-color: var(--orange); color: var(--text); }
+  .part-tag .icon { width: 14px; height: 14px; filter: brightness(0) saturate(100%) invert(69%) sepia(10%) saturate(464%) hue-rotate(177deg) brightness(90%) contrast(87%); }
+  .part-tag:hover .icon { filter: brightness(0) saturate(100%) invert(63%) sepia(57%) saturate(786%) hue-rotate(333deg) brightness(100%) contrast(95%); }
 
   /* ── 底部栏 ── */
   .bottom-bar {
@@ -189,13 +192,17 @@
   }
   .b-btn:hover { border-color: rgba(147,164,186,0.28); color: var(--text); }
   .b-btn.active { border-color: var(--orange); color: var(--orange); background: rgba(232,139,69,0.08); }
-  .b-btn .icon { width: 14px; height: 14px; }
+  .b-btn .icon { width: 14px; height: 14px; filter: brightness(0) saturate(100%) invert(69%) sepia(10%) saturate(464%) hue-rotate(177deg) brightness(90%) contrast(87%); }
+  .b-btn:hover .icon { filter: brightness(0) saturate(100%) invert(63%) sepia(57%) saturate(786%) hue-rotate(333deg) brightness(100%) contrast(95%); }
+  .b-btn.active .icon { filter: brightness(0) saturate(100%) invert(63%) sepia(57%) saturate(786%) hue-rotate(333deg) brightness(100%) contrast(95%); }
   .back-link {
     display: flex; align-items: center; gap: 6px; padding: 0 12px; min-width: 44px;
     height: 28px; border: 1px solid rgba(147,164,186,0.14); border-radius: 8px;
     color: var(--muted); font-size: 11px; font-weight: 700; background: rgba(17,26,39,0.72);
   }
   .back-link:hover { color: var(--text); }
+  .back-link .icon { width: 14px; height: 14px; filter: brightness(0) saturate(100%) invert(69%) sepia(10%) saturate(464%) hue-rotate(177deg) brightness(90%) contrast(87%); }
+  .back-link:hover .icon { filter: brightness(0) saturate(100%) invert(90%) sepia(5%) saturate(200%) hue-rotate(180deg) brightness(100%) contrast(90%); }
   .view-indicator {
     margin-left: auto; display: flex; align-items: center; gap: 8px;
     font-size: 10px; font-weight: 700; color: var(--orange);
@@ -259,14 +266,14 @@
         <div class="divider"></div>
         <div class="sec-title">部件列表</div>
         <div class="partlist">
-          <span class="part-tag" data-part="lidar">&#x1F7E0; 激光雷达</span>
-          <span class="part-tag" data-part="camera">&#x1F4F7; 深度相机</span>
-          <span class="part-tag" data-part="wheel">&#x2699; 驱动轮组</span>
-          <span class="part-tag" data-part="arm">&#x1F9FE; 舵机机械臂</span>
-          <span class="part-tag" data-part="battery">&#x1F50B; 电池舱</span>
-          <span class="part-tag" data-part="sensors">&#x1F321; IoT 传感器组</span>
-          <span class="part-tag" data-part="jetson">&#x1F9E0; Jetson 主控</span>
-          <span class="part-tag" data-part="antenna">&#x1F4E1; 通信天线</span>
+          <span class="part-tag" data-part="lidar"><img class="icon" src="./icon/radar.svg" alt="" />激光雷达</span>
+          <span class="part-tag" data-part="camera"><img class="icon" src="./icon/camera.svg" alt="" />深度相机</span>
+          <span class="part-tag" data-part="wheel"><img class="icon" src="./icon/car.svg" alt="" />驱动轮组</span>
+          <span class="part-tag" data-part="arm"><img class="icon" src="./icon/wrench.svg" alt="" />舵机机械臂</span>
+          <span class="part-tag" data-part="battery"><img class="icon" src="./icon/circle-gauge.svg" alt="" />电池舱</span>
+          <span class="part-tag" data-part="sensors"><img class="icon" src="./icon/thermometer.svg" alt="" />IoT 传感器组</span>
+          <span class="part-tag" data-part="jetson"><img class="icon" src="./icon/brain-cog.svg" alt="" />Jetson 主控</span>
+          <span class="part-tag" data-part="antenna"><img class="icon" src="./icon/wifi.svg" alt="" />通信天线</span>
         </div>
       </div>
 
@@ -356,10 +363,10 @@
 
   <!-- ═══ 底部控制栏 ═══ -->
   <div class="bottom-bar">
-    <a class="back-link" href="./home.html?connected=1">&#x2190; 返回主页</a>
-    <button class="b-btn" id="btn-rotate">&#x21BB; 自动旋转</button>
-    <button class="b-btn" id="btn-reset">&#x2316; 重置视角</button>
-    <button class="b-btn" id="btn-explode">分解视图</button>
+    <a class="back-link" href="./home.html?connected=1"><img class="icon" src="./icon/arrow-left.svg" alt="" />返回主页</a>
+    <button class="b-btn" id="btn-rotate"><img class="icon" src="./icon/rotate-ccw.svg" alt="" />自动旋转</button>
+    <button class="b-btn" id="btn-reset"><img class="icon" src="./icon/move.svg" alt="" />重置视角</button>
+    <button class="b-btn" id="btn-explode"><img class="icon" src="./icon/wrench.svg" alt="" />分解视图</button>
     <div class="view-indicator">
       <span>顶视图</span><span class="sep">|</span>
       <span class="dim">前视图</span><span class="sep">|</span>
@@ -384,7 +391,7 @@ function selectPart(partId) {
   if (detail) {
     detail.style.display = 'block';
     const tag = document.querySelector(`.part-tag[data-part="${partId}"]`);
-    partName.textContent = tag ? tag.textContent.replace(/^.\s*/, '') : partId;
+    partName.textContent = tag ? tag.textContent.trim() : partId;
     partStatus.textContent = '已选中'; partStatus.className = 'pill green';
   }
   hotspots.forEach(h => h.classList.remove('active'));
