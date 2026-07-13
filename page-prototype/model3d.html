@@ -62,12 +62,6 @@
     position: absolute; left: 50%; top: 50%; width: 180px; height: 110px;
     margin: -55px 0 0 -90px; transition: transform 0.5s ease;
   }
-  .chassis.exploded { transform: scale(1.15); }
-  .chassis.exploded .wheel { transition: transform 0.45s ease; }
-  .chassis.exploded .wl { transform: translate(-38px, -30px); }
-  .chassis.exploded .wr { transform: translate(38px, -30px); }
-  .chassis.exploded .wrl { transform: translate(-38px, 30px); }
-  .chassis.exploded .wrr { transform: translate(38px, 30px); }
 
   .body-wire {
     position: absolute; inset: 8px 14px; border: 2px solid rgba(91,174,199,0.35);
@@ -91,33 +85,6 @@
   .wl { left: -8px; top: 14px; } .wr { right: -8px; top: 14px; }
   .wrl { left: -8px; bottom: 14px; } .wrr { right: -8px; bottom: 14px; }
 
-  /* ── 部件热点 ── */
-  .hotspot { position: absolute; z-index: 5; cursor: pointer; }
-  .hotspot span {
-    display: block; width: 14px; height: 14px; border-radius: 999px;
-    border: 2px solid rgba(91,174,199,0.7); background: rgba(91,174,199,0.12);
-    transition: all 0.2s ease;
-  }
-  .hotspot::after {
-    content: ""; position: absolute; left: 50%; top: 50%; width: 32px; height: 32px;
-    margin: -16px 0 0 -16px; border-radius: 999px;
-    border: 1px dashed rgba(91,174,199,0.22); opacity: 0;
-    animation: pulse 2s ease-in-out infinite;
-  }
-  .hotspot:hover span, .hotspot.active span {
-    border-color: var(--orange); background: rgba(232,139,69,0.28);
-    box-shadow: 0 0 0 6px rgba(232,139,69,0.12);
-  }
-  .hotspot:hover::after, .hotspot.active::after { opacity: 1; }
-  @keyframes pulse {
-    0%,100% { transform: scale(1); opacity: 0.4; }
-    50% { transform: scale(1.6); opacity: 0; }
-  }
-  .hs-lidar   { left: 50%; top: 16%; margin-left: -7px; }
-  .hs-camera  { left: 50%; top: 10%; margin-left: -7px; }
-  .hs-light   { left: 50%; top: 74%; margin-left: -7px; }
-  .hs-wheel   { left: 68%; top: 58%; margin-left: -7px; }
-
   .hint {
     position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
     padding: 4px 14px; border-radius: 999px; color: rgba(147,164,186,0.55);
@@ -131,10 +98,18 @@
     background: rgba(8,13,19,0.82); overflow-y: auto;
   }
   .panel-head {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 16px; border-bottom: 1px solid rgba(147,164,186,0.1);
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; border-bottom: 1px solid rgba(147,164,186,0.1);
   }
-  .panel-head h3 { font-size: 16px; font-weight: 800; }
+  .panel-head h3 { flex:1; font-size: 16px; font-weight: 800; }
+  .p-back {
+    display: none; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border: 1px solid rgba(147,164,186,0.14);
+    border-radius: 8px; font-size: 14px; color: var(--muted);
+    cursor: pointer; transition: all 0.15s ease;
+  }
+  .p-back:hover { color: var(--text); border-color: rgba(147,164,186,0.28); }
+  .p-back.visible { display: flex; }
   .panel-body { flex: 1; padding: 14px 16px; overflow-y: auto; }
 
   .pill {
@@ -142,8 +117,6 @@
     background: rgba(255,255,255,0.08);
   }
   .pill.green { color: #dcfff0; background: rgba(99,230,167,0.14); }
-  .pill.orange { color: #fff0df; background: rgba(255,151,72,0.17); }
-  .pill.red { color: #fff2f3; background: rgba(255,101,112,0.2); }
 
   /* ── 卡片 ── */
   .card {
@@ -199,12 +172,6 @@
   .back-link:hover { color: var(--text); }
   .back-link .icon { width: 14px; height: 14px; filter: brightness(0) saturate(100%) invert(69%) sepia(10%) saturate(464%) hue-rotate(177deg) brightness(90%) contrast(87%); }
   .back-link:hover .icon { filter: brightness(0) saturate(100%) invert(90%) sepia(5%) saturate(200%) hue-rotate(180deg) brightness(100%) contrast(90%); }
-  .view-indicator {
-    margin-left: auto; display: flex; align-items: center; gap: 8px;
-    font-size: 10px; font-weight: 700; color: var(--orange);
-  }
-  .view-indicator .dim { color: var(--muted); }
-  .view-indicator .sep { color: rgba(147,164,186,0.25); }
 
   /* ── 响应式 ── */
   @media (max-width: 800px) {
@@ -229,20 +196,15 @@
       <div class="wheel wrl"></div>
       <div class="wheel wrr"></div>
     </div>
-
-    <div class="hotspot hs-lidar" data-part="lidar"><span></span></div>
-    <div class="hotspot hs-camera" data-part="camera"><span></span></div>
-    <div class="hotspot hs-light" data-part="light"><span></span></div>
-    <div class="hotspot hs-wheel" data-part="wheel"><span></span></div>
-
-    <div class="hint">拖拽旋转 · 滚轮缩放 · 点击热点查看详情</div>
+    <div class="hint">拖拽旋转 · 滚轮缩放 · 点击模型部件查看详情</div>
   </div>
 
   <!-- ═══ 右侧面板 ═══ -->
   <aside class="panel">
     <div class="panel-head">
+      <span class="p-back" id="btn-back" title="返回概览">&larr;</span>
       <h3 id="part-name">选择部件</h3>
-      <span class="pill green" id="part-status">点击热点</span>
+      <span class="pill green" id="part-status">点击查看</span>
     </div>
     <div class="panel-body">
 
@@ -260,7 +222,7 @@
         <div class="partlist">
           <span class="part-tag" data-part="lidar"><img class="icon" src="./icon/radar.svg" alt="" />激光雷达</span>
           <span class="part-tag" data-part="camera"><img class="icon" src="./icon/camera.svg" alt="" />深度相机</span>
-          <span class="part-tag" data-part="light"><img class="icon" src="./icon/lightbulb.svg" alt="" />车灯</span>
+          <span class="part-tag" data-part="light"><img class="icon" src="./icon/lightbulb.svg" alt="" />车前灯</span>
           <span class="part-tag" data-part="wheel"><img class="icon" src="./icon/car.svg" alt="" />驱动轮组</span>
         </div>
       </div>
@@ -314,12 +276,6 @@
     <a class="back-link" href="./home.html?connected=1"><img class="icon" src="./icon/arrow-left.svg" alt="" />返回主页</a>
     <button class="b-btn" id="btn-rotate"><img class="icon" src="./icon/rotate-ccw.svg" alt="" />自动旋转</button>
     <button class="b-btn" id="btn-reset"><img class="icon" src="./icon/move.svg" alt="" />重置视角</button>
-    <button class="b-btn" id="btn-explode"><img class="icon" src="./icon/wrench.svg" alt="" />分解视图</button>
-    <div class="view-indicator">
-      <span>顶视图</span><span class="sep">|</span>
-      <span class="dim">前视图</span><span class="sep">|</span>
-      <span class="dim">侧视图</span>
-    </div>
   </div>
 
 </main>
@@ -327,8 +283,8 @@
 <script>
 const partName = document.getElementById('part-name');
 const partStatus = document.getElementById('part-status');
+const btnBack = document.getElementById('btn-back');
 const overview = document.getElementById('overview');
-const hotspots = document.querySelectorAll('.hotspot');
 const partTags = document.querySelectorAll('.part-tag');
 const detailDivs = document.querySelectorAll('[id^="detail-"]');
 
@@ -338,25 +294,23 @@ function selectPart(partId) {
   const detail = document.getElementById('detail-' + partId);
   if (detail) {
     detail.style.display = 'block';
-    const tag = document.querySelector(`.part-tag[data-part="${partId}"]`);
+    const tag = document.querySelector('.part-tag[data-part="' + partId + '"]');
     partName.textContent = tag ? tag.textContent.trim() : partId;
     partStatus.textContent = '已选中'; partStatus.className = 'pill green';
   }
-  hotspots.forEach(h => h.classList.remove('active'));
-  const hs = document.querySelector(`.hs-${partId}`);
-  if (hs) hs.classList.add('active');
+  btnBack.classList.add('visible');
 }
 
-hotspots.forEach(h => h.addEventListener('click', () => selectPart(h.dataset.part)));
-partTags.forEach(t => t.addEventListener('click', () => selectPart(t.dataset.part)));
-
-document.getElementById('viewport').addEventListener('click', e => {
-  if (e.target.closest('.hotspot')) return;
+function showOverview() {
   detailDivs.forEach(d => d.style.display = 'none');
   overview.style.display = 'block';
-  partName.textContent = '选择部件'; partStatus.textContent = '点击热点'; partStatus.className = 'pill green';
-  hotspots.forEach(h => h.classList.remove('active'));
-});
+  partName.textContent = '选择部件';
+  partStatus.textContent = '点击查看'; partStatus.className = 'pill green';
+  btnBack.classList.remove('visible');
+}
+
+partTags.forEach(t => t.addEventListener('click', () => selectPart(t.dataset.part)));
+btnBack.addEventListener('click', showOverview);
 
 // ── 自动旋转 ──
 let autoRotate = false, rotation = 0, animId = null;
@@ -365,7 +319,7 @@ const ring = document.getElementById('ring');
 function animate() {
   if (!autoRotate) return;
   rotation = (rotation + 0.3) % 360;
-  ring.style.transform = `rotateX(60deg) rotateZ(${rotation}deg)`;
+  ring.style.transform = 'rotateX(60deg) rotateZ(' + rotation + 'deg)';
   animId = requestAnimationFrame(animate);
 }
 
@@ -378,11 +332,6 @@ document.getElementById('btn-rotate').addEventListener('click', function() {
 document.getElementById('btn-reset').addEventListener('click', () => {
   rotation = 0;
   ring.style.transform = 'rotateX(60deg) rotateZ(0deg)';
-});
-
-document.getElementById('btn-explode').addEventListener('click', function() {
-  this.classList.toggle('active');
-  document.getElementById('chassis').classList.toggle('exploded');
 });
 </script>
 </body>
