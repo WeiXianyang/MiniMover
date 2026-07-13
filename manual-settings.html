@@ -13,31 +13,89 @@
         <header class="settings-header">
           <a href="./manual-landscape.html">← 布局设置</a>
         </header>
-        <div class="settings-tip">👆 点击选中 · 拖拽移动 · 滑动微调参数</div>
+        <div class="settings-tip">点击选中 · 拖拽移动 · 滑动微调参数</div>
 
-        <div class="setting-node move">🎮 移动摇杆</div>
-        <div class="setting-node radar">🎯 雷达小窗</div>
-        <div class="setting-node view">↔ 视角摇杆</div>
+        <div class="setting-node move" data-key="move">移动摇杆</div>
+        <div class="setting-node radar" data-key="radar">雷达小窗</div>
+        <div class="setting-node view" data-key="view">视角摇杆</div>
 
         <div class="settings-side">
-          <span>💡</span>
-          <span>🎤</span>
-          <span>⏺</span>
-          <span>🗺</span>
-          <span>📡</span>
+          <span>光</span>
+          <span>麦</span>
+          <span>录</span>
+          <span>图</span>
+          <span>信</span>
         </div>
 
         <div class="manual-bottom-controls">
           <a class="round-control" href="./manual-landscape.html">← 返回</a>
-          <a class="emergency-control" href="./manual-landscape.html">⚠ 急停</a>
+          <a class="emergency-control" href="./manual-landscape.html">急停</a>
           <div class="speed-control">速度 <strong>50%</strong></div>
         </div>
 
         <footer class="settings-actions">
-          <a class="reset" href="./manual-settings.html">重置默认</a>
+          <a class="reset" href="./manual-settings.html" id="reset-layout">重置默认</a>
           <a class="save" href="./manual-landscape.html">保存并应用</a>
         </footer>
       </section>
     </main>
+    <script>
+      const storageKey = "fireguard.manualLayout";
+      const stage = document.querySelector(".settings-stage");
+      const nodes = Array.from(document.querySelectorAll(".setting-node"));
+      const saved = JSON.parse(localStorage.getItem(storageKey) || "{}");
+
+      nodes.forEach((node) => {
+        const key = node.dataset.key;
+        if (saved[key]) {
+          node.style.left = `${saved[key].left}px`;
+          node.style.top = `${saved[key].top}px`;
+        }
+
+        node.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+          nodes.forEach((item) => item.classList.remove("is-selected", "is-dragging"));
+          node.classList.add("is-selected", "is-dragging");
+          node.setPointerCapture(event.pointerId);
+
+          const startRect = node.getBoundingClientRect();
+          const stageRect = stage.getBoundingClientRect();
+          const offsetX = event.clientX - startRect.left;
+          const offsetY = event.clientY - startRect.top;
+
+          const move = (moveEvent) => {
+            const maxLeft = stageRect.width - startRect.width;
+            const maxTop = stageRect.height - startRect.height - 44;
+            const left = Math.min(Math.max(moveEvent.clientX - stageRect.left - offsetX, 0), maxLeft);
+            const top = Math.min(Math.max(moveEvent.clientY - stageRect.top - offsetY, 44), maxTop);
+            node.style.left = `${Math.round(left)}px`;
+            node.style.top = `${Math.round(top)}px`;
+          };
+
+          const up = () => {
+            node.classList.remove("is-dragging");
+            const next = JSON.parse(localStorage.getItem(storageKey) || "{}");
+            next[key] = {
+              left: Number.isNaN(parseInt(node.style.left, 10)) ? node.offsetLeft : parseInt(node.style.left, 10),
+              top: Number.isNaN(parseInt(node.style.top, 10)) ? node.offsetTop : parseInt(node.style.top, 10),
+            };
+            localStorage.setItem(storageKey, JSON.stringify(next));
+            node.removeEventListener("pointermove", move);
+            node.removeEventListener("pointerup", up);
+            node.removeEventListener("pointercancel", up);
+          };
+
+          node.addEventListener("pointermove", move);
+          node.addEventListener("pointerup", up);
+          node.addEventListener("pointercancel", up);
+        });
+      });
+
+      document.getElementById("reset-layout").addEventListener("click", (event) => {
+        event.preventDefault();
+        localStorage.removeItem(storageKey);
+        location.reload();
+      });
+    </script>
   </body>
 </html>
