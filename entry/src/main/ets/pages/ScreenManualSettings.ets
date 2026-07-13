@@ -85,7 +85,7 @@ struct ScreenManualSettings {
         })
         .backgroundColor(this.selected == 'move' ? 'rgba(28, 40, 55, 0.92)' : 'rgba(25, 35, 50, 0.72)')
         .shadow(this.selected == 'move' ?
-          { radius: 3, color: 'rgba(232, 139, 69, 0.12)' } : {})
+          { radius: 3, color: 'rgba(232, 139, 69, 0.12)' } : { radius: 0 })
         .position({ x: this.moveX, y: this.moveY })
         .gesture(
           PanGesture({ direction: PanDirection.All })
@@ -128,7 +128,7 @@ struct ScreenManualSettings {
         })
         .backgroundColor(this.selected == 'radar' ? 'rgba(28, 40, 55, 0.92)' : 'rgba(25, 35, 50, 0.72)')
         .shadow(this.selected == 'radar' ?
-          { radius: 3, color: 'rgba(232, 139, 69, 0.12)' } : {})
+          { radius: 3, color: 'rgba(232, 139, 69, 0.12)' } : { radius: 0 })
         .position({ x: this.radarX, y: this.radarY })
         .gesture(
           PanGesture({ direction: PanDirection.All })
@@ -166,7 +166,7 @@ struct ScreenManualSettings {
         })
         .backgroundColor(this.selected == 'view' ? 'rgba(28, 40, 55, 0.92)' : 'rgba(25, 35, 50, 0.72)')
         .shadow(this.selected == 'view' ?
-          { radius: 3, color: 'rgba(232, 139, 69, 0.12)' } : {})
+          { radius: 3, color: 'rgba(232, 139, 69, 0.12)' } : { radius: 0 })
         .position({ x: this.viewX, y: this.viewY })
         .gesture(
           PanGesture({ direction: PanDirection.All })
@@ -207,7 +207,7 @@ struct ScreenManualSettings {
       // 顶栏头部
       Row() {
         Row() {
-          Image($r('app.media.arrow-left'))
+          Image($r('app.media.arrow_left'))
             .width(18)
             .height(18)
             .fillColor(FG.text)
@@ -229,7 +229,7 @@ struct ScreenManualSettings {
       // 底部操作栏
       Row() {
         Row() {
-          Image($r('app.media.rotate-ccw'))
+          Image($r('app.media.rotate_ccw'))
             .width(16)
             .height(16)
             .fillColor('#ff5f66')

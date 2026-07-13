@@ -17,7 +17,7 @@ export const FG_TAB_LABELS: string[] = ['连接', '主页', '告警', '配送', 
 export const FG_TAB_ICONS: Resource[] = [
   $r('app.media.plug'),
   $r('app.media.home'),
-  $r('app.media.triangle-alert'),
+  $r('app.media.triangle_alert'),
   $r('app.media.route'),
   $r('app.media.car')
 ];

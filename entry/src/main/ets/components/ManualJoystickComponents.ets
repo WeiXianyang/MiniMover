@@ -11,19 +11,15 @@ import { FG } from '../fireguard/Theme'
 
 /* ---- 内部工具 ---- */
 
-/** 根据相对位移计算移动方向 */
+/** 根据相对位移计算移动方向（取主导轴，映射到协议支持的四向 + 刹车） */
 function directionFromOffset(x: number, y: number): CarDirection {
   const len = Math.sqrt(x * x + y * y)
   if (len < 8) return CarDirection.Brake
-  const angle = Math.atan2(y, x) * (180 / Math.PI)
-  if (angle > -22.5 && angle <= 22.5) return CarDirection.Right
-  if (angle > 22.5 && angle <= 67.5) return CarDirection.ForwardRight
-  if (angle > 67.5 && angle <= 112.5) return CarDirection.Forward
-  if (angle > 112.5 && angle <= 157.5) return CarDirection.ForwardLeft
-  if (angle > 157.5 || angle <= -157.5) return CarDirection.Left
-  if (angle > -157.5 && angle <= -112.5) return CarDirection.BackwardLeft
-  if (angle > -112.5 && angle <= -67.5) return CarDirection.Backward
-  return CarDirection.BackwardRight
+  // 屏幕坐标：y 向下为正。向上拖动 = 前进，向下 = 后退
+  if (Math.abs(x) > Math.abs(y)) {
+    return x > 0 ? CarDirection.Right : CarDirection.Left
+  }
+  return y > 0 ? CarDirection.After : CarDirection.Front
 }
 
 /** 20~100 速度 */
@@ -33,16 +29,16 @@ function speedFromOffset(dx: number, dy: number, maxR: number): number {
 }
 
 /** REST 轮询方向字符串映射 */
-const REST_DIR_MAP: Record<number, string> = {
-  [CarDirection.Brake]: 'stop',
-  [CarDirection.Forward]: 'forward',
-  [CarDirection.Backward]: 'backward',
-  [CarDirection.Left]: 'left',
-  [CarDirection.Right]: 'right',
-  [CarDirection.ForwardLeft]: 'forward_left',
-  [CarDirection.ForwardRight]: 'forward_right',
-  [CarDirection.BackwardLeft]: 'backward_left',
-  [CarDirection.BackwardRight]: 'backward_right'
+function restDirCmd(d: CarDirection): string {
+  switch (d) {
+    case CarDirection.Front: return 'forward'
+    case CarDirection.After: return 'backward'
+    case CarDirection.Left: return 'left'
+    case CarDirection.Right: return 'right'
+    case CarDirection.LeftRotate: return 'rotate_left'
+    case CarDirection.RightRotate: return 'rotate_right'
+    default: return 'stop'
+  }
 }
 
 /* ======================= 运动摇杆 ======================= */
@@ -149,7 +145,7 @@ export struct ManualMoveJoystick {
       carApi.sendRestStop()
       return
     }
-    const cmd = REST_DIR_MAP[dir] || 'stop'
+    const cmd = restDirCmd(dir)
     if (this.restTimer === -1) {
       carApi.sendRestMoveContinuous(cmd, speed)
       this.restTimer = setInterval(() => {

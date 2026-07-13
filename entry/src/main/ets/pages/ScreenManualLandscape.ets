@@ -92,7 +92,7 @@ struct ScreenManualLandscape {
 
       // ===== 左上：返回按钮 =====
       Row() {
-        Image($r('app.media.arrow-left'))
+        Image($r('app.media.arrow_left'))
           .width(18)
           .height(18)
           .fillColor(FG.text)
@@ -211,7 +211,7 @@ struct ScreenManualLandscape {
       Row() {
         // 急停按钮
         Row() {
-          Image($r('app.media.octagon-alert'))
+          Image($r('app.media.octagon_alert'))
             .width(18)
             .height(18)
             .fillColor('#ff5f66')
