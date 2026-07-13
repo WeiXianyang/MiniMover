@@ -1,289 +1,434 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>3D 模型 - FireGuard</title>
-    <link rel="stylesheet" href="./styles.css" />
-  </head>
-  <body>
-    <main class="landscape-shell">
-      <section class="model3d-stage" aria-label="S09-3D模型展示-横屏">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>3D 模型展示 - FireGuard</title>
+<style>
+  :root {
+    --bg: #080d13; --panel: #151f2b; --panel-2: #1b2633; --line: #263241;
+    --text: #eef4ff; --muted: #8997a8; --orange: #e88b45; --cyan: #5baec7;
+    --green: #58b98e; --red: #d85b64;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; display: grid; place-items: center; padding: 20px;
+    color: var(--text); font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    background: #070b10;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; cursor: pointer; }
+  .icon { width: 18px; height: 18px; object-fit: contain; }
 
-        <!-- ═══ 左侧：3D 视口 ═══ -->
-        <div class="model3d-viewport" id="viewport">
-          <!-- 网格地板 -->
-          <div class="model3d-floor"></div>
-          <!-- 旋转底座环 -->
-          <div class="model3d-ring"></div>
-          <!-- 小车线框占位 -->
-          <div class="model3d-chassis">
-            <div class="model3d-body"></div>
-            <div class="model3d-wheel wheel-fl"></div>
-            <div class="model3d-wheel wheel-fr"></div>
-            <div class="model3d-wheel wheel-rl"></div>
-            <div class="model3d-wheel wheel-rr"></div>
-          </div>
+  /* ── 横屏容器 ── */
+  .stage {
+    position: relative; display: grid; grid-template-columns: 1fr 340px;
+    overflow: hidden; width: min(960px, 100%); min-height: 480px;
+    border: 1px solid #1c2c41; border-radius: 4px;
+    background: linear-gradient(180deg, rgba(4,8,13,0.96), rgba(7,13,20,0.98)),
+                radial-gradient(circle at 40% 45%, rgba(91,174,199,0.07), transparent 24rem);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.4);
+  }
 
-          <!-- 部件热点 -->
-          <div class="model3d-hotspot hs-lidar" data-part="lidar" title="激光雷达">
-            <span></span>
-          </div>
-          <div class="model3d-hotspot hs-camera" data-part="camera" title="深度相机">
-            <span></span>
-          </div>
-          <div class="model3d-hotspot hs-wheel" data-part="wheel" title="驱动轮组">
-            <span></span>
-          </div>
-          <div class="model3d-hotspot hs-arm" data-part="arm" title="舵机机械臂">
-            <span></span>
-          </div>
-          <div class="model3d-hotspot hs-battery" data-part="battery" title="电池舱">
-            <span></span>
-          </div>
-          <div class="model3d-hotspot hs-sensors" data-part="sensors" title="IoT 传感器组">
-            <span></span>
-          </div>
-          <div class="model3d-hotspot hs-jetson" data-part="jetson" title="Jetson 主控">
-            <span></span>
-          </div>
-          <div class="model3d-hotspot hs-antenna" data-part="antenna" title="通信天线">
-            <span></span>
-          </div>
+  /* ── 3D 视口 ── */
+  .viewport {
+    position: relative; overflow: hidden; cursor: grab;
+    background: radial-gradient(ellipse at 50% 52%, rgba(91,174,199,0.08), transparent 60%), #0b121c;
+  }
+  .viewport:active { cursor: grabbing; }
+  .viewport:hover .hint { opacity: 1; }
 
-          <!-- 视口内提示 -->
-          <div class="model3d-hint">拖拽旋转 · 滚轮缩放 · 点击热点查看详情</div>
+  .floor {
+    position: absolute; left: 50%; bottom: 18%; width: 340px; height: 340px;
+    border-radius: 999px; transform: translate(-50%,50%) rotateX(72deg) scaleY(0.32);
+    background:
+      radial-gradient(circle, rgba(91,174,199,0.14), transparent 60%),
+      repeating-conic-gradient(rgba(91,174,199,0.05) 0deg 15deg, transparent 15deg 30deg);
+  }
+
+  .ring {
+    position: absolute; left: 50%; top: 50%; width: 200px; height: 200px;
+    margin: -100px 0 0 -100px; border-radius: 999px;
+    border: 1px dashed rgba(91,174,199,0.28); transform: rotateX(60deg) rotateZ(0deg);
+    transition: transform 0.6s ease-out;
+  }
+  .ring::after {
+    content: ""; position: absolute; inset: -6px; border-radius: 999px;
+    border: 1px solid rgba(232,139,69,0.14);
+  }
+
+  /* ── 小车线框 ── */
+  .chassis {
+    position: absolute; left: 50%; top: 50%; width: 180px; height: 110px;
+    margin: -55px 0 0 -90px; transition: transform 0.5s ease;
+  }
+  .chassis.exploded { transform: scale(1.15); }
+  .chassis.exploded .wheel { transition: transform 0.45s ease; }
+  .chassis.exploded .wl { transform: translate(-38px, -30px); }
+  .chassis.exploded .wr { transform: translate(38px, -30px); }
+  .chassis.exploded .wrl { transform: translate(-38px, 30px); }
+  .chassis.exploded .wrr { transform: translate(38px, 30px); }
+
+  .body-wire {
+    position: absolute; inset: 8px 14px; border: 2px solid rgba(91,174,199,0.35);
+    border-radius: 16px 16px 12px 12px; background: rgba(24,40,58,0.38);
+  }
+  .body-wire::before {
+    content: ""; position: absolute; left: 14px; top: -18px; width: 36px; height: 18px;
+    border: 2px solid rgba(91,174,199,0.3); border-radius: 10px 10px 0 0; border-bottom: 0;
+    background: rgba(24,40,58,0.32);
+  }
+  .body-wire::after {
+    content: ""; position: absolute; left: 50%; top: 4px; width: 52px; height: 28px;
+    transform: translateX(-50%); border: 1px solid rgba(232,139,69,0.16);
+    border-radius: 6px; background: rgba(26,36,49,0.7);
+  }
+
+  .wheel {
+    position: absolute; width: 22px; height: 28px; border: 2px solid rgba(147,164,186,0.42);
+    border-radius: 6px; background: rgba(20,30,42,0.62);
+  }
+  .wl { left: -8px; top: 14px; } .wr { right: -8px; top: 14px; }
+  .wrl { left: -8px; bottom: 14px; } .wrr { right: -8px; bottom: 14px; }
+
+  /* ── 部件热点 ── */
+  .hotspot { position: absolute; z-index: 5; cursor: pointer; }
+  .hotspot span {
+    display: block; width: 14px; height: 14px; border-radius: 999px;
+    border: 2px solid rgba(91,174,199,0.7); background: rgba(91,174,199,0.12);
+    transition: all 0.2s ease;
+  }
+  .hotspot::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 32px; height: 32px;
+    margin: -16px 0 0 -16px; border-radius: 999px;
+    border: 1px dashed rgba(91,174,199,0.22); opacity: 0;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .hotspot:hover span, .hotspot.active span {
+    border-color: var(--orange); background: rgba(232,139,69,0.28);
+    box-shadow: 0 0 0 6px rgba(232,139,69,0.12);
+  }
+  .hotspot:hover::after, .hotspot.active::after { opacity: 1; }
+  @keyframes pulse {
+    0%,100% { transform: scale(1); opacity: 0.4; }
+    50% { transform: scale(1.6); opacity: 0; }
+  }
+  .hs-lidar   { left: 50%; top: 22%; margin-left: -7px; }
+  .hs-camera  { left: 50%; top: 16%; margin-left: -7px; }
+  .hs-wheel   { left: 68%; top: 58%; margin-left: -7px; }
+  .hs-arm     { left: 32%; top: 48%; margin-left: -7px; }
+  .hs-battery { left: 50%; top: 54%; margin-left: -7px; }
+  .hs-sensors { left: 28%; top: 28%; margin-left: -7px; }
+  .hs-jetson  { left: 50%; top: 44%; margin-left: -7px; }
+  .hs-antenna { left: 50%; top: 76%; margin-left: -7px; }
+
+  .hint {
+    position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+    padding: 4px 14px; border-radius: 999px; color: rgba(147,164,186,0.55);
+    font-size: 10px; background: rgba(7,11,17,0.7); pointer-events: none;
+    opacity: 0; transition: opacity 0.3s;
+  }
+
+  /* ── 右侧面板 ── */
+  .panel {
+    display: flex; flex-direction: column; border-left: 1px solid rgba(147,164,186,0.12);
+    background: rgba(8,13,19,0.82); overflow-y: auto;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; border-bottom: 1px solid rgba(147,164,186,0.1);
+  }
+  .panel-head h3 { font-size: 16px; font-weight: 800; }
+  .panel-body { flex: 1; padding: 14px 16px; overflow-y: auto; }
+
+  .pill {
+    padding: 5px 9px; border-radius: 999px; font-size: 10px; font-weight: 800;
+    background: rgba(255,255,255,0.08);
+  }
+  .pill.green { color: #dcfff0; background: rgba(99,230,167,0.14); }
+  .pill.orange { color: #fff0df; background: rgba(255,151,72,0.17); }
+  .pill.red { color: #fff2f3; background: rgba(255,101,112,0.2); }
+
+  /* ── 卡片 ── */
+  .card {
+    margin-bottom: 12px; padding: 15px; border: 1px solid var(--line);
+    border-radius: 10px; background: rgba(24,37,55,0.9);
+  }
+  .row {
+    display: flex; justify-content: space-between; gap: 14px; padding: 10px 0;
+    border-bottom: 1px solid rgba(147,164,186,0.18);
+  }
+  .row:first-child { padding-top: 0; }
+  .row:last-child { padding-bottom: 0; border-bottom: 0; }
+  .row span { color: var(--muted); font-size: 13px; }
+  .row strong { max-width: 62%; font-size: 13px; text-align: right; }
+
+  .divider { height: 1px; margin: 14px 0; background: rgba(147,164,186,0.16); }
+  .sec-title { margin: 0 0 12px; font-size: 15px; font-weight: 800; }
+
+  /* ── 部件标签列表 ── */
+  .partlist { display: flex; flex-wrap: wrap; gap: 8px; }
+  .part-tag {
+    display: inline-block; padding: 5px 10px; border: 1px solid var(--line);
+    border-radius: 8px; color: var(--muted); font-size: 11px; font-weight: 700;
+    background: rgba(24,37,55,0.6); cursor: pointer; transition: all 0.15s ease;
+  }
+  .part-tag:hover { border-color: var(--orange); color: var(--text); }
+
+  /* ── 底部栏 ── */
+  .bottom-bar {
+    position: absolute; left: 0; right: 340px; bottom: 0; height: 44px;
+    display: flex; align-items: center; gap: 10px; padding: 0 16px;
+    border-top: 1px solid rgba(147,164,186,0.12); background: rgba(7,12,19,0.88);
+  }
+  .b-btn {
+    display: flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px;
+    border: 1px solid rgba(147,164,186,0.14); border-radius: 8px;
+    color: var(--muted); font-size: 11px; font-weight: 700;
+    background: rgba(17,26,39,0.72); transition: all 0.15s ease;
+  }
+  .b-btn:hover { border-color: rgba(147,164,186,0.28); color: var(--text); }
+  .b-btn.active { border-color: var(--orange); color: var(--orange); background: rgba(232,139,69,0.08); }
+  .b-btn .icon { width: 14px; height: 14px; }
+  .back-link {
+    display: flex; align-items: center; gap: 6px; padding: 0 12px; min-width: 44px;
+    height: 28px; border: 1px solid rgba(147,164,186,0.14); border-radius: 8px;
+    color: var(--muted); font-size: 11px; font-weight: 700; background: rgba(17,26,39,0.72);
+  }
+  .back-link:hover { color: var(--text); }
+  .view-indicator {
+    margin-left: auto; display: flex; align-items: center; gap: 8px;
+    font-size: 10px; font-weight: 700; color: var(--orange);
+  }
+  .view-indicator .dim { color: var(--muted); }
+  .view-indicator .sep { color: rgba(147,164,186,0.25); }
+
+  /* ── 响应式 ── */
+  @media (max-width: 800px) {
+    .stage { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+    .panel { border-left: 0; border-top: 1px solid rgba(147,164,186,0.12); max-height: 180px; }
+    .bottom-bar { right: 0; }
+  }
+</style>
+</head>
+<body>
+
+<main class="stage">
+
+  <!-- ═══ 左侧：3D 视口 ═══ -->
+  <div class="viewport" id="viewport">
+    <div class="floor"></div>
+    <div class="ring" id="ring"></div>
+    <div class="chassis" id="chassis">
+      <div class="body-wire"></div>
+      <div class="wheel wl"></div>
+      <div class="wheel wr"></div>
+      <div class="wheel wrl"></div>
+      <div class="wheel wrr"></div>
+    </div>
+
+    <div class="hotspot hs-lidar" data-part="lidar"><span></span></div>
+    <div class="hotspot hs-camera" data-part="camera"><span></span></div>
+    <div class="hotspot hs-wheel" data-part="wheel"><span></span></div>
+    <div class="hotspot hs-arm" data-part="arm"><span></span></div>
+    <div class="hotspot hs-battery" data-part="battery"><span></span></div>
+    <div class="hotspot hs-sensors" data-part="sensors"><span></span></div>
+    <div class="hotspot hs-jetson" data-part="jetson"><span></span></div>
+    <div class="hotspot hs-antenna" data-part="antenna"><span></span></div>
+
+    <div class="hint">拖拽旋转 · 滚轮缩放 · 点击热点查看详情</div>
+  </div>
+
+  <!-- ═══ 右侧面板 ═══ -->
+  <aside class="panel">
+    <div class="panel-head">
+      <h3 id="part-name">选择部件</h3>
+      <span class="pill green" id="part-status">点击热点</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- 概览 -->
+      <div id="overview">
+        <div class="card">
+          <div class="row"><span>车型</span><strong>Rosmaster X3 Plus</strong></div>
+          <div class="row"><span>主控</span><strong>NVIDIA Jetson Orin Nano</strong></div>
+          <div class="row"><span>传感器</span><strong>LiDAR + 深度相机 + 8×IoT</strong></div>
+          <div class="row"><span>驱动方式</span><strong>四轮独立驱动 (麦轮)</strong></div>
+          <div class="row"><span>电池</span><strong>12.6V 锂电池 · 86%</strong></div>
         </div>
-
-        <!-- ═══ 右侧：部件详情面板 ═══ -->
-        <aside class="model3d-panel" id="panel">
-          <div class="model3d-panel-head">
-            <h3 id="part-name">选择部件</h3>
-            <span class="pill green" id="part-status">点击热点</span>
-          </div>
-
-          <div class="model3d-panel-body" id="part-detail">
-            <!-- 默认状态：概览 -->
-            <div class="model3d-overview" id="overview">
-              <div class="card">
-                <div class="row"><span>车型</span><strong>Rosmaster X3 Plus</strong></div>
-                <div class="row"><span>主控</span><strong>NVIDIA Jetson Orin Nano</strong></div>
-                <div class="row"><span>传感器</span><strong>LiDAR + 深度相机 + 8×IoT</strong></div>
-                <div class="row"><span>驱动方式</span><strong>四轮独立驱动 (麦轮)</strong></div>
-                <div class="row"><span>电池</span><strong>12.6V 锂电池 · 86%</strong></div>
-              </div>
-              <div class="section-divider"></div>
-              <div class="section-title">部件列表</div>
-              <div class="model3d-partlist">
-                <span class="part-tag" data-part="lidar">🔵 激光雷达</span>
-                <span class="part-tag" data-part="camera">📷 深度相机</span>
-                <span class="part-tag" data-part="wheel">⚙️ 驱动轮组</span>
-                <span class="part-tag" data-part="arm">🦾 舵机机械臂</span>
-                <span class="part-tag" data-part="battery">🔋 电池舱</span>
-                <span class="part-tag" data-part="sensors">🌡️ IoT 传感器组</span>
-                <span class="part-tag" data-part="jetson">🧠 Jetson 主控</span>
-                <span class="part-tag" data-part="antenna">📡 通信天线</span>
-              </div>
-            </div>
-
-            <!-- 部件详情（默认隐藏，点击热点后显示对应内容） -->
-            <div class="model3d-detail" id="detail-lidar" style="display:none">
-              <div class="card">
-                <div class="row"><span>部件名称</span><strong>RPLIDAR A1</strong></div>
-                <div class="row"><span>类型</span><strong>360° 激光扫描测距</strong></div>
-                <div class="row"><span>测距范围</span><strong>0.15m – 12m</strong></div>
-                <div class="row"><span>采样频率</span><strong>8000 次/秒</strong></div>
-                <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常运行</strong></div>
-              </div>
-            </div>
-
-            <div class="model3d-detail" id="detail-camera" style="display:none">
-              <div class="card">
-                <div class="row"><span>部件名称</span><strong>Astra Pro Plus</strong></div>
-                <div class="row"><span>类型</span><strong>深度 + RGB 双目相机</strong></div>
-                <div class="row"><span>分辨率</span><strong>1280×720 @ 30fps</strong></div>
-                <div class="row"><span>深度范围</span><strong>0.6m – 8m</strong></div>
-                <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常运行</strong></div>
-              </div>
-            </div>
-
-            <div class="model3d-detail" id="detail-wheel" style="display:none">
-              <div class="card">
-                <div class="row"><span>部件名称</span><strong>麦克纳姆轮组 ×4</strong></div>
-                <div class="row"><span>类型</span><strong>独立悬挂 · 全向移动</strong></div>
-                <div class="row"><span>电机</span><strong>编码器减速电机 ×4</strong></div>
-                <div class="row"><span>最大转速</span><strong>160 RPM</strong></div>
-                <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常运行</strong></div>
-              </div>
-            </div>
-
-            <div class="model3d-detail" id="detail-arm" style="display:none">
-              <div class="card">
-                <div class="row"><span>部件名称</span><strong>6-DOF 舵机机械臂</strong></div>
-                <div class="row"><span>类型</span><strong>串行总线舵机</strong></div>
-                <div class="row"><span>自由度</span><strong>6 轴</strong></div>
-                <div class="row"><span>抓取重量</span><strong>≤ 200g</strong></div>
-                <div class="row"><span>状态</span><strong style="color:var(--orange)">● 待命中</strong></div>
-              </div>
-            </div>
-
-            <div class="model3d-detail" id="detail-battery" style="display:none">
-              <div class="card">
-                <div class="row"><span>部件名称</span><strong>锂电池组</strong></div>
-                <div class="row"><span>类型</span><strong>12.6V 3S Li-Po</strong></div>
-                <div class="row"><span>容量</span><strong>9800 mAh</strong></div>
-                <div class="row"><span>当前电量</span><strong style="color:var(--green)">86% (11.2V)</strong></div>
-                <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常</strong></div>
-              </div>
-            </div>
-
-            <div class="model3d-detail" id="detail-sensors" style="display:none">
-              <div class="card">
-                <div class="row"><span>部件名称</span><strong>IoT 多传感器模组</strong></div>
-                <div class="row"><span>包含</span><strong>温湿度 · 烟雾 · PM2.5 · 气压 · 光照 · CO2 · GPS</strong></div>
-                <div class="row"><span>通信</span><strong>UART / I²C</strong></div>
-                <div class="row"><span>当前温度</span><strong>29°C · 湿度 58%</strong></div>
-                <div class="row"><span>状态</span><strong style="color:var(--green)">● 全部在线</strong></div>
-              </div>
-            </div>
-
-            <div class="model3d-detail" id="detail-jetson" style="display:none">
-              <div class="card">
-                <div class="row"><span>部件名称</span><strong>NVIDIA Jetson Orin Nano</strong></div>
-                <div class="row"><span>AI 算力</span><strong>20 TOPS</strong></div>
-                <div class="row"><span>内存</span><strong>8 GB LPDDR5</strong></div>
-                <div class="row"><span>运行温度</span><strong>42°C</strong></div>
-                <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常运行</strong></div>
-              </div>
-            </div>
-
-            <div class="model3d-detail" id="detail-antenna" style="display:none">
-              <div class="card">
-                <div class="row"><span>部件名称</span><strong>双频通信天线</strong></div>
-                <div class="row"><span>类型</span><strong>WiFi 6 + BLE 5.0</strong></div>
-                <div class="row"><span>信号强度</span><strong>-42 dBm</strong></div>
-                <div class="row"><span>IP 地址</span><strong>192.168.1.11</strong></div>
-                <div class="row"><span>状态</span><strong style="color:var(--green)">● 已连接</strong></div>
-              </div>
-            </div>
-          </div>
-        </aside>
-
-        <!-- ═══ 底部控制栏 ═══ -->
-        <div class="model3d-bottom-bar">
-          <a class="round-control" href="./home.html?connected=1">
-            <img class="icon" src="./icon/arrow-left.svg" alt="" />
-            返回主页
-          </a>
-          <button class="model3d-btn" id="btn-rotate">
-            <img class="icon" src="./icon/rotate-ccw.svg" alt="" />
-            自动旋转
-          </button>
-          <button class="model3d-btn" id="btn-reset">
-            <img class="icon" src="./icon/move.svg" alt="" />
-            重置视角
-          </button>
-          <button class="model3d-btn" id="btn-explode">
-            分解视图
-          </button>
-          <div class="model3d-view-indicator">
-            <span>顶视图</span>
-            <span class="separator">|</span>
-            <span class="muted">前视图</span>
-            <span class="separator">|</span>
-            <span class="muted">侧视图</span>
-          </div>
+        <div class="divider"></div>
+        <div class="sec-title">部件列表</div>
+        <div class="partlist">
+          <span class="part-tag" data-part="lidar">&#x1F7E0; 激光雷达</span>
+          <span class="part-tag" data-part="camera">&#x1F4F7; 深度相机</span>
+          <span class="part-tag" data-part="wheel">&#x2699; 驱动轮组</span>
+          <span class="part-tag" data-part="arm">&#x1F9FE; 舵机机械臂</span>
+          <span class="part-tag" data-part="battery">&#x1F50B; 电池舱</span>
+          <span class="part-tag" data-part="sensors">&#x1F321; IoT 传感器组</span>
+          <span class="part-tag" data-part="jetson">&#x1F9E0; Jetson 主控</span>
+          <span class="part-tag" data-part="antenna">&#x1F4E1; 通信天线</span>
         </div>
+      </div>
 
-      </section>
-    </main>
+      <!-- 部件详情 -->
+      <div id="detail-lidar" style="display:none">
+        <div class="card">
+          <div class="row"><span>名称</span><strong>RPLIDAR A1</strong></div>
+          <div class="row"><span>类型</span><strong>360° 激光扫描测距</strong></div>
+          <div class="row"><span>范围</span><strong>0.15m – 12m</strong></div>
+          <div class="row"><span>频率</span><strong>8000 次/秒</strong></div>
+          <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常</strong></div>
+        </div>
+      </div>
 
-    <script>
-      // ── 热点点击 → 右侧面板切换 ──
-      const panel = document.getElementById('panel');
-      const partName = document.getElementById('part-name');
-      const partStatus = document.getElementById('part-status');
-      const overview = document.getElementById('overview');
-      const hotspots = document.querySelectorAll('.model3d-hotspot');
-      const partTags = document.querySelectorAll('.part-tag');
-      const detailDivs = document.querySelectorAll('.model3d-detail');
+      <div id="detail-camera" style="display:none">
+        <div class="card">
+          <div class="row"><span>名称</span><strong>Astra Pro Plus</strong></div>
+          <div class="row"><span>类型</span><strong>深度 + RGB 双目</strong></div>
+          <div class="row"><span>分辨率</span><strong>1280×720 @30fps</strong></div>
+          <div class="row"><span>深度</span><strong>0.6m – 8m</strong></div>
+          <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常</strong></div>
+        </div>
+      </div>
 
-      function selectPart(partId) {
-        // 隐藏所有 detail
-        detailDivs.forEach(d => d.style.display = 'none');
-        overview.style.display = 'none';
+      <div id="detail-wheel" style="display:none">
+        <div class="card">
+          <div class="row"><span>名称</span><strong>麦克纳姆轮组 ×4</strong></div>
+          <div class="row"><span>类型</span><strong>独立悬挂 · 全向</strong></div>
+          <div class="row"><span>电机</span><strong>编码器减速 ×4</strong></div>
+          <div class="row"><span>转速</span><strong>160 RPM</strong></div>
+          <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常</strong></div>
+        </div>
+      </div>
 
-        // 显示对应 detail
-        const detail = document.getElementById('detail-' + partId);
-        if (detail) {
-          detail.style.display = 'block';
-          const tag = document.querySelector(`.part-tag[data-part="${partId}"]`);
-          partName.textContent = tag ? tag.textContent.replace(/^.\s*/, '') : partId;
-          partStatus.textContent = '已选中';
-          partStatus.className = 'pill green';
-        }
+      <div id="detail-arm" style="display:none">
+        <div class="card">
+          <div class="row"><span>名称</span><strong>6-DOF 舵机臂</strong></div>
+          <div class="row"><span>类型</span><strong>串行总线舵机</strong></div>
+          <div class="row"><span>自由度</span><strong>6 轴</strong></div>
+          <div class="row"><span>抓取</span><strong>≤ 200g</strong></div>
+          <div class="row"><span>状态</span><strong style="color:var(--orange)">● 待命</strong></div>
+        </div>
+      </div>
 
-        // 高亮对应热点
-        hotspots.forEach(h => h.classList.remove('active'));
-        document.querySelector(`.hs-${partId}`)?.classList.add('active');
-      }
+      <div id="detail-battery" style="display:none">
+        <div class="card">
+          <div class="row"><span>名称</span><strong>锂电池组</strong></div>
+          <div class="row"><span>类型</span><strong>12.6V 3S Li-Po</strong></div>
+          <div class="row"><span>容量</span><strong>9800 mAh</strong></div>
+          <div class="row"><span>电量</span><strong style="color:var(--green)">86% (11.2V)</strong></div>
+          <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常</strong></div>
+        </div>
+      </div>
 
-      hotspots.forEach(h => {
-        h.addEventListener('click', () => {
-          const part = h.dataset.part;
-          selectPart(part);
-        });
-      });
+      <div id="detail-sensors" style="display:none">
+        <div class="card">
+          <div class="row"><span>名称</span><strong>IoT 多传感器</strong></div>
+          <div class="row"><span>包含</span><strong>温湿度·烟雾·PM2.5·气压·光照·CO2·GPS</strong></div>
+          <div class="row"><span>通信</span><strong>UART / I²C</strong></div>
+          <div class="row"><span>环境</span><strong>29°C · 湿度 58%</strong></div>
+          <div class="row"><span>状态</span><strong style="color:var(--green)">● 在线</strong></div>
+        </div>
+      </div>
 
-      partTags.forEach(t => {
-        t.addEventListener('click', () => {
-          const part = t.dataset.part;
-          selectPart(part);
-        });
-      });
+      <div id="detail-jetson" style="display:none">
+        <div class="card">
+          <div class="row"><span>名称</span><strong>Jetson Orin Nano</strong></div>
+          <div class="row"><span>算力</span><strong>20 TOPS</strong></div>
+          <div class="row"><span>内存</span><strong>8 GB LPDDR5</strong></div>
+          <div class="row"><span>温度</span><strong>42°C</strong></div>
+          <div class="row"><span>状态</span><strong style="color:var(--green)">● 正常</strong></div>
+        </div>
+      </div>
 
-      // 点击视口空白处返回概览
-      document.getElementById('viewport').addEventListener('click', (e) => {
-        if (e.target.closest('.model3d-hotspot')) return;
-        detailDivs.forEach(d => d.style.display = 'none');
-        overview.style.display = 'block';
-        partName.textContent = '选择部件';
-        partStatus.textContent = '点击热点';
-        partStatus.className = 'pill green';
-        hotspots.forEach(h => h.classList.remove('active'));
-      });
+      <div id="detail-antenna" style="display:none">
+        <div class="card">
+          <div class="row"><span>名称</span><strong>双频天线</strong></div>
+          <div class="row"><span>类型</span><strong>WiFi 6 + BLE 5.0</strong></div>
+          <div class="row"><span>信号</span><strong>-42 dBm</strong></div>
+          <div class="row"><span>IP</span><strong>192.168.1.11</strong></div>
+          <div class="row"><span>状态</span><strong style="color:var(--green)">● 已连接</strong></div>
+        </div>
+      </div>
 
-      // ── 底部按钮 ──
-      let autoRotate = false;
-      const ring = document.querySelector('.model3d-ring');
-      let rotation = 0;
-      let animId = null;
+    </div>
+  </aside>
 
-      function animate() {
-        if (!autoRotate) return;
-        rotation = (rotation + 0.3) % 360;
-        ring.style.transform = `rotateX(60deg) rotateZ(${rotation}deg)`;
-        animId = requestAnimationFrame(animate);
-      }
+  <!-- ═══ 底部控制栏 ═══ -->
+  <div class="bottom-bar">
+    <a class="back-link" href="./home.html?connected=1">&#x2190; 返回主页</a>
+    <button class="b-btn" id="btn-rotate">&#x21BB; 自动旋转</button>
+    <button class="b-btn" id="btn-reset">&#x2316; 重置视角</button>
+    <button class="b-btn" id="btn-explode">分解视图</button>
+    <div class="view-indicator">
+      <span>顶视图</span><span class="sep">|</span>
+      <span class="dim">前视图</span><span class="sep">|</span>
+      <span class="dim">侧视图</span>
+    </div>
+  </div>
 
-      document.getElementById('btn-rotate').addEventListener('click', function() {
-        autoRotate = !autoRotate;
-        this.classList.toggle('active', autoRotate);
-        this.querySelector('img').style.filter = autoRotate
-          ? 'brightness(0) saturate(100%) invert(63%) sepia(57%) saturate(786%) hue-rotate(333deg) brightness(100%) contrast(95%)'
-          : '';
-        if (autoRotate) { animate(); } else { cancelAnimationFrame(animId); }
-      });
+</main>
 
-      document.getElementById('btn-reset').addEventListener('click', () => {
-        rotation = 0;
-        ring.style.transform = 'rotateX(60deg) rotateZ(0deg)';
-      });
+<script>
+const partName = document.getElementById('part-name');
+const partStatus = document.getElementById('part-status');
+const overview = document.getElementById('overview');
+const hotspots = document.querySelectorAll('.hotspot');
+const partTags = document.querySelectorAll('.part-tag');
+const detailDivs = document.querySelectorAll('[id^="detail-"]');
 
-      document.getElementById('btn-explode').addEventListener('click', function() {
-        this.classList.toggle('active');
-        document.querySelector('.model3d-chassis').classList.toggle('exploded');
-      });
-    </script>
-  </body>
+function selectPart(partId) {
+  detailDivs.forEach(d => d.style.display = 'none');
+  overview.style.display = 'none';
+  const detail = document.getElementById('detail-' + partId);
+  if (detail) {
+    detail.style.display = 'block';
+    const tag = document.querySelector(`.part-tag[data-part="${partId}"]`);
+    partName.textContent = tag ? tag.textContent.replace(/^.\s*/, '') : partId;
+    partStatus.textContent = '已选中'; partStatus.className = 'pill green';
+  }
+  hotspots.forEach(h => h.classList.remove('active'));
+  const hs = document.querySelector(`.hs-${partId}`);
+  if (hs) hs.classList.add('active');
+}
+
+hotspots.forEach(h => h.addEventListener('click', () => selectPart(h.dataset.part)));
+partTags.forEach(t => t.addEventListener('click', () => selectPart(t.dataset.part)));
+
+document.getElementById('viewport').addEventListener('click', e => {
+  if (e.target.closest('.hotspot')) return;
+  detailDivs.forEach(d => d.style.display = 'none');
+  overview.style.display = 'block';
+  partName.textContent = '选择部件'; partStatus.textContent = '点击热点'; partStatus.className = 'pill green';
+  hotspots.forEach(h => h.classList.remove('active'));
+});
+
+// ── 自动旋转 ──
+let autoRotate = false, rotation = 0, animId = null;
+const ring = document.getElementById('ring');
+
+function animate() {
+  if (!autoRotate) return;
+  rotation = (rotation + 0.3) % 360;
+  ring.style.transform = `rotateX(60deg) rotateZ(${rotation}deg)`;
+  animId = requestAnimationFrame(animate);
+}
+
+document.getElementById('btn-rotate').addEventListener('click', function() {
+  autoRotate = !autoRotate;
+  this.classList.toggle('active', autoRotate);
+  autoRotate ? animate() : cancelAnimationFrame(animId);
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  rotation = 0;
+  ring.style.transform = 'rotateX(60deg) rotateZ(0deg)';
+});
+
+document.getElementById('btn-explode').addEventListener('click', function() {
+  this.classList.toggle('active');
+  document.getElementById('chassis').classList.toggle('exploded');
+});
+</script>
+</body>
 </html>
