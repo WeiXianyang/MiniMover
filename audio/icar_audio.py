@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """iCar 音频驱动 —— 录音 / 播放 / TTS
 硬件:
   麦克风: hw:2,0  (讯飞 XFM-DP-V0.0.18, mono 16kHz)
@@ -155,7 +155,7 @@ _player = _Player()
 
 # ---- 百炼 DashScope CosyVoice 云端 TTS ----
 _DASHSCOPE_KEY = os.getenv("MINIMOVER_DASHSCOPE_API_KEY", "")
-_COSYVOICE_MODEL = os.getenv("MINIMOVER_COSYVOICE_MODEL", "cosyvoice-v3")
+_COSYVOICE_MODEL = os.getenv("MINIMOVER_COSYVOICE_MODEL", "cosyvoice-v3-flash")
 _COSYVOICE_VOICE = os.getenv("MINIMOVER_COSYVOICE_VOICE", "longanyang")
 _TTS_PROVIDER   = os.getenv("MINIMOVER_TTS_PROVIDER", "").lower()
 
