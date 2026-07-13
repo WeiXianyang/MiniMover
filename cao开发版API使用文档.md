@@ -31,6 +31,17 @@ cd ~/MiniMover
 python3 api_server.py &
 ```
 
+### 多车协同调度中心（在 PC 端运行）
+
+```bash
+cd ~/MiniMover
+python3 multi_car_coordinator.py &
+```
+
+启动后访问：
+- 可视化面板：`http://localhost:8888/dashboard`
+- 车辆状态：`http://localhost:8888/api/status`
+
 ### 启动后访问
 
 | 服务 | 地址 |
@@ -243,6 +254,48 @@ play_wav(wav_bytes)                   # 播放 WAV 字节
 # TTS
 wav = say('你好', lang='zh')          # 生成 WAV
 play_wav(wav)                         # 直接播放
+```
+
+---
+
+### 2.8 多车协同（调度中心 :8888）
+
+在 PC 运行 `python3 multi_car_coordinator.py` 后，以下接口可用：
+
+| 接口 | 方法 | 功能 | 说明 |
+|---|---|---|---|
+| `/api/cars` | GET | 车辆注册列表 | 返回所有已注册车辆 IP/端口 |
+| `/api/status` | GET | 所有车辆状态 | 含传感器、位置、碰撞告警 |
+| `/api/move_all` | POST | 并行控制所有车辆 | `{"cmd":"forward","speed":50}` |
+| `/api/move_one` | POST | 控制指定车辆 | `{"car_id":"car_A","cmd":"left"}` |
+| `/api/navigate` | POST | 多车导航目标 | `{"car_ids":["car_A","car_B"],"x":1,"y":2}` |
+| `/api/formation` | POST | 队形控制 | 见下方详情 |
+| `/api/register` | POST | 动态注册新车 | `{"car_id":"car_C","ip":"192.168.1.103"}` |
+| `/api/register_batch` | POST | 批量注册 | `{"cars":{"car_C":{"ip":"..."}}}` |
+| `/proxy/camera/<car_id>` | GET | 代理视频流 | MJPEG 无跨域 |
+| `/dashboard` | GET | 可视化面板 | 浏览器访问 |
+
+**队形控制 `POST /api/formation`：**
+```json
+{
+  "type": "line",          // line(纵队) | row(横排) | triangle(三角)
+  "spacing": 2.0,          // 车间距(米)
+  "car_ids": ["car_A", "car_B"]
+}
+```
+
+**可视化面板** (`http://localhost:8888/dashboard`) 功能：
+- 所有车辆实时传感器/位置/电池
+- 视频流直接内嵌显示
+- 碰撞检测告警（<0.5m 红色 CRITICAL，<1.0m 黄色 WARNING）
+- 一键全停、队形切换按钮
+
+**启动示例：**
+```bash
+# PC 端，先确保每辆车已启动 api_server.py
+cd ~/MiniMover
+python3 multi_car_coordinator.py &
+# 打开 http://localhost:8888/dashboard
 ```
 
 ---
