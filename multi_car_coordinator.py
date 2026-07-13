@@ -259,20 +259,17 @@ def proxy_camera(car_id):
     stream_url = f"http://{info['ip']}:{info['port']}/video_feed"
 
     def generate():
-        try:
-            r = requests.get(stream_url, stream=True, timeout=5)
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:
-                    yield chunk
-        except:
-            # 返回占位图
-            import cv2, numpy as np
-            img = np.zeros((240, 320, 3), dtype=np.uint8)
-            cv2.putText(img, f'{car_id} offline', (20, 120),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-            _, jpg = cv2.imencode('.jpg', img)
-            yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' +
-                   jpg.tobytes() + b'\r\n')
+        while True:
+            try:
+                r = requests.get(stream_url, stream=True,
+                                 timeout=(3, 30))  # (connect, read)
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        yield chunk
+            except GeneratorExit:
+                return
+            except:
+                time.sleep(1)  # 重连间隔，避免占位图闪烁
 
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -422,7 +419,10 @@ function renderCars(data){{
     var pos=d.position||{{}};
     var bat=d.battery||'?';
     var ip=d.ip||'?';
-    var online=ok?'online':'offline';
+    // 防抖：一次在线则保持在线，避免闪烁
+    var ck='_ok_'+cid;
+    if(ok){{window[ck]=1}}else if(window[ck]!==1){{window[ck]=0}}
+    var online=window[ck]?'online':'offline';
     var cls='car-card '+online;
 
     // 碰撞标记
@@ -506,7 +506,7 @@ function registerCar(){{
   r.send(JSON.stringify({{car_id:id,ip:ip,port:port}}));
 }}
 
-setInterval(update,2000);update();
+setInterval(update,3000);update();
 </script>
 </body>
 </html>'''
