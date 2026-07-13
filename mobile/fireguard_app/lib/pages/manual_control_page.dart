@@ -99,6 +99,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
         ),
       ),
     );
+    _lockLandscape();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 

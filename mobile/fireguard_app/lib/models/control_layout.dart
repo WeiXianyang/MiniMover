@@ -103,14 +103,14 @@ class ControlLayout {
   }
 
   void initDefaults() {
-    // 左摇杆
+    // 左摇杆（正方形: 160×160px → width=160/876≈0.18, height=160/390≈0.41）
     moveJoystick = ComponentConfig(
       type: ControlComponent.moveJoystick,
       label: '移动摇杆',
       x: 0.035,
       y: 0.55,
-      width: 0.14, // 120/876 ≈ 0.137
-      height: 0.41, // 160/390 ≈ 0.41
+      width: 0.18,
+      height: 0.41,
     );
 
     // 右摇杆

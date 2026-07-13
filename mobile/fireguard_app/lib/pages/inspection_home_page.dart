@@ -5,6 +5,7 @@ import '../widgets/common_widgets.dart';
 import '../widgets/page_shell.dart';
 import 'map_task_page.dart';
 import 'manual_control_page.dart';
+import 'model3d_page.dart';
 
 /// S02 - 巡检主页
 class InspectionHomePage extends StatefulWidget {
@@ -147,7 +148,7 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
               GradientButton(
                 text: online
                     ? (cs.taskRunning ? '巡检进行中…' : '开始自动巡检')
-                    : '开始自动巡检（离线模式）',
+                    : '开始自动巡检',
                 onTap: online && !cs.taskRunning
                     ? () {
                         cs.startTask();
@@ -169,6 +170,15 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                     '手动接管',
                     ManualControlPage(
                         carState: cs, embedded: true)),
+              ),
+              const SizedBox(height: 12),
+              GradientButton(
+                text: '部件信息展示',
+                secondary: true,
+                onTap: () => _push(
+                    context,
+                    '部件信息展示',
+                    Model3DPage(carState: cs)),
               ),
             ],
           ),

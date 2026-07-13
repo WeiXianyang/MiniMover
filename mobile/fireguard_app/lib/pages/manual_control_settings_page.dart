@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/app_theme.dart';
 import '../models/control_layout.dart';
 
@@ -30,6 +31,17 @@ class _ManualControlSettingsPageState
   void initState() {
     super.initState();
     _editLayout = widget.originalLayout.clone();
+    // 强制横屏，与手动接管页保持一致，确保百分比对应相同像素
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+  }
+
+  @override
+  void dispose() {
+    // 不重置方向，由手动接管页统一管理
+    super.dispose();
   }
 
   @override
@@ -134,33 +146,11 @@ class _ManualControlSettingsPageState
   // ═══ 组件（拖拽 + 双指缩放 + 点击选中）══════
   double _lastScale = 1.0;
 
-  /// 根据组件类型计算在设置页中的显示尺寸（匹配实际页面渲染形状）
+  /// 在设置页中的显示尺寸 — 统一使用实际宽高，不再强制正方形
   Size _displaySize(ComponentConfig c, Size parent) {
     final w = (c.width * parent.width).clamp(20.0, parent.width);
     final h = (c.height * parent.height).clamp(20.0, parent.height);
-    switch (c.type) {
-      case ControlComponent.moveJoystick:
-        // 圆形摇杆 → 正方形
-        final s = (w < h ? w : h);
-        return Size(s, s);
-      case ControlComponent.viewJoystick:
-        // 扁椭圆 → 保持矩形比例
-        return Size(w, h);
-      case ControlComponent.btnLight:
-      case ControlComponent.btnMic:
-      case ControlComponent.btnRecord:
-      case ControlComponent.btnMap:
-      case ControlComponent.btnRadar:
-        // 方形按钮 → 正方形
-        final s = (w < h ? w : h);
-        return Size(s, s);
-      case ControlComponent.radarOverlay:
-        // 雷达小窗 → 正方形（宽当边长）
-        final s = w.clamp(80.0, parent.width * 0.5);
-        return Size(s, s);
-      default:
-        return Size(w, h);
-    }
+    return Size(w, h);
   }
 
   Widget _buildComponent(ComponentConfig c, Size parent) {

@@ -52,6 +52,10 @@ class AppIcons {
       _icon('$_base/rotate-ccw.svg', size, color);
   static Widget signal({double size = 18, Color? color}) =>
       _icon('$_base/signal.svg', size, color);
+  static Widget camera({double size = 18, Color? color}) =>
+      _icon('$_base/camera.svg', size, color);
+  static Widget wrench({double size = 18, Color? color}) =>
+      _icon('$_base/wrench.svg', size, color);
 
   static Widget _icon(String asset, double size, Color? color) {
     return SvgPicture.asset(

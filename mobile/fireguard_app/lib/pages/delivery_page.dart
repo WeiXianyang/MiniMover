@@ -74,41 +74,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 14),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('配送路径', style: AppTheme.bodyLabel),
-                    const SizedBox(height: 8),
-                    const Text('D 点装载 → 主通道 → 配电柜A',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
-                            color: AppTheme.textPrimary)),
-                    const SizedBox(height: 16),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                          value: cs.deliveryProgress > 0
-                              ? cs.deliveryProgress
-                              : 0.68, // fallback demo
-                          minHeight: 4,
-                          backgroundColor: AppTheme.cardBorder,
-                          color: AppTheme.accent),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      cs.deliveryActive
-                          ? '已完成 ${(cs.deliveryProgress * 100).round()}%，当前绕过临时障碍物后继续前进。'
-                          : '配送未开始',
-                      style: AppTheme.bodyLabel,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-              GlassCard(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
-                child: Column(
                   children: [
                     InfoRow(
                       label: '任务状态',
@@ -150,16 +115,14 @@ class _DeliveryPageState extends State<DeliveryPage> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(999),
                         child: LinearProgressIndicator(
-                            value: cs.deliveryProgress > 0
-                                ? cs.deliveryProgress
-                                : 0.68,
+                            value: cs.deliveryProgress,
                             minHeight: 8,
                             backgroundColor: const Color(0xFF26364A),
                             color: AppTheme.accent),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '已完成 ${(cs.deliveryProgress > 0 ? cs.deliveryProgress : 0.68 * 100).round()}%，当前绕过临时障碍物后继续前进。',
+                        '已完成 ${(cs.deliveryProgress * 100).round()}%，当前绕过临时障碍物后继续前进。',
                         style: AppTheme.bodyLabel,
                       ),
                     ],
@@ -168,16 +131,17 @@ class _DeliveryPageState extends State<DeliveryPage> {
               ],
               const SizedBox(height: 12),
               GradientButton(
-                text: cs.deliveryActive
-                    ? '取消配送并返回待命点'
-                    : '返回主页',
+                text: cs.deliveryActive ? '取消配送' : '返回',
                 secondary: true,
                 onTap: () {
-                  if (cs.deliveryActive) cs.cancelDelivery();
-                  if (widget.embedded) {
-                    widget.onReturnHome?.call();
+                  if (cs.deliveryActive) {
+                    cs.cancelDelivery();
                   } else {
-                    Navigator.of(context).pop();
+                    if (widget.embedded) {
+                      widget.onReturnHome?.call();
+                    } else {
+                      Navigator.of(context).pop();
+                    }
                   }
                 },
               ),
