@@ -133,11 +133,12 @@ def main():
     # ---- ready notification ----
     if tts and config.wake_word:
         def _notify_ready():
-    try:
-        tts.speak("准备就绪")
-    except Exception:
-        pass
-asr._on_ready = _notify_ready
+            try:
+                tts.speak("准备就绪")
+            except Exception:
+                pass
+        asr._on_ready = _notify_ready
+
     service = VoiceService(CarClient(args.car_url), asr, args.speed, args.duration, llm, tts, speaker)
 
     # ---- wake-word gate ----

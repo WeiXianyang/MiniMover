@@ -101,13 +101,6 @@ class FunAsrBackend(AsrBackend):
             raise RuntimeError("FunASR voice dependencies are missing; install requirements-voice.txt") from exc
 
         online_model = AutoModel(model="paraformer-zh-streaming", disable_update=True, disable_pbar=True)
-        offline_model = AutoModel(
-            model="paraformer-zh",
-            vad_model="fsmn-vad",
-            punc_model="ct-punc",
-            disable_update=True,
-            disable_pbar=True,
-        )
         silero = load_silero_vad(onnx=True)
         if self._on_ready:
             import threading as _thr
@@ -194,29 +187,20 @@ class FunAsrBackend(AsrBackend):
                                 samples = np.asarray(utterance, dtype=np.int16)
                                 if len(samples) >= int(self.sample_rate * MIN_SPEECH_MS / 1000):
                                     online.submit(utterance_id, samples, True, chunk_index)
-                                    result = None
-                                    try:
-                                        result = offline_model.generate(
-                                            input=samples.astype(np.float32) / 32768.0,
-                                            batch_size_s=60,
-                                            use_itn=True,
-                                        )
-                                        text = _extract_text(result)
-                                    except Exception:
-                                        text = ""
-                                    if not text:
-                                        deadline = time.monotonic() + 1.2
-                                        while time.monotonic() < deadline and not text:
-                                            try:
-                                                item = results.get(timeout=0.05)
-                                            except queue.Empty:
-                                                continue
-                                            if item.get("kind") == "final" and item.get("utterance_id") == utterance_id:
-                                                text = item.get("text", "")
-                                            elif item.get("kind") == "partial" and item.get("text") and on_partial:
-                                                on_partial({"type": "partial_text", **item})
+                                    # Wait for streaming final result
+                                    text = ""
+                                    deadline = time.monotonic() + 2.0
+                                    while time.monotonic() < deadline and not text:
+                                        try:
+                                            item = results.get(timeout=0.1)
+                                        except queue.Empty:
+                                            continue
+                                        if item.get("kind") == "final" and item.get("utterance_id") == utterance_id:
+                                            text = item.get("text", "")
+                                        elif item.get("kind") == "partial" and item.get("text") and on_partial:
+                                            on_partial({"type": "partial_text", **item})
                                     if text:
-                                        on_final({"type": "final_text", "text": text, "utterance_id": utterance_id, "source": "funasr_offline" if result else "funasr_online_fallback", "samples": samples})
+                                        on_final({"type": "final_text", "text": text, "utterance_id": utterance_id, "source": "funasr_online", "samples": samples})
                                 on_partial and on_partial({"type": "speech_end", "utterance_id": utterance_id})
                                 utterance_id += 1
                                 utterance = []

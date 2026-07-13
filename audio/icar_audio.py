@@ -154,10 +154,27 @@ _player = _Player()
 # === TTS ===
 
 # ---- 百炼 DashScope CosyVoice 云端 TTS ----
+# 自动从 .tts.env 文件加载配置，确保不依赖进程环境变量
+_ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".tts.env")
+if os.path.isfile(_ENV_FILE):
+    try:
+        with open(_ENV_FILE, "r", encoding="utf-8") as _fh:
+            for _line in _fh:
+                _line = _line.strip()
+                if _line.startswith("#") or "=" not in _line:
+                    continue
+                if _line.startswith("export "):
+                    _line = _line[len("export "):]
+                _key, _, _val = _line.partition("=")
+                if _key and _val:
+                    os.environ.setdefault(_key.strip(), _val.strip().strip('"').strip("'"))
+    except Exception:
+        pass
+
 _DASHSCOPE_KEY = os.getenv("MINIMOVER_DASHSCOPE_API_KEY", "")
 _COSYVOICE_MODEL = os.getenv("MINIMOVER_COSYVOICE_MODEL", "cosyvoice-v3-flash")
 _COSYVOICE_VOICE = os.getenv("MINIMOVER_COSYVOICE_VOICE", "longanyang")
-_TTS_PROVIDER   = os.getenv("MINIMOVER_TTS_PROVIDER", "").lower()
+_TTS_PROVIDER   = os.getenv("MINIMOVER_TTS_PROVIDER", "dashscope").lower()
 
 _DASHSCOPE_URL = "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer"
 _DASHSCOPE_TIMEOUT = 30
