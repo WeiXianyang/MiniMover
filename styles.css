@@ -693,6 +693,61 @@ body.is-connected .state-connected {
   font-weight: 800;
 }
 
+.radar-widget {
+  position: absolute;
+  left: 240px;
+  top: 120px;
+  display: grid;
+  place-items: center;
+  width: 140px;
+  height: 140px;
+  border: 1px solid rgba(147, 164, 186, 0.18);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(91, 174, 199, 0.12), transparent 58%),
+    rgba(19, 28, 40, 0.48);
+}
+
+.radar-widget::before,
+.radar-widget::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+}
+
+.radar-widget::before {
+  inset: 22px;
+  border: 1px solid rgba(147, 164, 186, 0.12);
+}
+
+.radar-widget::after {
+  left: 50%;
+  top: 50%;
+  width: 54px;
+  height: 1px;
+  transform: rotate(-32deg);
+  transform-origin: left center;
+  background: rgba(91, 174, 199, 0.5);
+}
+
+.radar-widget .icon {
+  position: relative;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  filter: brightness(0) saturate(100%) invert(69%) sepia(21%) saturate(741%) hue-rotate(146deg) brightness(91%) contrast(85%);
+}
+
+.radar-widget span {
+  position: absolute;
+  right: 38px;
+  top: 45px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--orange);
+}
+
 .manual-joystick {
   position: absolute;
   left: 20px;
