@@ -186,16 +186,17 @@ class CloudAlarmService:
     # ---- background worker ----
 
     def _run(self) -> None:
-        """后台线程: 处理实时队列 + outbox 重试。"""
+        """后台线程: 启动时先重试积压 outbox, 再处理实时队列。"""
+        # 启动时立即重试 outbox 中的积压条目（不依赖新告警触发）
+        self._retry_outbox()
         while True:
-            # 1. 处理实时队列
             entry = self._queue.get()
             if entry is self._SENTINEL:
                 self._queue.task_done()
                 return
             self._process_one(entry)
             self._queue.task_done()
-            # 2. 重新处理 outbox 里积压的条目
+            # 处理完实时任务后顺带重试 outbox
             self._retry_outbox()
 
     def _retry_outbox(self) -> None:
@@ -224,11 +225,30 @@ class CloudAlarmService:
             _clear_outbox(self._outbox_path)
 
     def _process_one(self, entry: dict) -> bool:
-        """上报一条告警, 返回 True=成功 False=失败。"""
+        """上报一条告警, 返回 True=成功 False=失败。
+
+        有证据图片时必须先上传成功再发告警；
+        图片上传失败则整体视为失败，保留在 outbox 等待重试。
+        """
         evidence_url = None
         evidence_path = entry.get("evidence_path")
-        if evidence_path and Path(evidence_path).is_file():
-            evidence_url = self._upload_evidence(evidence_path, entry["event_id"])
+        if evidence_path:
+            path = Path(evidence_path)
+            if path.is_file():
+                evidence_url = self._upload_evidence(evidence_path, entry["event_id"])
+                if evidence_url is None:
+                    self._logger.warning(
+                        "Evidence upload failed for %s; keeping in outbox for retry",
+                        entry.get("event_id"),
+                    )
+                    return False
+            else:
+                # 图片已被清理, 移除 evidence_path 继续上报不含图的告警
+                self._logger.info(
+                    "Evidence file gone for %s (%s); reporting without image",
+                    entry.get("event_id"), evidence_path,
+                )
+                entry["evidence_path"] = None
         return self._post_alarm(entry, evidence_url)
 
     # ---- HTTP transports ----
