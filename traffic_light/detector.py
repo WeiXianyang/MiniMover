@@ -3,17 +3,32 @@
 轻量化红绿灯视觉识别
 基于 HSV 色彩空间 + HoughCircles 圆检测，纯 OpenCV 实现
 """
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
 import cv2
 import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from video_source import resolve_source
+
 
 class TrafficLightDetector:
     """红绿灯检测器"""
 
-    def __init__(self):
-        # HSV 色彩范围（可微调适应实际光照）
+    def __init__(self, min_color_ratio: float = 0.6, circle_accumulator_threshold: int = 35):
+        # ????????????????????????????????
+        self.min_color_ratio = min_color_ratio
+        self.circle_accumulator_threshold = circle_accumulator_threshold
+        # HSV ???????????????
         self.color_ranges = {
-            'red':    [(0, 120, 70),   (10, 255, 255)],   # 红色低阈值
-            'red2':   [(170, 120, 70), (180, 255, 255)],  # 红色高阈值(HSV环绕)
+            'red':    [(0, 120, 70),   (10, 255, 255)],   # ?????
+            'red2':   [(170, 120, 70), (180, 255, 255)],  # ?????(HSV??)
             'yellow': [(20, 100, 100), (35, 255, 255)],
             'green':  [(40, 50, 50),   (90, 255, 255)],
         }
@@ -41,7 +56,7 @@ class TrafficLightDetector:
             dp=1.2,
             minDist=30,
             param1=50,
-            param2=25,
+            param2=self.circle_accumulator_threshold,
             minRadius=8,
             maxRadius=60
         )
@@ -76,7 +91,7 @@ class TrafficLightDetector:
                     overlap = cv2.bitwise_and(mask, color_mask)
                     ratio = np.sum(overlap > 0) / (np.sum(mask > 0) + 1)
 
-                    if ratio > 0.3:  # 超过 30% 认为匹配
+                    if ratio > self.min_color_ratio:
                         clean_name = 'red' if color_name == 'red' else color_name
                         # 保留最大的匹配圆
                         if best is None or r > best[2]:
@@ -98,11 +113,15 @@ class TrafficLightDetector:
         return result, detected_state
 
 
-def main():
-    import sys
+def open_capture(source: str) -> cv2.VideoCapture:
+    resolved = resolve_source(source)
+    return cv2.VideoCapture(int(resolved) if resolved.isdigit() else resolved)
 
+
+def main():
     detector = TrafficLightDetector()
-    source = sys.argv[1] if len(sys.argv) > 1 else "0"
+    requested_source = sys.argv[1] if len(sys.argv) > 1 else "0"
+    source = resolve_source(requested_source)
 
     print("=" * 50)
     print("  Traffic Light Detector - 红绿灯识别")
@@ -110,29 +129,31 @@ def main():
     print("  Press 'q' to quit | 's' to save screenshot")
     print("=" * 50)
 
-    if source.isdigit():
-        cap = cv2.VideoCapture(int(source))
-    else:
-        cap = cv2.VideoCapture(source)
+    cap = open_capture(source)
+    if not cap.isOpened():
+        print(f"[ERROR] Cannot open video source: {source}", file=sys.stderr)
+        return 1
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("[ERROR] Cannot read a frame from the video source.", file=sys.stderr)
+                return 1
 
-        result, state = detector.detect(frame)
-        cv2.imshow("Traffic Light Detection", result)
+            result, state = detector.detect(frame)
+            cv2.imshow("Traffic Light Detection", result)
 
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-        elif key == ord('s'):
-            cv2.imwrite("screenshot.jpg", result)
-            print("Screenshot saved: screenshot.jpg")
-
-    cap.release()
-    cv2.destroyAllWindows()
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord('q'):
+                return 0
+            if key == ord('s'):
+                cv2.imwrite("screenshot.jpg", result)
+                print("Screenshot saved: screenshot.jpg")
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
