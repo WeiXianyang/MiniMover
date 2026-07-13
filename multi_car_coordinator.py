@@ -6,7 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 import threading, time, math, requests, io, os
 
 COORDINATOR_PORT = 8888
-POLL_INTERVAL = 1.0  # 状态轮询间隔(秒)
+POLL_INTERVAL = 5.0  # 状态轮询间隔(秒)，车慢时不堆积
+POLL_TIMEOUT = 3     # 单个车请求超时(秒)
 COLLISION_CRITICAL = 0.5  # 碰撞临界距离(米)
 COLLISION_WARNING = 1.0   # 碰撞预警距离(米)
 
@@ -46,7 +47,7 @@ def api(car_id, endpoint, method='GET', data=None, timeout=3):
 def poll_all():
     """并行轮询所有车辆"""
     def poll(cid):
-        result = api(cid, '/api/status', timeout=5)
+        result = api(cid, '/api/status', timeout=POLL_TIMEOUT)
         pos = None
         if result.get('code') == 0:
             pos = result['data'].get('position')
@@ -89,10 +90,16 @@ def _check_collisions():
     _collision_alerts = alerts
 
 
+_poll_lock = threading.Lock()
+
 def poll_loop():
-    """后台状态轮询线程"""
+    """后台状态轮询线程，防止请求堆积"""
     while True:
-        poll_all()
+        if _poll_lock.acquire(blocking=False):
+            try:
+                poll_all()
+            finally:
+                _poll_lock.release()
         time.sleep(POLL_INTERVAL)
 
 
@@ -151,6 +158,7 @@ def move_all():
     data = request.json
     cmd = data.get('cmd', 'stop')
     speed = data.get('speed', 50)
+    print(f'[move_all] cmd={cmd} speed={speed}')
 
     def ctrl(cid):
         return cid, api(cid, '/api/move', 'POST',
@@ -259,17 +267,31 @@ def proxy_camera(car_id):
     stream_url = f"http://{info['ip']}:{info['port']}/video_feed"
 
     def generate():
+        fail_count = 0
         while True:
             try:
                 r = requests.get(stream_url, stream=True,
                                  timeout=(3, 30))  # (connect, read)
+                fail_count = 0
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
                         yield chunk
             except GeneratorExit:
                 return
             except:
-                time.sleep(1)  # 重连间隔，避免占位图闪烁
+                fail_count += 1
+                if fail_count >= 3:
+                    # 连续失败 3 次，返回离线占位图，不会冻结在旧画面
+                    import cv2, numpy as np
+                    img = np.zeros((240, 320, 3), dtype=np.uint8)
+                    cv2.putText(img, f'{car_id} offline', (20, 120),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+                    _, jpg = cv2.imencode('.jpg', img)
+                    yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' +
+                           jpg.tobytes() + b'\r\n')
+                    time.sleep(3)
+                else:
+                    time.sleep(1)
 
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -483,6 +505,8 @@ function moveAll(cmd,speed){{
   var r=new XMLHttpRequest();
   r.open('POST',API+'/api/move_all',true);
   r.setRequestHeader('Content-Type','application/json');
+  r.onload=function(){{var b=document.getElementById('alertBar');b.style.display='block';b.textContent=cmd+' sent: '+r.responseText;}};
+  r.onerror=function(){{var b=document.getElementById('alertBar');b.style.display='block';b.textContent='FAILED: '+cmd;}};
   r.send(JSON.stringify({{cmd:cmd,speed:SPEED}}));
 }}
 

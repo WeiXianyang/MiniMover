@@ -38,10 +38,6 @@ done
 sudo docker start $YAHBOOM_CONTAINER >/dev/null 2>&1
 echo -e "  ${GREEN}[OK] yahboom container started${NC}"
 
-# 2.5 Start chassis ROS nodes (inside yahboom container)
-sudo docker exec -d $YAHBOOM_CONTAINER bash -c "source /root/yahboomcar_ros2_ws/yahboomcar_ws/install/setup.bash && ROS_DOMAIN_ID=$ROS_DOMAIN_ID ros2 launch yahboomcar_bringup yahboomcar_bringup_R2_launch.py > /tmp/yahboom.log 2>&1 &"
-sleep 3
-echo -e "  ${GREEN}[OK] chassis started (DOMAIN=$ROS_DOMAIN_ID)${NC}"
 
 # 3. Start camera container
 RUNNING=$(sudo docker ps -q -f name=$CAM_CONTAINER)

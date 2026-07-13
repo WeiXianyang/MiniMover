@@ -28,8 +28,13 @@ def get_status():
         'ip': ip
     }})
 
+# 串口写锁 + 自动停止定时器管理（防止多线程抢串口死机）
+_move_lock = threading.Lock()
+_stop_timer = None
+
 @app.route('/api/move', methods=['POST'])
 def move():
+    global _stop_timer
     data = request.json; cmd = data.get('cmd','stop')
     s = min(data.get('speed',50),100); t = data.get('duration',0.5)
     speed = s/100.0; vx=vy=vz=0
@@ -41,9 +46,18 @@ def move():
     elif cmd=='rotate_right': vz=-speed*3
     elif cmd=='left_shift': vy=speed
     elif cmd=='right_shift': vy=-speed
-    bot.set_car_motion(vx,vy,vz)
+    # 取消上一次的停止定时器，避免多个线程同时写串口
+    if _stop_timer:
+        _stop_timer.cancel()
+        _stop_timer = None
+    with _move_lock:
+        bot.set_car_motion(vx,vy,vz)
     if cmd!='stop' and t>0:
-        threading.Thread(target=lambda:(time.sleep(t),bot.set_car_motion(0,0,0)),daemon=True).start()
+        def _delayed_stop():
+            with _move_lock:
+                bot.set_car_motion(0,0,0)
+        _stop_timer = threading.Timer(t, _delayed_stop)
+        _stop_timer.start()
     return jsonify({'code':0,'msg':f'{cmd} @ {s}%'})
 
 @app.route('/api/sensors')
