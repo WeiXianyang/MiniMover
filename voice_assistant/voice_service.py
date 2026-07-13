@@ -14,6 +14,7 @@ try:
     from .speaker_verifier import SpeakerVerifier
     from .car_client import CarClient
     from .command_parser import parse_command
+    from .wake_word import WakeWordVoiceService
 except ImportError:
     from asr_backend import FunAsrBackend, WhisperBackend
     from remote_audio_backend import RemoteWhisperBackend
@@ -23,6 +24,7 @@ except ImportError:
     from speaker_verifier import SpeakerVerifier
     from car_client import CarClient
     from command_parser import parse_command
+    from wake_word import WakeWordVoiceService
 
 LOGGER = logging.getLogger("mini-mover-voice")
 
@@ -129,6 +131,17 @@ def main():
     if speaker and not speaker.enrolled:
         raise SystemExit("speaker profile does not exist; enroll it first")
     service = VoiceService(CarClient(args.car_url), asr, args.speed, args.duration, llm, tts, speaker)
+
+    # ---- wake-word gate ----
+    if config.wake_word:
+        service = WakeWordVoiceService(
+            service,
+            wake_word=config.wake_word,
+            greeting=config.wake_greeting,
+            idle_timeout=config.wake_idle_timeout,
+        )
+        LOGGER.info("wake-word mode: %r", config.wake_word)
+
     try:
         service.run()
     except KeyboardInterrupt:
