@@ -152,6 +152,18 @@ class _ManualControlPageState extends State<ManualControlPage> {
     );
   }
 
+  /// 根据电量区间返回对应电池图标
+  Widget _batteryIcon(int pct) {
+    final icon = pct >= 90 ? Icons.battery_full
+        : pct >= 60 ? Icons.battery_5_bar
+        : pct >= 30 ? Icons.battery_3_bar
+        : Icons.battery_1_bar;
+    final color = pct >= 30 ? AppTheme.statusGreen
+        : pct >= 15 ? AppTheme.accent
+        : AppTheme.statusRed;
+    return Icon(icon, size: 14, color: color);
+  }
+
   void _cycleSpeed() {
     setState(() {
       final speeds = [0.25, 0.50, 0.75, 1.0];
@@ -273,7 +285,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
                       fontWeight: FontWeight.w400,
                       fontSize: 11,
                       color: AppTheme.textSecondary)),
-              const Text(' 🔋', style: TextStyle(fontSize: 12)),
+              _batteryIcon(widget.carState.batteryPercent),
             ])),
             Row(mainAxisSize: MainAxisSize.min, children: [
               // 设置按钮

@@ -36,7 +36,6 @@ class _DeviceConnectPageState extends State<DeviceConnectPage> {
   Widget build(BuildContext c) {
     final cs = widget.carState; final on = cs.connected;
     return _wrap(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('S01-设备连接', style: AppTheme.sectionLabel.copyWith(fontSize: 14)), const SizedBox(height: 16),
       Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: _deco(), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('设备连接', style: AppTheme.pageTitle), SizedBox(height: 4), Text('FireGuard API :5000', style: AppTheme.subtitle)]),

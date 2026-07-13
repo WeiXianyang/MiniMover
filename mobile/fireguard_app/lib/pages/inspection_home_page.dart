@@ -45,9 +45,6 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('S02-巡检主页',
-            style: AppTheme.sectionLabel.copyWith(fontSize: 14)),
-        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
@@ -104,7 +101,7 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                   const Expanded(
                     child: GlassCard(
                       padding: EdgeInsets.all(16),
-                      child: StatBlock(value: '—', label: '待巡检点'),
+                      child: StatBlock(value: '—', label: '待巡检点', icon: Icons.checklist),
                     ),
                   ),
                 ],
@@ -118,7 +115,8 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                       padding: const EdgeInsets.all(16),
                       child: StatBlock(
                         value: cs.connected && cs.sensors.smoke > 0 ? '${cs.sensors.smoke}' : '—',
-                        label: '烟雾值'),
+                        label: '烟雾值',
+                        icon: Icons.smoke_free),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -127,7 +125,8 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                       padding: const EdgeInsets.all(16),
                       child: StatBlock(
                         value: cs.connected && cs.sensors.temperature > 0 ? '${cs.sensors.temperature.toStringAsFixed(1)}°C' : '—',
-                        label: '环境温度'),
+                        label: '环境温度',
+                        icon: Icons.device_thermostat),
                     ),
                   ),
                 ],

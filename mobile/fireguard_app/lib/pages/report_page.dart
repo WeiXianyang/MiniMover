@@ -31,9 +31,6 @@ class _ReportPageState extends State<ReportPage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('S07-巡检报告',
-            style: AppTheme.sectionLabel.copyWith(fontSize: 14)),
-        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),

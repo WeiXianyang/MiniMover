@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FireGuard 工业巡检 — Tailwind UI 参考原型</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!--
+    FireGuard 设计系统 — Tailwind 自定义 Token
+    所有颜色值从 Flutter AppTheme 精确映射
+  -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            // ── 主色调 ──
+            'accent':        '#FF8C42',
+            'accent-light':  '#FFB870',
+
+            // ── 文本 ──
+            'text-pri':      '#EEF4FF',
+            'text-sec':      '#9AA8BF',
+            'text-dark':     '#10151D',
+
+            // ── 状态 ──
+            'status-green':  '#2DCF9F',
+            'status-red':    '#FF4D4D',
+
+            // ── 背景渐变关键色 ──
+            'bg-top':        '#090E16',
+            'bg-mid':        '#0D1117',
+            'bg-bottom':     '#121824',
+            'frame-top':     '#172233',
+            'frame-bottom':  '#0F1622',
+
+            // ── 半透明 ──
+            'card-fill':     'rgba(255,255,255,0.04)',
+            'card-border':   'rgba(255,255,255,0.07)',
+            'divider-line':  'rgba(255,255,255,0.08)',
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+
+  <style>
+    /* ── 全局微调 ── */
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: #0a0f18;
+    }
+
+    /* ── 毛玻璃卡片基础样式 ── */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 12px;
+    }
+
+    /* ── 渐变按钮 ── */
+    .btn-gradient {
+      background: linear-gradient(135deg, #FF8C42, #FFB870);
+      border-radius: 8px;
+      height: 52px;
+      color: #10151D;
+      font-weight: 700;
+      font-size: 15px;
+      transition: all 0.2s ease;
+    }
+    .btn-gradient:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 140, 66, 0.3);
+    }
+    .btn-gradient:active {
+      transform: translateY(0);
+    }
+    .btn-gradient:focus-visible {
+      outline: 2px solid #FF8C42;
+      outline-offset: 2px;
+    }
+
+    /* ── 次要按钮 (描边) ── */
+    .btn-secondary {
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      height: 52px;
+      color: #EEF4FF;
+      font-weight: 700;
+      font-size: 15px;
+      background: transparent;
+      transition: all 0.2s ease;
+    }
+    .btn-secondary:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .btn-secondary:focus-visible {
+      outline: 2px solid #FF8C42;
+      outline-offset: 2px;
+    }
+
+    /* ── 危险按钮 (红色描边 + 暗红背景) ── */
+    .btn-danger {
+      background: linear-gradient(180deg, #3A1515, #2A1010);
+      border: 1px solid rgba(255, 77, 77, 0.4);
+      border-radius: 8px;
+      height: 52px;
+      color: #FF6B6B;
+      font-weight: 700;
+      font-size: 15px;
+      transition: all 0.2s ease;
+    }
+    .btn-danger:hover {
+      border-color: rgba(255, 77, 77, 0.6);
+      background: linear-gradient(180deg, #4A2020, #3A1515);
+    }
+
+    /* ── 小按钮 ── */
+    .btn-small {
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 8px;
+      height: 48px;
+      color: #EEF4FF;
+      font-weight: 700;
+      font-size: 15px;
+      background: transparent;
+      transition: all 0.2s ease;
+    }
+    .btn-small:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    /* ── 状态徽章 ── */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 13px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #EEF4FF;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.active { background: #2DCF9F; }
+    .status-dot.inactive { background: #FF4D4D; }
+
+    /* ── 分隔线 ── */
+    .divider-line {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      margin: 10px 0;
+    }
+
+    /* ── Tab 导航 ── */
+    .tab-btn {
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover {
+      color: #FFB870;
+    }
+
+    /* ── 表单输入 ── */
+    .input-field {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #EEF4FF;
+      font-size: 14px;
+      font-weight: 700;
+      width: 100%;
+      padding: 0;
+    }
+    .input-field::placeholder { color: #9AA8BF; }
+
+    /* ── 告警可视化区域 ── */
+    .alarm-viz {
+      background: linear-gradient(135deg, rgba(183,28,28,0.3), rgba(230,81,0,0.2));
+      border-radius: 8px;
+    }
+    .alarm-viz.safe {
+      background: linear-gradient(135deg, rgba(66,66,66,0.15), rgba(66,66,66,0.1));
+    }
+
+    /* ── 主车卡片高亮边框 ── */
+    .leader-card {
+      border: 1.5px solid #FF8C42 !important;
+    }
+
+    /* ── 电量徽章 ── */
+    .battery-badge {
+      display: inline-flex;
+      padding: 4px 8px;
+      background: rgba(45, 207, 159, 0.08);
+      border: 1px solid rgba(45, 207, 159, 0.15);
+      border-radius: 10px;
+      color: #2DCF9F;
+      font-size: 10px;
+      font-weight: 700;
+    }
+
+    /* ── 平滑滚动 ── */
+    .page-content {
+      scroll-behavior: smooth;
+    }
+    .page-content::-webkit-scrollbar { width: 3px; }
+    .page-content::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+    }
+
+    /* ── 编队卡片滑动提示 ── */
+    .swipe-hint {
+      color: rgba(255, 255, 255, 0.25);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+  <!--
+    ══════════════════════════════════════════════════════════
+    手机模拟框 — 390×844 (iPhone 14 尺寸)
+    ══════════════════════════════════════════════════════════
+  -->
+  <div class="relative w-[390px] h-[844px] rounded-[32px] overflow-hidden shadow-2xl border border-[rgba(255,255,255,0.06)]"
+       style="background: linear-gradient(180deg, #111A27 0%, #0B1220 100%);">
+
+    <!-- ═══ 背景渐变 ═══ -->
+    <div class="absolute inset-0" style="background: linear-gradient(180deg, #090E16 0%, #0D1117 50%, #121824 100%);"></div>
+
+    <!-- ═══ 主内容区 (可滚动) ═══ -->
+    <div id="pageContainer" class="relative z-10 h-[calc(100%-64px)] overflow-y-auto page-content px-8 pt-4 pb-2">
+
+      <!--
+        ────────────────────────────────────────────────
+        标签页 1: 设备连接 (S01)
+        ────────────────────────────────────────────────
+      -->
+      <div id="tab-device" class="tab-content space-y-4">
+
+        <!-- 页面标题徽章 -->
+        <p class="text-[14px] font-bold text-accent tracking-wide">S01-设备连接</p>
+
+        <!-- 卡片帧 -->
+        <div class="rounded-2xl border border-card-border p-5 w-full"
+             style="background: linear-gradient(180deg, #172233 0%, #0F1622 100%);">
+
+          <!-- PageHeader -->
+          <div class="flex justify-between items-start">
+            <div>
+              <h2 class="text-xl font-bold text-text-pri">设备连接</h2>
+              <p class="text-xs text-text-sec mt-1">FireGuard API :5000</p>
+            </div>
+            <!-- StatusBadge — 未连接 -->
+            <span class="status-badge" id="deviceBadge">
+              <span class="status-dot inactive"></span>
+              未连接
+            </span>
+          </div>
+
+          <div class="mt-7 space-y-3">
+            <!-- IP 输入框 -->
+            <div class="glass-card px-4 py-3 h-[72px] flex flex-col justify-center">
+              <label class="text-[11px] text-text-sec mb-0.5">小车 IP</label>
+              <div class="flex items-center gap-2">
+                <!-- Wifi Icon -->
+                <svg class="w-4 h-4 text-text-sec shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/>
+                </svg>
+                <input type="text" value="192.168.8.188"
+                       class="input-field" id="ipInput"
+                       placeholder="输入小车 IP 地址">
+              </div>
+            </div>
+
+            <!-- 端口输入框 -->
+            <div class="glass-card px-4 py-3 h-[72px] flex flex-col justify-center">
+              <label class="text-[11px] text-text-sec mb-0.5">API 端口 (控制+视频)</label>
+              <div class="flex items-center gap-2">
+                <!-- Ethernet Icon -->
+                <svg class="w-4 h-4 text-text-sec shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0L21.75 12l-4.179 2.25m0 0l4.179 2.25L12 21.75 2.25 16.5l4.179-2.25m11.142 0l-5.571 3-5.571-3"/>
+                </svg>
+                <input type="text" value="5000"
+                       class="input-field" id="portInput"
+                       placeholder="端口号">
+              </div>
+            </div>
+
+            <!-- 设备信息卡片 -->
+            <div class="glass-card px-4 py-3.5">
+              <div class="space-y-0">
+                <div class="flex justify-between items-center py-1">
+                  <span class="text-[13px] text-text-sec">设备状态</span>
+                  <span class="text-[13px] font-bold text-text-pri">未连接</span>
+                </div>
+                <div class="divider-line"></div>
+                <div class="flex justify-between items-center py-1">
+                  <span class="text-[13px] text-text-sec">小车 IP</span>
+                  <span class="text-[13px] font-bold text-text-pri">—</span>
+                </div>
+                <div class="divider-line"></div>
+                <div class="flex justify-between items-center py-1">
+                  <span class="text-[13px] text-text-sec">电池电压</span>
+                  <span class="text-[13px] font-bold text-text-pri">—</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="mt-6 space-y-3">
+            <button class="btn-gradient w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]"
+                    id="connectBtn"
+                    onclick="toggleConnection()">
+              连接
+            </button>
+            <button class="btn-secondary w-full hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]"
+                    id="disconnectBtn"
+                    onclick="toggleConnection()">
+              断开
+            </button>
+          </div>
+
+        </div><!-- /卡片帧 -->
+      </div><!-- /tab-device -->
+
+
+      <!--
+        ────────────────────────────────────────────────
+        标签页 2: 巡检主页 (S02)
+        ────────────────────────────────────────────────
+      -->
+      <div id="tab-inspection" class="tab-content space-y-4 hidden">
+
+        <p class="text-[14px] font-bold text-accent tracking-wide">S02-巡检主页</p>
+
+        <div class="rounded-2xl border border-card-border p-5 w-full"
+             style="background: linear-gradient(180deg, #172233 0%, #0F1622 100%);">
+
+          <!-- PageHeader -->
+          <div class="flex justify-between items-start">
+            <div>
+              <h2 class="text-xl font-bold text-text-pri">巡检主页</h2>
+              <p class="text-xs text-text-sec mt-1">设备在线 · 就绪</p>
+            </div>
+            <span class="status-badge">
+              <span class="status-dot active"></span>
+              就绪
+            </span>
+          </div>
+
+          <div class="mt-6 space-y-4">
+            <!-- 基本信息 GlassCard -->
+            <div class="glass-card px-4 py-3.5">
+              <div class="flex justify-between items-center py-1">
+                <span class="text-[13px] text-text-sec">当前区域</span>
+                <span class="text-[13px] font-bold text-text-pri">A区-原料仓</span>
+              </div>
+              <div class="divider-line"></div>
+              <div class="flex justify-between items-center py-1">
+                <span class="text-[13px] text-text-sec">当前任务</span>
+                <span class="text-[13px] font-bold text-text-pri">例行巡检 #027</span>
+              </div>
+              <div class="divider-line"></div>
+              <div class="flex justify-between items-center py-1">
+                <span class="text-[13px] text-text-sec">设备状态</span>
+                <span class="text-[13px] font-bold text-text-pri">在线 · 正常</span>
+              </div>
+            </div>
+
+            <!-- 统计卡片行 1: 电量 + 待巡检点 -->
+            <div class="flex gap-3">
+              <div class="glass-card p-4 flex-1">
+                <div class="flex flex-col items-start gap-1">
+                  <!-- Battery Icon -->
+                  <svg class="w-[22px] h-[22px] text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 10.083V7.25a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 7.25v9.5a2.25 2.25 0 002.25 2.25h13.5a2.25 2.25 0 002.25-2.25v-2.833M8.25 10.5l2.25 3 5.25-6"/>
+                  </svg>
+                  <span class="text-xl font-bold text-text-pri">11.8V</span>
+                  <span class="text-xs text-text-sec">电量</span>
+                </div>
+              </div>
+              <div class="glass-card p-4 flex-1">
+                <div class="flex flex-col items-start gap-1">
+                  <svg class="w-[22px] h-[22px] text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/>
+                  </svg>
+                  <span class="text-xl font-bold text-text-pri">—</span>
+                  <span class="text-xs text-text-sec">待巡检点</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 统计卡片行 2: 烟雾值 + 环境温度 -->
+            <div class="flex gap-3">
+              <div class="glass-card p-4 flex-1">
+                <div class="flex flex-col items-start gap-1">
+                  <svg class="w-[22px] h-[22px] text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+                  </svg>
+                  <span class="text-xl font-bold text-text-pri">12</span>
+                  <span class="text-xs text-text-sec">烟雾值</span>
+                </div>
+              </div>
+              <div class="glass-card p-4 flex-1">
+                <div class="flex flex-col items-start gap-1">
+                  <svg class="w-[22px] h-[22px] text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z"/>
+                  </svg>
+                  <span class="text-xl font-bold text-text-pri">26.5°C</span>
+                  <span class="text-xs text-text-sec">环境温度</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 推荐动作 -->
+            <div class="glass-card px-4 py-3.5">
+              <p class="text-[13px] text-text-sec">推荐动作</p>
+              <p class="text-lg font-bold text-text-pri mt-1.5 leading-snug">
+                点击下方按钮开始自动巡检
+              </p>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="mt-5 space-y-3">
+            <button class="btn-gradient w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]">
+              开始自动巡检
+            </button>
+            <button class="btn-secondary w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]">
+              切换到手动接管
+            </button>
+          </div>
+
+        </div><!-- /卡片帧 -->
+      </div><!-- /tab-inspection -->
+
+
+      <!--
+        ────────────────────────────────────────────────
+        标签页 3: 告警详情 (S04)
+        ────────────────────────────────────────────────
+      -->
+      <div id="tab-alarm" class="tab-content space-y-4 hidden">
+
+        <p class="text-[14px] font-bold text-accent tracking-wide">S04-告警详情</p>
+
+        <div class="rounded-2xl border border-card-border p-5 w-full"
+             style="background: linear-gradient(180deg, #172233 0%, #0F1622 100%);">
+
+          <!-- PageHeader — 有告警状态 -->
+          <div class="flex justify-between items-start">
+            <div>
+              <h2 class="text-xl font-bold text-text-pri">告警详情</h2>
+              <p class="text-xs text-text-sec mt-1">视觉 + 传感器联合判定</p>
+            </div>
+            <span class="status-badge">
+              <span class="status-dot active" style="background:#FF4D4D;"></span>
+              ⚠ 一级告警
+            </span>
+          </div>
+
+          <div class="mt-5 space-y-3.5">
+            <!-- 告警可视化区域 -->
+            <div class="glass-card p-3 h-[182px] relative overflow-hidden">
+              <div class="absolute inset-3 rounded-lg alarm-viz flex items-center justify-center">
+                <!-- 烟雾图标 -->
+                <svg class="w-10 h-10 text-text-sec opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/>
+                </svg>
+              </div>
+              <!-- 疑似区域标签 -->
+              <span class="absolute bottom-2 right-4 text-[13px] font-bold text-text-pri">疑似烟雾区</span>
+            </div>
+
+            <!-- 告警信息 -->
+            <div class="glass-card px-4 py-3.5">
+              <div class="flex justify-between items-center py-1">
+                <span class="text-[13px] text-text-sec">告警位置</span>
+                <span class="text-[13px] font-bold text-text-pri">A区-原料仓 · 东侧通道</span>
+              </div>
+              <div class="divider-line"></div>
+              <div class="flex justify-between items-center py-1">
+                <span class="text-[13px] text-text-sec">视觉置信度</span>
+                <span class="text-[13px] font-bold text-status-red">0.87</span>
+              </div>
+              <div class="divider-line"></div>
+              <div class="flex justify-between items-center py-1">
+                <span class="text-[13px] text-text-sec">烟雾值</span>
+                <span class="text-[13px] font-bold text-text-pri">156 ppm</span>
+              </div>
+              <div class="divider-line"></div>
+              <div class="flex justify-between items-center py-1">
+                <span class="text-[13px] text-text-sec">温度</span>
+                <span class="text-[13px] font-bold text-status-red">62.3°C</span>
+              </div>
+            </div>
+
+            <!-- 处置建议 -->
+            <div class="glass-card px-4 py-3.5">
+              <p class="text-[13px] font-bold text-text-pri">处置建议</p>
+              <p class="text-[13px] text-text-sec mt-2 leading-relaxed">
+                建议先停车并拉起远程接管，同时发起应急物资配送。
+              </p>
+            </div>
+          </div>
+
+          <!-- 操作按钮 -->
+          <div class="mt-5 space-y-3">
+            <button class="btn-gradient w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]">
+              发起应急配送
+            </button>
+            <button class="btn-secondary w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]">
+              进入远程接管
+            </button>
+            <button class="btn-secondary w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]">
+              清除告警
+            </button>
+          </div>
+
+        </div><!-- /卡片帧 -->
+      </div><!-- /tab-alarm -->
+
+
+      <!--
+        ────────────────────────────────────────────────
+        标签页 4: 车队编队 (S08)
+        ────────────────────────────────────────────────
+      -->
+      <div id="tab-fleet" class="tab-content space-y-4 hidden">
+
+        <p class="text-[14px] font-bold text-accent tracking-wide">S08-车队编队</p>
+
+        <div class="rounded-2xl border border-card-border p-5 w-full"
+             style="background: linear-gradient(180deg, #172233 0%, #0F1622 100%);">
+
+          <!-- PageHeader -->
+          <div class="flex justify-between items-start">
+            <div>
+              <h2 class="text-xl font-bold text-text-pri">车队编队</h2>
+              <p class="text-xs text-text-sec mt-1">主车领航 + 多从车跟随编队</p>
+            </div>
+            <span class="status-badge">
+              <span class="status-dot active"></span>
+              编队就绪
+            </span>
+          </div>
+
+          <div class="mt-5 space-y-3">
+            <!-- ═══ 主车卡片 (队长) ═══ -->
+            <div class="glass-card leader-card p-3.5 flex items-center gap-3">
+              <!-- 图标 -->
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                   style="background: rgba(255,140,66,0.15);">
+                <svg class="w-[18px] h-[18px] text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/>
+                </svg>
+              </div>
+              <!-- 信息 -->
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-accent">主车-FG001 · 队长</p>
+                <p class="text-xs text-text-sec mt-0.5">192.168.8.188 · 任务: 编队领航</p>
+              </div>
+              <!-- 电量 -->
+              <span class="battery-badge shrink-0">85%</span>
+              <!-- 在线点 -->
+              <span class="w-2 h-2 rounded-full bg-status-green shrink-0"></span>
+            </div>
+
+            <!-- ═══ 从车卡片 1 ═══ -->
+            <div class="glass-card p-3.5 flex items-center gap-3 group cursor-pointer hover:border-card-border hover:bg-[rgba(255,255,255,0.06)] transition-all">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-card-fill">
+                <svg class="w-[18px] h-[18px] text-text-sec" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-text-pri">从车-FG002</p>
+                <p class="text-xs text-text-sec mt-0.5">编队距离: 2.3m  ·  速度: 0.85 m/s</p>
+              </div>
+              <span class="battery-badge shrink-0">72%</span>
+              <span class="w-2 h-2 rounded-full bg-status-green shrink-0"></span>
+            </div>
+
+            <!-- ═══ 从车卡片 2 ═══ -->
+            <div class="glass-card p-3.5 flex items-center gap-3 group cursor-pointer hover:border-card-border hover:bg-[rgba(255,255,255,0.06)] transition-all">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-card-fill">
+                <svg class="w-[18px] h-[18px] text-text-sec" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/>
+                </svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold text-text-pri">从车-FG003</p>
+                <p class="text-xs text-text-sec mt-0.5">编队距离: 2.1m  ·  速度: 0.82 m/s</p>
+              </div>
+              <span class="battery-badge shrink-0">68%</span>
+              <span class="w-2 h-2 rounded-full bg-text-sec shrink-0"></span>
+            </div>
+
+            <!-- ═══ 添加从车按钮 ═══ -->
+            <button class="w-full h-11 rounded-[10px] border border-card-border flex items-center justify-center hover:bg-card-fill transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]">
+              <span class="text-[13px] font-bold text-text-sec">+ 添加从车</span>
+            </button>
+          </div>
+
+          <!-- 分隔线 + 编队命令 -->
+          <div class="divider-line my-4"></div>
+
+          <p class="text-[13px] font-bold text-text-pri mb-3">编队命令</p>
+
+          <div class="flex gap-3">
+            <button class="btn-gradient flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]">
+              🚀 出发
+            </button>
+            <button class="btn-secondary flex-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]">
+              🛑 停止
+            </button>
+          </div>
+
+          <!-- 解散编队 -->
+          <button class="btn-danger w-full mt-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-status-red focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F1622]">
+            ⚠ 解散编队
+          </button>
+
+          <!-- 分隔线 + 编队统计 -->
+          <div class="divider-line my-4"></div>
+
+          <p class="text-[13px] font-bold text-text-pri mb-3">编队统计</p>
+
+          <div class="flex gap-2">
+            <div class="glass-card px-3.5 py-3 flex-1">
+              <span class="text-xl font-bold text-text-pri">3</span>
+              <p class="text-xs text-text-sec mt-1">车辆总数</p>
+            </div>
+            <div class="glass-card px-3.5 py-3 flex-1">
+              <span class="text-xl font-bold text-text-pri">75%</span>
+              <p class="text-xs text-text-sec mt-1">平均电量</p>
+            </div>
+            <div class="glass-card px-3.5 py-3 flex-1">
+              <span class="text-xl font-bold text-text-pri">05:23</span>
+              <p class="text-xs text-text-sec mt-1">编队运行</p>
+            </div>
+          </div>
+
+          <p class="text-center mt-3 swipe-hint">左滑卡片移除从车 · 点击查看详情</p>
+
+        </div><!-- /卡片帧 -->
+      </div><!-- /tab-fleet -->
+
+    </div><!-- /pageContainer -->
+
+
+    <!--
+      ══════════════════════════════════════════════════════════
+      底部导航栏 — 4 个标签
+      ══════════════════════════════════════════════════════════
+    -->
+    <nav class="absolute bottom-0 left-0 right-0 z-20 h-16 flex items-stretch border-t border-card-border"
+         style="background: #090E16;">
+      <!-- 标签 0: 设备连接 -->
+      <button class="tab-btn flex-1 flex flex-col items-center justify-center gap-0.5 text-accent"
+              data-tab="0"
+              onclick="switchTab(0, this)">
+        <svg class="w-[22px] h-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z"/>
+        </svg>
+        <span class="text-[11px] font-bold">设备连接</span>
+      </button>
+
+      <!-- 标签 1: 巡检主页 -->
+      <button class="tab-btn flex-1 flex flex-col items-center justify-center gap-0.5 text-text-sec"
+              data-tab="1"
+              onclick="switchTab(1, this)">
+        <svg class="w-[22px] h-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/>
+        </svg>
+        <span class="text-[11px]">巡检主页</span>
+      </button>
+
+      <!-- 标签 2: 告警详情 -->
+      <button class="tab-btn flex-1 flex flex-col items-center justify-center gap-0.5 text-text-sec"
+              data-tab="2"
+              onclick="switchTab(2, this)">
+        <svg class="w-[22px] h-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+        </svg>
+        <span class="text-[11px]">告警详情</span>
+      </button>
+
+      <!-- 标签 3: 车队编队 -->
+      <button class="tab-btn flex-1 flex flex-col items-center justify-center gap-0.5 text-text-sec"
+              data-tab="3"
+              onclick="switchTab(3, this)">
+        <svg class="w-[22px] h-[22px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/>
+        </svg>
+        <span class="text-[11px]">车队编队</span>
+      </button>
+    </nav>
+
+  </div><!-- /手机模拟框 -->
+
+
+  <!--
+    ══════════════════════════════════════════════════════════
+    Tab 切换交互脚本
+    ══════════════════════════════════════════════════════════
+  -->
+  <script>
+    const TABS = ['tab-device', 'tab-inspection', 'tab-alarm', 'tab-fleet'];
+
+    function switchTab(index, btn) {
+      // 隐藏所有内容页
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+
+      // 显示目标页
+      const targetId = TABS[index];
+      if (targetId) {
+        document.getElementById(targetId).classList.remove('hidden');
+      }
+
+      // 重置所有 tab 按钮样式
+      document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('text-accent');
+        b.classList.add('text-text-sec');
+      });
+
+      // 高亮当前按钮
+      btn.classList.remove('text-text-sec');
+      btn.classList.add('text-accent');
+
+      // 滚动到顶部
+      document.getElementById('pageContainer').scrollTop = 0;
+    }
+
+    // ── 设备连接页: 模拟连接/断开交互 ──
+    let isConnected = false;
+    function toggleConnection() {
+      isConnected = !isConnected;
+      const badge = document.getElementById('deviceBadge');
+      const connectBtn = document.getElementById('connectBtn');
+      const disconnectBtn = document.getElementById('disconnectBtn');
+
+      if (isConnected) {
+        badge.innerHTML = '<span class="status-dot active"></span> 已连接';
+        connectBtn.textContent = '已连接';
+        connectBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        connectBtn.classList.remove('hover:opacity-90');
+        disconnectBtn.classList.remove('hidden');
+      } else {
+        badge.innerHTML = '<span class="status-dot inactive"></span> 未连接';
+        connectBtn.textContent = '连接';
+        connectBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        disconnectBtn.classList.add('hidden');
+      }
+    }
+  </script>
+
+</body>
+</html>

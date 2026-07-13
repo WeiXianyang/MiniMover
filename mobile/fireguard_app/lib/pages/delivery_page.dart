@@ -8,10 +8,12 @@ import '../widgets/page_shell.dart';
 class DeliveryPage extends StatefulWidget {
   final CarState carState;
   final bool embedded;
+  final VoidCallback? onReturnHome;
   const DeliveryPage({
     super.key,
     required this.carState,
     this.embedded = false,
+    this.onReturnHome,
   });
 
   @override
@@ -42,9 +44,6 @@ class _DeliveryPageState extends State<DeliveryPage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('S05-定点配送',
-            style: AppTheme.sectionLabel.copyWith(fontSize: 14)),
-        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
@@ -153,7 +152,11 @@ class _DeliveryPageState extends State<DeliveryPage> {
                 secondary: true,
                 onTap: () {
                   if (cs.deliveryActive) cs.cancelDelivery();
-                  Navigator.of(context).pop();
+                  if (widget.embedded) {
+                    widget.onReturnHome?.call();
+                  } else {
+                    Navigator.of(context).pop();
+                  }
                 },
               ),
             ],

@@ -44,9 +44,6 @@ class _AlarmDetailPageState extends State<AlarmDetailPage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('S04-告警详情',
-            style: AppTheme.sectionLabel.copyWith(fontSize: 14)),
-        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),

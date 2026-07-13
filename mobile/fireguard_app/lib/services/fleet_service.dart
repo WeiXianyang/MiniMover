@@ -17,46 +17,24 @@ class FleetService {
   FleetState get state => _state;
   Stream<FleetState> get stateStream => _stateController.stream;
 
-  /// Mock 初始化：创建 1 主车 + 2 从车
-  void initMockFleet() {
+  /// 组建车队：以当前连接小车为主车
+  void buildFleet({required String leaderIp, String leaderName = '主车', int battery = 100}) {
     final leader = CarInfo(
-      id: 'leader-01',
-      name: '主车',
-      ip: '192.168.1.11',
+      id: 'leader-${DateTime.now().millisecondsSinceEpoch}',
+      name: leaderName,
+      ip: leaderIp,
       role: CarRole.leader,
-      battery: 86,
+      battery: battery,
       online: true,
       distance: 0,
       speed: 0,
     );
-    final f1 = CarInfo(
-      id: 'follower-01',
-      name: '从车 1',
-      ip: '192.168.1.12',
-      role: CarRole.follower,
-      battery: 72,
-      online: true,
-      distance: 1.2,
-      speed: 0.5,
-    );
-    final f2 = CarInfo(
-      id: 'follower-02',
-      name: '从车 2',
-      ip: '192.168.1.13',
-      role: CarRole.follower,
-      battery: 65,
-      online: true,
-      distance: 1.5,
-      speed: 0.5,
-    );
 
     _state = FleetState(
       status: FleetStatus.ready,
-      cars: [leader, f1, f2],
+      cars: [leader],
       leaderId: leader.id,
     );
-    _carServices.add(TcpService());
-    _carServices.add(TcpService());
     _carServices.add(TcpService());
     _notify();
   }

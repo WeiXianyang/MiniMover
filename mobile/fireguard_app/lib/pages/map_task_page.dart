@@ -47,9 +47,6 @@ class _MapTaskPageState extends State<MapTaskPage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('S03-地图任务',
-            style: AppTheme.sectionLabel.copyWith(fontSize: 14)),
-        const SizedBox(height: 16),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),

@@ -7,6 +7,7 @@ import 'pages/device_connect_page.dart';
 import 'pages/inspection_home_page.dart';
 import 'pages/alarm_detail_page.dart';
 import 'pages/fleet_page.dart';
+import 'pages/delivery_page.dart';
 
 void main() => runApp(const FireGuardApp());
 
@@ -33,7 +34,7 @@ class _MainShellState extends State<MainShell> {
 
   static const _tabs = [
     ('设备连接', Icons.wifi), ('巡检主页', Icons.dashboard),
-    ('告警详情', Icons.warning), ('车队编队', Icons.precision_manufacturing),
+    ('告警详情', Icons.warning), ('定点配送', Icons.local_shipping), ('车队编队', Icons.precision_manufacturing),
   ];
 
   @override
@@ -54,7 +55,8 @@ class _MainShellState extends State<MainShell> {
         DeviceConnectPage(embedded: true, carState: _cs, onConnected: () => setState(() => _idx = 1)),
         InspectionHomePage(embedded: true, carState: _cs),
         AlarmDetailPage(embedded: true, carState: _cs),
-        FleetPage(embedded: true, fleetService: _fleet),
+        DeliveryPage(embedded: true, carState: _cs, onReturnHome: () => setState(() => _idx = 1)),
+        FleetPage(embedded: true, fleetService: _fleet, carState: _cs),
       ]),
     ),
     bottomNavigationBar: BottomNavigationBar(
