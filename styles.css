@@ -475,7 +475,7 @@ input {
   right: 16px;
   bottom: 16px;
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
   padding: 8px;
   border: 1px solid rgba(42, 61, 86, 0.9);
@@ -490,9 +490,378 @@ input {
   min-height: 42px;
   border-radius: 12px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1.1;
+}
+
+.state-disconnected {
+  display: block;
+}
+
+.state-connected {
+  display: none;
+}
+
+body.is-connected .state-disconnected {
+  display: none;
+}
+
+body.is-connected .state-connected {
+  display: block;
+}
+
+.link-row {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.flow-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.flow-topbar .back-link {
+  display: inline-grid;
+  place-items: center;
+  min-width: 42px;
+  height: 36px;
+  border: 1px solid rgba(147, 164, 186, 0.16);
+  border-radius: 10px;
+  color: var(--muted);
+  background: rgba(16, 25, 39, 0.72);
+}
+
+.landscape-shell {
+  width: min(920px, 100%);
+}
+
+.landscape-phone,
+.settings-stage {
+  position: relative;
+  overflow: hidden;
+  min-height: 390px;
+  border: 1px solid #1c2c41;
+  border-radius: 18px;
+  color: var(--text);
+  background:
+    linear-gradient(180deg, rgba(4, 8, 13, 0.96), rgba(7, 13, 20, 0.98)),
+    radial-gradient(circle at 50% 40%, rgba(255, 151, 72, 0.09), transparent 22rem);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+}
+
+.landscape-scene {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 0 49.85%, rgba(255, 151, 72, 0.12) 50%, transparent 50.15%),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 50px 60px, 50px 60px;
+  opacity: 0.74;
+}
+
+.landscape-road {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 150px;
+  background: rgba(10, 18, 26, 0.9);
+}
+
+.landscape-road::before,
+.landscape-road::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.landscape-road::before {
+  top: 60px;
+}
+
+.landscape-road::after {
+  bottom: 30px;
+}
+
+.manual-status {
+  position: absolute;
+  left: 16px;
+  top: 12px;
+  width: 180px;
+  padding: 10px 14px;
+  border: 1px solid rgba(147, 164, 186, 0.14);
+  border-radius: 12px;
+  background: rgba(5, 8, 13, 0.82);
+}
+
+.manual-status strong {
+  display: block;
+  font-size: 16px;
+}
+
+.manual-status span {
+  display: block;
+  margin-top: 4px;
+  color: #2dcf9f;
+  font-size: 12px;
+}
+
+.fps-panel {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid rgba(147, 164, 186, 0.12);
+  border-radius: 10px;
+  background: rgba(5, 8, 13, 0.82);
+}
+
+.fps-panel a {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: #eef4ff;
+}
+
+.fps-panel strong {
+  color: #2dcf9f;
+  font-size: 13px;
+}
+
+.manual-toolrail {
+  position: absolute;
+  top: 56px;
+  right: 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.manual-toolrail a,
+.manual-toolrail span {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 42px;
+  border: 1px solid rgba(147, 164, 186, 0.16);
+  border-radius: 10px;
+  background: rgba(28, 37, 50, 0.86);
+}
+
+.manual-joystick {
+  position: absolute;
+  left: 20px;
+  bottom: 60px;
+  width: 120px;
+  height: 120px;
+  border: 1px solid rgba(147, 164, 186, 0.24);
+  border-radius: 999px;
+  background:
+    linear-gradient(rgba(147, 164, 186, 0.16) 0 0) center / 1px 100% no-repeat,
+    linear-gradient(90deg, rgba(147, 164, 186, 0.16) 0 0) center / 100% 1px no-repeat,
+    rgba(14, 22, 31, 0.62);
+}
+
+.manual-joystick::after,
+.view-joystick::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: var(--orange);
+  box-shadow: inset 0 0 0 14px rgba(255, 219, 164, 0.24);
+}
+
+.view-joystick {
+  position: absolute;
+  right: 10px;
+  bottom: 90px;
+  width: 140px;
+  height: 62px;
+  border: 1px solid rgba(147, 164, 186, 0.24);
+  border-radius: 999px;
+  background: rgba(14, 22, 31, 0.62);
+}
+
+.manual-bottom-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transform: translateX(-50%);
+}
+
+.round-control,
+.speed-control {
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(147, 164, 186, 0.14);
+  border-radius: 10px;
+  color: var(--muted);
+  background: rgba(17, 26, 39, 0.72);
+}
+
+.emergency-control {
+  display: grid;
+  place-items: center;
+  min-width: 116px;
+  height: 42px;
+  border: 1px solid rgba(255, 101, 112, 0.34);
+  border-radius: 999px;
+  color: #ff5f66;
+  font-weight: 900;
+  background: rgba(93, 23, 30, 0.58);
+}
+
+.speed-control strong {
+  margin-left: 4px;
+  color: var(--orange);
+}
+
+.settings-stage {
+  min-height: 390px;
+  border-radius: 4px;
+}
+
+.settings-grid {
+  position: absolute;
+  inset: 80px 0 44px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 40px 30px;
+}
+
+.settings-header {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0 56px;
+  border-bottom: 1px solid rgba(147, 164, 186, 0.12);
+  background: rgba(7, 12, 19, 0.88);
+}
+
+.settings-header a {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.settings-tip {
+  position: absolute;
+  left: 46px;
+  top: 56px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.setting-node {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(147, 164, 186, 0.16);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgba(25, 35, 50, 0.72);
+}
+
+.setting-node.move {
+  left: 28px;
+  top: 215px;
+  width: 124px;
+  height: 124px;
+}
+
+.setting-node.radar {
+  left: 240px;
+  top: 120px;
+  width: 140px;
+  height: 140px;
+}
+
+.setting-node.view {
+  left: 620px;
+  top: 226px;
+  width: 148px;
+  height: 52px;
+}
+
+.settings-side {
+  position: absolute;
+  top: 92px;
+  right: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.settings-side span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(147, 164, 186, 0.14);
+  border-radius: 10px;
+  background: rgba(28, 37, 50, 0.86);
+}
+
+.settings-actions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  border-top: 1px solid rgba(147, 164, 186, 0.12);
+  background: rgba(7, 12, 19, 0.88);
+}
+
+.settings-actions a {
+  display: grid;
+  place-items: center;
+  min-width: 120px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.settings-actions .reset {
+  color: #ff5f66;
+  border: 1px solid rgba(255, 101, 112, 0.34);
+}
+
+.settings-actions .save {
+  color: #10151d;
+  background: var(--orange);
 }
 
 .tabbar a.active {
@@ -687,6 +1056,17 @@ input {
   }
 
   .tabbar a {
-    font-size: 9px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 720px) {
+  .landscape-shell {
+    width: 100%;
+  }
+
+  .landscape-phone,
+  .settings-stage {
+    border-radius: 0;
   }
 }
