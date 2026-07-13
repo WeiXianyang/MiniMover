@@ -1,6 +1,6 @@
 /**
  * 横屏手动接管页面
- * 参照 manual-landscape.html 原型，使用 SVG 图标。
+ * 参照 manual-landscape.html 原型，使用 SVG 图标和手动摇杆组件。
  * 全屏横屏布局：双摇杆 + 视频 + 雷达 + 工具列 + 急停控制。
  * 未连接设备时显示深灰背景占位，确保所有控件清晰可见。
  */
@@ -8,8 +8,7 @@ import promptAction from '@ohos.promptAction'
 import router from '@ohos.router'
 import { ScreenUtils } from '../utils/ScreenUtils'
 import { FG } from '../fireguard/Theme'
-import { CarRockerComponents } from '../components/CarRockerComponents'
-import { ViewRockerComponents } from '../components/ViewRockerComponents'
+import { ManualMoveJoystick, ManualViewJoystick } from '../components/ManualJoystickComponents'
 import { BackendState, BackendType } from '../CarUtill/BackendType'
 import { carApi } from '../CarUtill/CarApi'
 import { CarDirection } from '../CarUtill/CarEnum'
@@ -21,6 +20,8 @@ struct ScreenManualLandscape {
   @State fpsText: string = '30'
   @State speedText: string = '50'
   @State signalText: string = '86'
+  /** 雷达开关状态 */
+  @State showRadar: boolean = true
   private webCtl: web_webview.WebviewController = new web_webview.WebviewController()
 
   aboutToAppear(): void {
@@ -77,8 +78,10 @@ struct ScreenManualLandscape {
           .height('100%')
       }
 
-      // 雷达小窗
-      this.radarWidget()
+      // 雷达小窗（可开关）
+      if (this.showRadar) {
+        this.radarWidget()
+      }
 
       // 底部道路条
       Row()
@@ -89,7 +92,7 @@ struct ScreenManualLandscape {
 
       // ===== 左上：返回按钮 =====
       Row() {
-        Image($r('app.media.arrow_left'))
+        Image($r('app.media.arrow-left'))
           .width(18)
           .height(18)
           .fillColor(FG.text)
@@ -141,7 +144,7 @@ struct ScreenManualLandscape {
           .height(24)
           .fillColor(FG.text)
           .onClick(() => {
-            promptAction.showToast({ message: '布局设置（待后端接入）' })
+            router.pushUrl({ url: 'pages/ScreenManualSettings' })
           })
 
         Text(`${this.fpsText} FPS`)
@@ -170,31 +173,45 @@ struct ScreenManualLandscape {
         this.toolIconBtn($r('app.media.mic'), '麦')
         this.toolIconBtn($r('app.media.record'), '录')
         this.toolIconBtn($r('app.media.radar'), '雷')
-        this.toolIconBtn($r('app.media.map'), '图')
+        // 第五个：雷达开关
+        Row() {
+          Image($r('app.media.map'))
+            .width(18)
+            .height(18)
+            .fillColor(this.showRadar ? FG.orange : FG.muted)
+        }
+        .width(44)
+        .height(42)
+        .borderRadius(10)
+        .border({
+          width: 1,
+          color: this.showRadar ? 'rgba(232, 139, 69, 0.28)' : 'rgba(147, 164, 186, 0.16)'
+        })
+        .backgroundColor('rgba(28, 37, 50, 0.86)')
+        .justifyContent(FlexAlign.Center)
+        .onClick(() => {
+          this.showRadar = !this.showRadar
+        })
       }
       .position({ x: '94%', y: 56 })
 
       // ===== 左下：运动摇杆 (120x120) =====
-      Row() {
-        CarRockerComponents()
-      }
-      .width(120)
-      .height(120)
-      .position({ x: 20, y: '68%' })
+      ManualMoveJoystick()
+        .width(120)
+        .height(120)
+        .position({ x: 20, y: '68%' })
 
       // ===== 右下：视角摇杆 (140x62) =====
-      Row() {
-        ViewRockerComponents()
-      }
-      .width(140)
-      .height(62)
-      .position({ x: '74%', y: '78%' })
+      ManualViewJoystick()
+        .width(140)
+        .height(62)
+        .position({ x: '74%', y: '78%' })
 
       // ===== 底部居中：急停 + 速度 =====
       Row() {
         // 急停按钮
         Row() {
-          Image($r('app.media.octagon_alert'))
+          Image($r('app.media.octagon-alert'))
             .width(18)
             .height(18)
             .fillColor('#ff5f66')

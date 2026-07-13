@@ -5,6 +5,7 @@
     "pages/MecanumWheel",
     "pages/RemoteControl",
     "pages/NetworkSettings",
-    "pages/ScreenManualLandscape"
+    "pages/ScreenManualLandscape",
+    "pages/ScreenManualSettings"
   ]
 }

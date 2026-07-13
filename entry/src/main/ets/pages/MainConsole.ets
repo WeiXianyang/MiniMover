@@ -4,7 +4,7 @@
  * 顶部为可滚动的内容区，底部为固定的 5 项标签栏，整体套用手机框深色风格。
  */
 import { FG } from '../fireguard/Theme'
-import { FgTab, FG_TAB_LABELS } from '../fireguard/Tabs'
+import { FgTab, FG_TAB_LABELS, FG_TAB_ICONS } from '../fireguard/Tabs'
 import { ScreenUtils } from '../utils/ScreenUtils'
 import { ScreenConnect } from '../fireguard/screens/ScreenConnect'
 import { ScreenHome } from '../fireguard/screens/ScreenHome'
@@ -77,16 +77,24 @@ struct MainConsole {
     Row() {
       Row() {
         ForEach(this.tabList, (tab: FgTab) => {
-          Text(FG_TAB_LABELS[tab])
-            .fontSize(FG.smallSize)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(this.current == tab ? '#10151d' : FG.muted)
-            .textAlign(TextAlign.Center)
-            .layoutWeight(1)
-            .height(42)
-            .borderRadius(12)
-            .backgroundColor(this.current == tab ? FG.orange : Color.Transparent)
-            .onClick(() => this.current = tab)
+          Column() {
+            Image(FG_TAB_ICONS[tab])
+              .width(16)
+              .height(16)
+              .fillColor(this.current == tab ? FG.orange : FG.muted)
+            Text(FG_TAB_LABELS[tab])
+              .fontSize(11)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(this.current == tab ? FG.orange : FG.muted)
+              .margin({ top: 3 })
+          }
+          .layoutWeight(1)
+          .height(42)
+          .borderRadius(12)
+          .justifyContent(FlexAlign.Center)
+          .alignItems(HorizontalAlign.Center)
+          .backgroundColor(this.current == tab ? 'rgba(232, 139, 69, 0.08)' : Color.Transparent)
+          .onClick(() => this.current = tab)
         }, (tab: FgTab) => tab.toString())
       }
       .width('100%')
