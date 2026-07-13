@@ -2,7 +2,11 @@
 # FireGuard one-click startup (car-specific)
 GREEN='\033[0;32m'; YELLOW='\033[0;33m'; NC='\033[0m'
 CAM_CONTAINER=fireguard_cam
-YAHBOOM_CONTAINER=a21066535c99
+# 自动查找 yahboom 容器（不硬编码 ID）
+YAHBOOM_CONTAINER=$(docker ps -aq -f ancestor=yahboomtechnology/ros-foxy:5.0.1 --latest 2>/dev/null | head -1)
+if [ -z "$YAHBOOM_CONTAINER" ]; then
+    YAHBOOM_CONTAINER=$(docker ps -aq -f ancestor=yahboomtechnology/ros-foxy:5.0.1 2>/dev/null | head -1)
+fi
 
 # Generate unique ROS_DOMAIN_ID from IP last octet (30-250)
 DOMAIN_SUFFIX=$(hostname -I 2>/dev/null | awk '{print $1}' | awk -F. '{print $4}')
