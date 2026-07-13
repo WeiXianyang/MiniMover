@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>人脸识别 · 登录注册</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+      background: linear-gradient(135deg, #0f172a, #1e3a8a);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #e2e8f0;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 920px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+    .header { padding: 24px 28px 12px; }
+    .header h1 { margin: 0 0 8px; font-size: 28px; }
+    .header p { margin: 0; color: #94a3b8; }
+    .tabs { display: flex; gap: 8px; padding: 0 28px 16px; }
+    .tab {
+      border: none;
+      background: #1e293b;
+      color: #cbd5e1;
+      padding: 10px 18px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .tab.active { background: #2563eb; color: white; }
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 0 28px 28px;
+    }
+    .panel {
+      background: #111827;
+      border-radius: 14px;
+      padding: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+    label { display: block; margin: 10px 0 6px; color: #cbd5e1; font-size: 14px; }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0b1220;
+      color: #f8fafc;
+    }
+    video, canvas, .preview {
+      width: 100%;
+      border-radius: 12px;
+      background: #000;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+    }
+    .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      background: #334155;
+      color: white;
+    }
+    button.primary { background: #2563eb; }
+    button.success { background: #059669; }
+    .status {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #0b1220;
+      min-height: 48px;
+      white-space: pre-wrap;
+      font-size: 14px;
+      color: #cbd5e1;
+    }
+    .hidden { display: none; }
+    @media (max-width: 800px) { .content { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>人脸识别认证</h1>
+      <p>注册录入人脸，登录时拍照校验（百度云 API，无活体检测）</p>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="login">登录</button>
+      <button class="tab" data-tab="register">注册</button>
+    </div>
+    <div class="content">
+      <div class="panel">
+        <video id="video" autoplay playsinline></video>
+        <canvas id="canvas" class="hidden"></canvas>
+        <div class="actions">
+          <button id="startCamera">打开摄像头</button>
+          <button id="capture" class="primary">拍照</button>
+          <button id="clearShot">清除照片</button>
+        </div>
+        <img id="preview" class="preview hidden" alt="拍照预览" />
+      </div>
+      <div class="panel">
+        <form id="loginForm">
+          <label>用户名</label>
+          <input name="username" required />
+          <label>密码</label>
+          <input name="password" type="password" required />
+          <div class="actions">
+            <button type="submit" class="success">登录并人脸校验</button>
+          </div>
+        </form>
+        <form id="registerForm" class="hidden">
+          <label>用户名</label>
+          <input name="username" required />
+          <label>密码</label>
+          <input name="password" type="password" required />
+          <label>邮箱</label>
+          <input name="email" type="email" required />
+          <label>手机号</label>
+          <input name="phone" required />
+          <div class="actions">
+            <button type="submit" class="success">注册（需拍 3 张照片）</button>
+          </div>
+        </form>
+        <div id="status" class="status">请先打开摄像头并拍照。注册需要连续拍 3 张，登录拍 1 张。</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const preview = document.getElementById('preview');
+    const statusEl = document.getElementById('status');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    let stream = null;
+    let shots = [];
+    function setStatus(text) { statusEl.textContent = text; }
+    document.querySelectorAll('.tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.dataset.tab;
+        loginForm.classList.toggle('hidden', tab !== 'login');
+        registerForm.classList.toggle('hidden', tab !== 'register');
+        shots = [];
+        preview.classList.add('hidden');
+        setStatus(tab === 'login' ? '登录模式：拍 1 张照片。' : '注册模式：请连续拍 3 张不同角度的人脸照片。');
+      });
+    });
+    document.getElementById('startCamera').addEventListener('click', async () => {
+      try {
+        if (stream) stream.getTracks().forEach((t) => t.stop());
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+        video.srcObject = stream;
+        setStatus('摄像头已打开，请点击拍照。');
+      } catch (err) {
+        setStatus('无法打开摄像头: ' + err.message);
+      }
+    });
+    function captureShot() {
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+      return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.92));
+    }
+    document.getElementById('capture').addEventListener('click', async () => {
+      if (!stream) { setStatus('请先打开摄像头。'); return; }
+      const blob = await captureShot();
+      const activeTab = document.querySelector('.tab.active').dataset.tab;
+      if (activeTab === 'register') {
+        shots.push(blob);
+        if (shots.length > 3) shots = shots.slice(-3);
+        setStatus(`已拍摄 ${shots.length}/3 张注册照片。`);
+      } else {
+        shots = [blob];
+        setStatus('已拍摄登录校验照片。');
+      }
+      preview.src = URL.createObjectURL(blob);
+      preview.classList.remove('hidden');
+    });
+    document.getElementById('clearShot').addEventListener('click', () => {
+      shots = [];
+      preview.classList.add('hidden');
+      setStatus('照片已清除。');
+    });
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (shots.length < 1) { setStatus('登录请先拍 1 张人脸照片。'); return; }
+      const formData = new FormData(loginForm);
+      formData.append('face_image', shots[0], 'login.jpg');
+      setStatus('正在登录并做人脸校验...');
+      const res = await fetch('/api/login', { method: 'POST', body: formData, credentials: 'include' });
+      setStatus(JSON.stringify(await res.json(), null, 2));
+    });
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (shots.length < 3) { setStatus('注册需要至少 3 张人脸照片，请继续拍照。'); return; }
+      const formData = new FormData(registerForm);
+      shots.forEach((blob, idx) => formData.append('face_images', blob, `face_${idx}.jpg`));
+      setStatus('正在注册并同步人脸到百度云...');
+      const res = await fetch('/api/register', { method: 'POST', body: formData, credentials: 'include' });
+      setStatus(JSON.stringify(await res.json(), null, 2));
+    });
+  </script>
+</body>
+</html>

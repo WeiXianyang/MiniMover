@@ -1,0 +1,33 @@
+# Keep the Docker build context small and fast.
+# The repo carries large course materials and binaries via git-lfs that the
+# car application does not need at build time.
+
+# Git internals
+.git
+.gitattributes
+.gitignore
+
+# Course materials and large binaries (git-lfs tracked)
+智能小车课程材料/
+*.pdf
+*.png
+*.zip
+*.exe
+tmp/
+capture/
+
+# CI / docs / scripts not needed inside the image
+.github/
+docs/
+
+# Python caches / build artifacts
+__pycache__/
+*.py[cod]
+*.so
+build/
+*.egg-info/
+
+# Local dev
+*.log
+.venv/
+venv/

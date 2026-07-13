@@ -1,0 +1,7 @@
+django>=4.2,<6
+djangorestframework>=3.14
+django-cors-headers>=4.0
+pycryptodome>=3.20
+Pillow>=10.0
+requests>=2.31
+drf-yasg>=1.21

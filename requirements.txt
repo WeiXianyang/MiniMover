@@ -1,0 +1,17 @@
+# Runtime dependencies that are installable on a normal x86_64 CI runner.
+#
+# NOTE: Hardware-only packages are intentionally NOT listed here because they
+# cannot be installed on a GitHub Actions runner (they require the Jetson /
+# Raspberry Pi hardware and the Yahboom board):
+#   - Rosmaster_Lib   (Yahboom serial control library)
+#   - RPi.GPIO        (Raspberry Pi GPIO)
+# These are provided by the course base image on the car itself.
+
+# Pinned to versions that still support Python 3.8 (the car's runtime).
+# numpy is intentionally NOT pinned: it is only a transitive dependency of
+# opencv, and pip will resolve a 3.8-compatible build (numpy 1.26 needs >=3.9).
+flask==3.0.3
+gevent==24.2.1
+opencv-python-headless==4.10.0.84
+pyzbar==0.1.9
+Pillow==10.4.0
