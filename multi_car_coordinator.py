@@ -3,7 +3,7 @@
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from concurrent.futures import ThreadPoolExecutor
-import threading, time, math, requests, io, os
+import threading, time, math, requests, io, os, subprocess, sys
 
 COORDINATOR_PORT = 8888
 POLL_INTERVAL = 1.0  # 状态轮询间隔(秒)
@@ -24,6 +24,11 @@ _status_cache = {}
 _position_cache = {}
 _collision_alerts = {}
 _lock = threading.Lock()
+_voice_process = None
+_voice_car_id = None
+_voice_lock = threading.RLock()
+_voice_log_path = os.path.join(os.path.dirname(__file__), "tmp", "voice_service.log")
+os.makedirs(os.path.dirname(_voice_log_path), exist_ok=True)
 
 
 # ========== 工具函数 ==========
@@ -250,6 +255,33 @@ def register_batch():
     return jsonify({'code': 0, 'msg': f'{len(cars)} cars registered'})
 
 
+
+
+@app.route('/api/cars/<car_id>', methods=['DELETE'])
+def disconnect_car(car_id):
+    """Remove a car from this coordinator without stopping its own services."""
+    global _voice_process, _voice_car_id
+    if car_id not in CARS:
+        return jsonify({'code': -1, 'msg': f'car {car_id} not found'}), 404
+    with _voice_lock:
+        if _voice_car_id == car_id and _voice_process is not None and _voice_process.poll() is None:
+            _voice_process.terminate()
+            try:
+                _voice_process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                _voice_process.kill()
+                _voice_process.wait(timeout=3)
+            _voice_process = None
+            _voice_car_id = None
+    CARS.pop(car_id, None)
+    with _lock:
+        _status_cache.pop(car_id, None)
+        _position_cache.pop(car_id, None)
+        for key in list(_collision_alerts):
+            if car_id in _collision_alerts[key].get('cars', ()):
+                _collision_alerts.pop(key, None)
+    return jsonify({'code': 0, 'msg': f'{car_id} disconnected'})
+
 @app.route('/proxy/camera/<car_id>')
 def proxy_camera(car_id):
     """代理各车的 MJPEG 视频流，避免跨域"""
@@ -259,12 +291,16 @@ def proxy_camera(car_id):
     stream_url = f"http://{info['ip']}:{info['port']}/video_feed"
 
     def generate():
+        response = None
         try:
-            r = requests.get(stream_url, stream=True, timeout=5)
-            for chunk in r.iter_content(chunk_size=1024):
-                if chunk:
-                    yield chunk
-        except:
+            response = requests.get(stream_url, stream=True, timeout=(5, None))
+            response.raise_for_status()
+            while True:
+                chunk = response.raw.read(1024)
+                if not chunk:
+                    break
+                yield chunk
+        except requests.RequestException:
             # 返回占位图
             import cv2, numpy as np
             img = np.zeros((240, 320, 3), dtype=np.uint8)
@@ -273,8 +309,13 @@ def proxy_camera(car_id):
             _, jpg = cv2.imencode('.jpg', img)
             yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' +
                    jpg.tobytes() + b'\r\n')
+        finally:
+            if response is not None:
+                response.close()
 
-    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame',
+                    headers={'Cache-Control': 'no-cache, no-store, must-revalidate',
+                             'Pragma': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 @app.route('/dashboard')
@@ -292,6 +333,77 @@ def index():
         'status': f'http://localhost:{COORDINATOR_PORT}/api/status',
     })
 
+
+
+# ========== 语音控制服务管理 ==========
+
+def _voice_status():
+    with _voice_lock:
+        running = _voice_process is not None and _voice_process.poll() is None
+        return {'running': running, 'pid': _voice_process.pid if running else None, 'car_id': _voice_car_id if running else None, 'log': _voice_log_path}
+
+
+@app.route('/api/voice/status')
+def voice_status():
+    return jsonify({'code': 0, 'data': _voice_status()})
+
+
+@app.route('/api/voice/start', methods=['POST'])
+def voice_start():
+    global _voice_process, _voice_car_id
+    data = request.get_json(silent=True) or {}
+    car_id = data.get('car_id', 'car_A')
+    if car_id not in CARS:
+        return jsonify({'code': -1, 'msg': f'car {car_id} not found'}), 404
+    info = CARS[car_id]
+    whisper_url = os.environ.get('MINIMOVER_WHISPER_URL', '').strip()
+    api_key = os.environ.get('MINIMOVER_API_KEY', '').strip()
+    if not whisper_url or not api_key:
+        return jsonify({
+            'code': -1,
+            'msg': '缺少语音识别配置：请设置 MINIMOVER_WHISPER_URL 和 MINIMOVER_API_KEY',
+            'data': {'required': ['MINIMOVER_WHISPER_URL', 'MINIMOVER_API_KEY']},
+        }), 503
+    with _voice_lock:
+        if _voice_process is not None and _voice_process.poll() is None:
+            return jsonify({'code': -1, 'msg': 'voice service is already running', 'data': _voice_status()}), 409
+        env = os.environ.copy()
+        env['MINIMOVER_CAR_URL'] = f"http://{info['ip']}:{info['port']}"
+        env['MINIMOVER_ASR_BACKEND'] = 'remote_whisper'
+        env['MINIMOVER_CAR_SPEAKER'] = '1'
+        env['MINIMOVER_WHISPER_URL'] = whisper_url
+        env['MINIMOVER_API_KEY'] = api_key
+        log_file = open(_voice_log_path, 'a', encoding='utf-8')
+        try:
+            _voice_process = subprocess.Popen(
+                [sys.executable, '-m', 'voice_assistant.voice_service', '--asr', 'remote_whisper'],
+                cwd=os.path.dirname(os.path.abspath(__file__)), env=env,
+                stdout=log_file, stderr=subprocess.STDOUT)
+            _voice_car_id = car_id
+        except Exception:
+            log_file.close()
+            raise
+    return jsonify({'code': 0, 'msg': f'voice service started for {car_id}', 'data': _voice_status()})
+
+
+@app.route('/api/voice/stop', methods=['POST'])
+def voice_stop():
+    global _voice_process, _voice_car_id
+    with _voice_lock:
+        process = _voice_process
+        if process is None or process.poll() is not None:
+            _voice_process = None
+            _voice_car_id = None
+            return jsonify({'code': 0, 'msg': 'voice service is not running', 'data': _voice_status()})
+        process.terminate()
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=3)
+        _voice_process = None
+        _voice_car_id = None
+    return jsonify({'code': 0, 'msg': 'voice service stopped', 'data': _voice_status()})
 
 # ========== 内嵌 HTML 面板 (避免额外模板文件) ==========
 
@@ -343,6 +455,7 @@ h2{{font-size:15px;color:#8b949e;margin:12px 0 6px}}
 .ctrl-row .stop{{background:#da3633;border-color:#da3633;color:#fff}}
 .ctrl-row .stop:hover{{background:#f85149}}
 .ctrl-row .danger{{border-color:#f85149;color:#f85149}}
+.disconnect{{padding:3px 7px;border:1px solid #d29922;border-radius:4px;cursor:pointer;background:#21262d;color:#d29922;font-size:11px}}
 .ctrl-row label{{font-size:12px;color:#8b949e;margin-right:4px}}
 .ctrl-row select,.ctrl-row input{{background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#c9d1d9;padding:4px 8px;font-size:12px}}
 
@@ -396,9 +509,52 @@ h2{{font-size:15px;color:#8b949e;margin:12px 0 6px}}
   </div>
 </div>
 
+<div class="control-panel">
+  <h2>车载语音控制</h2>
+  <div class="ctrl-row">
+    <label>Car:</label>
+    <select id="voiceCar"><option value="car_A">car_A</option><option value="car_B">car_B</option></select>
+    <button onclick="startVoice()">启动语音</button>
+    <button onclick="stopVoice()" class="stop">停止语音</button>
+    <span id="voiceStatus" style="font-size:12px;color:#8b949e">未启动</span>
+  </div>
+  <div style="font-size:12px;color:#8b949e">小车麦克风 → Whisper → 控车；反馈通过小车扬声器播放</div>
+</div>
+
 <script>
 var API=window.location.origin;
 var SPEED=50;
+
+
+function disconnectCar(car){{
+  if(!confirm('断开 '+car+'？只会从当前总控台移除，不会停止对方小车服务。')) return;
+  fetch(API+'/api/cars/'+encodeURIComponent(car),{{method:'DELETE'}})
+    .then(function(r){{return r.json()}}).then(function(d){{
+      if(d.code!==0){{alert(d.msg||'断开失败');return;}}
+      update();
+    }});
+}}
+
+function updateVoiceStatus(){{
+  fetch(API+'/api/voice/status').then(function(r){{return r.json()}}).then(function(data){{
+    var d=data.data||{{}}, el=document.getElementById('voiceStatus');
+    el.textContent=d.running?'运行中 PID='+d.pid:'未启动';
+    el.style.color=d.running?'#3fb950':'#8b949e';
+  }});
+}}
+function startVoice(){{
+  var car=document.getElementById('voiceCar').value;
+  fetch(API+'/api/voice/start',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{car_id:car}})}})
+    .then(function(r){{return r.json()}}).then(function(d){{
+      var el=document.getElementById('voiceStatus');
+      el.textContent=d.msg||'启动完成';
+      el.style.color=d.code===0?'#3fb950':'#f85149';
+      if(d.code===0) updateVoiceStatus();
+    }});
+}}
+function stopVoice(){{
+  fetch(API+'/api/voice/stop',{{method:'POST'}}).then(function(r){{return r.json()}}).then(function(d){{document.getElementById('voiceStatus').textContent=d.msg||'已停止';updateVoiceStatus();}});
+}}
 
 function renderCars(data){{
   var grid=document.getElementById('carGrid');
@@ -433,7 +589,8 @@ function renderCars(data){{
       '<div class="'+cls+'">'+
         '<div class="car-header">'+
           '<div class="car-name"><span class="id">'+cid+'</span></div>'+
-          '<div><span class="car-badge badge-real">REAL</span></div>'+
+          '<div><span class="car-badge badge-real">REAL</span> '+
+           '<button class="disconnect" onclick="disconnectCar(\''+cid+'\')">断开</button></div>'+
         '</div>'+
         '<div class="car-body">'+
           '<div class="car-info">'+
@@ -506,7 +663,7 @@ function registerCar(){{
   r.send(JSON.stringify({{car_id:id,ip:ip,port:port}}));
 }}
 
-setInterval(update,2000);update();
+setInterval(update,2000);setInterval(updateVoiceStatus,2000);update();updateVoiceStatus();
 </script>
 </body>
 </html>'''
