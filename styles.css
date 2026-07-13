@@ -950,7 +950,7 @@ body.is-connected .state-connected {
   box-shadow: inset 0 0 0 1px rgba(255, 151, 72, 0.28);
 }
 
-.fleet-item .icon {
+.fleet-item .vehicle-icon {
   display: grid;
   place-items: center;
   width: 42px;
@@ -958,13 +958,19 @@ body.is-connected .state-connected {
   border-radius: 10px;
   background: #3a4454;
   color: #ff9a57;
-  font-size: 20px;
-  font-weight: 900;
 }
 
-.fleet-item:not(.active) .icon {
+.fleet-item .vehicle-icon .icon {
+  filter: brightness(0) saturate(100%) invert(63%) sepia(57%) saturate(786%) hue-rotate(333deg) brightness(100%) contrast(95%);
+}
+
+.fleet-item:not(.active) .vehicle-icon {
   color: #99a6b8;
   background: #2e3746;
+}
+
+.fleet-item:not(.active) .vehicle-icon .icon {
+  filter: brightness(0) saturate(100%) invert(69%) sepia(10%) saturate(464%) hue-rotate(177deg) brightness(90%) contrast(87%);
 }
 
 .fleet-item .meta {
