@@ -110,7 +110,13 @@ class FunAsrBackend(AsrBackend):
         )
         silero = load_silero_vad(onnx=True)
         if self._on_ready:
-            self._on_ready()
+            import threading as _thr
+            def _safe_ready():
+                try:
+                    self._on_ready()
+                except Exception:
+                    logging.getLogger("mini-mover-voice").exception("on_ready callback failed")
+            _thr.Thread(target=_safe_ready, daemon=True).start()
         results = queue.Queue()
         online = _OnlineWorker(online_model, results.put)
         audio_queue = queue.Queue(maxsize=64)
