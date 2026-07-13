@@ -46,7 +46,7 @@ def api(car_id, endpoint, method='GET', data=None, timeout=3):
 def poll_all():
     """并行轮询所有车辆"""
     def poll(cid):
-        result = api(cid, '/api/status', timeout=2)
+        result = api(cid, '/api/status', timeout=5)
         pos = None
         if result.get('code') == 0:
             pos = result['data'].get('position')
