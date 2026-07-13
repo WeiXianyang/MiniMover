@@ -44,11 +44,7 @@ class _DeliveryPageState extends State<DeliveryPage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: _frameDeco(),
-          child: Column(
+                Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               PageHeader(
@@ -134,21 +130,47 @@ class _DeliveryPageState extends State<DeliveryPage> {
                   text: '发起配送',
                   onTap: () => cs.startDelivery(),
                 ),
-                const SizedBox(height: 12),
               ],
               if (cs.deliveryActive) ...[
-                GradientButton(
-                  text: '模拟配送进度 (+20%)',
-                  secondary: true,
-                  onTap: () =>
-                      cs.updateDeliveryProgress(cs.deliveryProgress + 0.2),
-                ),
                 const SizedBox(height: 12),
+                // ── 配送进度描述（对齐 prototype）──
+                GlassCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('配送路径', style: AppTheme.bodyLabel),
+                      const SizedBox(height: 8),
+                      const Text('D 点装载 → 主通道 → 配电柜A',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: AppTheme.textPrimary)),
+                      const SizedBox(height: 16),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                            value: cs.deliveryProgress > 0
+                                ? cs.deliveryProgress
+                                : 0.68,
+                            minHeight: 8,
+                            backgroundColor: const Color(0xFF26364A),
+                            color: AppTheme.accent),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '已完成 ${(cs.deliveryProgress > 0 ? cs.deliveryProgress : 0.68 * 100).round()}%，当前绕过临时障碍物后继续前进。',
+                        style: AppTheme.bodyLabel,
+                      ),
+                    ],
+                  ),
+                ),
               ],
+              const SizedBox(height: 12),
               GradientButton(
                 text: cs.deliveryActive
                     ? '取消配送并返回待命点'
-                    : '返回',
+                    : '返回主页',
                 secondary: true,
                 onTap: () {
                   if (cs.deliveryActive) cs.cancelDelivery();
@@ -161,28 +183,18 @@ class _DeliveryPageState extends State<DeliveryPage> {
               ),
             ],
           ),
-        ),
       ],
     );
 
     return _wrap(context, content);
   }
 
-  BoxDecoration _frameDeco() => BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.cardBorder),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF172233), Color(0xFF0F1622)],
-        ),
-      );
 
   Widget _wrap(BuildContext context, Widget content) {
     if (widget.embedded) {
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
-            AppTheme.pagePadding, 16, AppTheme.pagePadding, 8),
+            AppTheme.pagePadding, 16, AppTheme.pagePadding, AppTheme.tabBarInset),
         child: content,
       );
     }

@@ -1,32 +1,41 @@
 import 'package:flutter/material.dart';
 
-/// FireGuard 设计系统 — 所有 token 从 Figma API 精确提取
+/// FireGuard 设计系统 — 与 page-prototype-spec 分支 styles.css 同步
 class AppTheme {
   AppTheme._();
 
-  // ── 颜色 ──────────────────────────────────────────
-  static const Color accent = Color(0xFFFF8C42);
+  // ── 颜色（对齐 prototype :root 变量）─────
+  static const Color accent = Color(0xFFE88B45);       // --orange
   static const Color accentLight = Color(0xFFFFB870);
-  static const Color textPrimary = Color(0xFFEEF4FF);
-  static const Color textSecondary = Color(0xFF9AA8BF);
+  static const Color cyan = Color(0xFF5BAEC7);          // --cyan
+  static const Color textPrimary = Color(0xFFEEF4FF);   // --text
+  static const Color textSecondary = Color(0xFF8997A8); // --muted
   static const Color textDark = Color(0xFF10151D);
-  static const Color statusGreen = Color(0xFF2DCF9F);
-  static const Color statusRed = Color(0xFFFF4D4D);
-  static const Color cardFill = Color.fromRGBO(255, 255, 255, 0.04);
-  static const Color cardBorder = Color.fromRGBO(255, 255, 255, 0.07);
-  static const Color dividerLine = Color.fromRGBO(255, 255, 255, 0.08);
+  static const Color statusGreen = Color(0xFF58B98E);   // --green
+  static const Color statusRed = Color(0xFFD85B64);     // --red
 
-  // 背景渐变 (从 Figma 提取)
-  static const Color bgGradientTop = Color(0xFF090E16);
-  static const Color bgGradientMid = Color(0xFF0D1117);
+  // 面板/分割线（对齐 prototype）
+  static const Color panelBg = Color(0xFF151F2B);       // --panel
+  static const Color panelLine = Color(0xFF263241);     // --line
+  static const Color panelBg2 = Color(0xFF1B2633);      // --panel-2
+  static const Color cardFill = Color.fromRGBO(24, 37, 55, 0.9);
+  static const Color cardBorder = Color(0xFF263241);
+  static const Color dividerLine = Color.fromRGBO(147, 164, 186, 0.18);
+
+  // 背景渐变
+  static const Color bgGradientTop = Color(0xFF080D13);  // --bg
+  static const Color phoneBg = Color(0xFF101821);        // --phone
   static const Color bgGradientBottom = Color(0xFF121824);
 
   // 手机 Frame 渐变
   static const Color frameGradientTop = Color(0xFF111A27);
-  static const Color frameGradientBottom = Color(0xFF0B1220);
+  static const Color frameGradientBottom = Color(0xFF090E14);
 
   // 按钮渐变
   static const List<Color> btnGradient = [accent, accentLight];
+
+  // 次要按钮背景（prototype .btn）
+  static const Color btnSecondaryBg = Color(0xFF28384B);
 
   // ── 尺寸 ──────────────────────────────────────────
   static const double phoneWidth = 390.0;
@@ -38,6 +47,7 @@ class AppTheme {
   static const double btnHeight = 52.0;
   static const double smallBtnHeight = 48.0;
   static const double iconSize = 24.0;
+  static const double tabBarInset = 84.0; // 底部栏高度 + 安全间距
 
   // ── 字体 (默认系统字体, 后续可替换为 Inter) ─────
   static const TextStyle pageTitle = TextStyle(

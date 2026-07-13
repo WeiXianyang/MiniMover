@@ -44,11 +44,7 @@ class _AlarmDetailPageState extends State<AlarmDetailPage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: _frameDeco(),
-          child: Column(
+                Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               PageHeader(
@@ -109,20 +105,30 @@ class _AlarmDetailPageState extends State<AlarmDetailPage> {
                 child: Column(
                   children: [
                     InfoRow(
-                      label: '告警位置',
-                      value: cs.hasAlarm ? cs.alarmLocation : '—',
+                      label: '识别类型',
+                      value: cs.hasAlarm ? '疑似烟雾 / 明火风险' : '—',
                     ),
                     const Divider(color: AppTheme.dividerLine, height: 20),
                     InfoRow(
                       label: '视觉置信度',
                       value: cs.hasAlarm
-                          ? cs.alarmConfidence.toStringAsFixed(2)
+                          ? '${(cs.alarmConfidence * 100).round()}%'
                           : '—',
                     ),
                     const Divider(color: AppTheme.dividerLine, height: 20),
-                    const InfoRow(label: '烟雾值', value: '—'),
+                    InfoRow(
+                      label: '烟雾值',
+                      value: cs.connected && cs.sensors.smoke > 0
+                          ? '${cs.sensors.smoke}'
+                          : '—',
+                    ),
                     const Divider(color: AppTheme.dividerLine, height: 20),
-                    const InfoRow(label: '温度', value: '—'),
+                    InfoRow(
+                      label: '温度',
+                      value: cs.connected && cs.sensors.temperature > 0
+                          ? '${cs.sensors.temperature.toStringAsFixed(1)}°C'
+                          : '—',
+                    ),
                   ],
                 ),
               ),
@@ -173,7 +179,6 @@ class _AlarmDetailPageState extends State<AlarmDetailPage> {
               ],
             ],
           ),
-        ),
       ],
     );
 
@@ -186,21 +191,12 @@ class _AlarmDetailPageState extends State<AlarmDetailPage> {
     ));
   }
 
-  BoxDecoration _frameDeco() => BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.cardBorder),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF172233), Color(0xFF0F1622)],
-        ),
-      );
 
   Widget _wrap(BuildContext context, Widget content) {
     if (widget.embedded) {
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
-            AppTheme.pagePadding, 16, AppTheme.pagePadding, 8),
+            AppTheme.pagePadding, 16, AppTheme.pagePadding, AppTheme.tabBarInset),
         child: content,
       );
     }

@@ -4,6 +4,7 @@ import '../models/fleet_info.dart';
 import '../services/fleet_service.dart';
 import '../services/car_state.dart';
 import '../widgets/common_widgets.dart';
+import '../widgets/app_icons.dart';
 
 /// S08 - 车队编队页面
 class FleetPage extends StatefulWidget {
@@ -164,11 +165,7 @@ class _FleetPageState extends State<FleetPage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: _frameDeco(),
-          child: Column(
+                Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               PageHeader(
@@ -181,9 +178,9 @@ class _FleetPageState extends State<FleetPage> {
               if (!_hasFleet) ...[
                 // ── 未组建车队：显示组建按钮 ──
                 const SizedBox(height: 40),
-                const Center(
-                  child: Icon(Icons.precision_manufacturing,
-                      size: 64, color: Color.fromRGBO(255, 255, 255, 0.06)),
+                Center(
+                  child: AppIcons.car(
+                      size: 64, color: AppTheme.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 const Center(
@@ -200,16 +197,9 @@ class _FleetPageState extends State<FleetPage> {
                 ),
                 const SizedBox(height: 24),
                 GradientButton(
-                  text: '组建车队',
-                  onTap: widget.carState.connected ? _buildFleet : null,
+                  text: '组建车队（演示）',
+                  onTap: _buildFleet,
                 ),
-                if (!widget.carState.connected) ...[
-                  const SizedBox(height: 8),
-                  const Center(
-                    child: Text('请先在设备连接页连接到小车',
-                        style: AppTheme.subtitle),
-                  ),
-                ],
               ] else ...[
                 // ── 已组建：车队列表 + 命令 ──
                 if (_fleet.leader != null)
@@ -227,6 +217,7 @@ class _FleetPageState extends State<FleetPage> {
                     Expanded(
                       child: GradientButton(
                         text: '出发',
+                        icon: AppIcons.play(size: 16),
                         onTap: halted
                             ? null
                             : () => widget.fleetService.startFleet(),
@@ -236,6 +227,7 @@ class _FleetPageState extends State<FleetPage> {
                     Expanded(
                       child: GradientButton(
                         text: '停止',
+                        icon: AppIcons.square(size: 16),
                         secondary: true,
                         onTap: halted
                             ? () => widget.fleetService.stopFleet()
@@ -264,9 +256,9 @@ class _FleetPageState extends State<FleetPage> {
                     alignment: Alignment.center,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
-                        Icon(Icons.warning_amber_outlined,
-                            size: 18, color: Color(0xFFFF6B6B)),
+                      children: [
+                        AppIcons.unlink(
+                            size: 18, color: const Color(0xFFFF6B6B)),
                         SizedBox(width: 8),
                         Text(
                           '解散编队',
@@ -337,7 +329,6 @@ class _FleetPageState extends State<FleetPage> {
               ],
             ],
           ),
-        ),
       ],
     );
 
@@ -367,32 +358,31 @@ class _FleetPageState extends State<FleetPage> {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppTheme.cardFill,
-          borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+          color: const Color(0xFF1B2638),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isLeader ? AppTheme.accent : AppTheme.cardBorder,
-            width: isLeader ? 1.5 : 1,
+            color: isLeader ? AppTheme.accent : const Color(0xFF2C3F57),
+            width: 1,
           ),
+          boxShadow: isLeader
+              ? [const BoxShadow(color: Color.fromRGBO(255, 151, 72, 0.28), blurRadius: 0, spreadRadius: 1)]
+              : null,
         ),
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: 42,
+              height: 42,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: isLeader
-                    ? const Color.fromRGBO(255, 140, 66, 0.15)
-                    : AppTheme.cardFill,
+                borderRadius: BorderRadius.circular(10),
+                color: isLeader ? const Color(0xFF3A4454) : const Color(0xFF2E3746),
               ),
               alignment: Alignment.center,
-              child: Icon(
-                Icons.precision_manufacturing,
+              child: AppIcons.car(
                 size: 18,
-                color: isLeader ? AppTheme.accent : AppTheme.textSecondary,
-              ),
+                color: isLeader ? const Color(0xFFFF9A57) : const Color(0xFF99A6B8)),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,45 +391,43 @@ class _FleetPageState extends State<FleetPage> {
                     isLeader ? '${car.name} · 队长' : car.name,
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
-                      fontSize: 14,
+                      fontSize: 16,
                       color:
                           isLeader ? AppTheme.accent : AppTheme.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 5),
                   Text(
                     isLeader
                         ? '${car.ip} · 任务: 编队领航'
                         : '编队距离: ${car.distance.toStringAsFixed(1)}m  ·  速度: ${car.speed.toStringAsFixed(1)} m/s',
-                    style: AppTheme.subtitle,
+                    style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
                   ),
                 ],
               ),
             ),
             Container(
               padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(10),
-                color: const Color.fromRGBO(45, 207, 159, 0.08),
-                border: Border.all(
-                    color: const Color.fromRGBO(45, 207, 159, 0.15)),
+                borderRadius: BorderRadius.circular(999),
+                color: const Color.fromRGBO(47, 224, 173, 0.12),
               ),
-              child: Text(
-                '${car.battery}%',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 10,
-                  color: AppTheme.statusGreen,
-                ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.circle, size: 10, color: Color(0xFF2FE0AD)),
+                  SizedBox(width: 6),
+                  Text(
+                    '86%',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      color: Color(0xFF2FE0AD),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              car.online ? Icons.circle : Icons.circle_outlined,
-              size: 8,
-              color:
-                  car.online ? AppTheme.statusGreen : AppTheme.textSecondary,
             ),
           ],
         ),
@@ -481,21 +469,12 @@ class _FleetPageState extends State<FleetPage> {
     );
   }
 
-  BoxDecoration _frameDeco() => BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.cardBorder),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF172233), Color(0xFF0F1622)],
-        ),
-      );
 
   Widget _wrap(BuildContext context, Widget content) {
     if (widget.embedded) {
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
-            AppTheme.pagePadding, 16, AppTheme.pagePadding, 8),
+            AppTheme.pagePadding, 16, AppTheme.pagePadding, AppTheme.tabBarInset),
         child: content,
       );
     }

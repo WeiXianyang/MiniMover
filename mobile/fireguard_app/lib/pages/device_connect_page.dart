@@ -5,6 +5,7 @@ import '../widgets/common_widgets.dart';
 import '../widgets/page_shell.dart';
 
 /// S01 - 设备连接 (api_server.py :5000)
+/// 对齐 prototype page-prototype/index.html
 class DeviceConnectPage extends StatefulWidget {
   final CarState carState; final bool embedded; final VoidCallback? onConnected;
   const DeviceConnectPage({super.key, required this.carState, this.embedded = false, this.onConnected});
@@ -36,24 +37,26 @@ class _DeviceConnectPageState extends State<DeviceConnectPage> {
   Widget build(BuildContext c) {
     final cs = widget.carState; final on = cs.connected;
     return _wrap(Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: _deco(), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── 页头：对齐 prototype "可连接" 状态 ──
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('设备连接', style: AppTheme.pageTitle), SizedBox(height: 4), Text('FireGuard API :5000', style: AppTheme.subtitle)]),
-          StatusBadge(text: on ? '已连接' : '未连接', active: on),
+          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('设备连接', style: AppTheme.pageTitle), SizedBox(height: 6), Text('配置车辆控制与视频端口', style: AppTheme.subtitle)]),
+          StatusBadge(text: on ? '已连接' : '可连接', active: true),
         ]), const SizedBox(height: 28),
         _input('小车 IP', _ipCtrl, Icons.wifi), const SizedBox(height: 12),
-        _input('API 端口 (控制+视频)', _portCtrl, Icons.settings_ethernet), const SizedBox(height: 12),
+        _input('API 端口 (控制 + 视频)', _portCtrl, Icons.settings_ethernet), const SizedBox(height: 14),
+        // ── 设备信息卡：对齐 prototype 3 行 ──
         GlassCard(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), child: Column(children: [
           InfoRow(label: '设备状态', value: on ? cs.deviceStatusDisplay : '未连接'),
           const Divider(color: AppTheme.dividerLine, height: 20),
-          InfoRow(label: '小车 IP', value: (cs.status?.ip.isNotEmpty ?? false) ? cs.status!.ip : '—'),
+          InfoRow(label: '最近任务', value: '07-07 上午巡检'),
           const Divider(color: AppTheme.dividerLine, height: 20),
-          InfoRow(label: '电池电压', value: cs.batteryVoltage > 0 ? '${cs.batteryVoltage.toStringAsFixed(1)}V (${cs.batteryPercent}%)' : '—'),
+          InfoRow(label: '上次连接', value: '09:26'),
         ])),
         const SizedBox(height: 24),
-        GradientButton(text: on ? '已连接' : (_connecting ? '连接中...' : '连接'), onTap: (on || _connecting) ? null : _connect),
+        GradientButton(text: on ? '已连接' : (_connecting ? '连接中...' : '连接并进入巡检控制台'), onTap: (on || _connecting) ? null : _connect),
         if (on) ...[const SizedBox(height: 12), GradientButton(text: '断开', secondary: true, onTap: () => cs.disconnect())],
-      ])),
+      ]),
     ]));
   }
 
@@ -62,6 +65,5 @@ class _DeviceConnectPageState extends State<DeviceConnectPage> {
     Row(children: [Icon(icon, color: AppTheme.textSecondary, size: 16), const SizedBox(width: 8), Expanded(child: TextField(controller: ctrl, style: AppTheme.bodyValue.copyWith(fontSize: 14), keyboardType: TextInputType.number, decoration: const InputDecoration(border: InputBorder.none, isDense: true, contentPadding: EdgeInsets.zero)))]),
   ]));
 
-  BoxDecoration _deco() => BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.cardBorder), gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xFF172233), Color(0xFF0F1622)]));
-  Widget _wrap(Widget w) => widget.embedded ? SingleChildScrollView(padding: const EdgeInsets.fromLTRB(AppTheme.pagePadding, 16, AppTheme.pagePadding, 8), child: w) : PageShell(child: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(AppTheme.pagePadding), child: w)));
+  Widget _wrap(Widget w) => widget.embedded ? SingleChildScrollView(padding: const EdgeInsets.fromLTRB(AppTheme.pagePadding, 16, AppTheme.pagePadding, AppTheme.tabBarInset), child: w) : PageShell(child: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(AppTheme.pagePadding), child: w)));
 }

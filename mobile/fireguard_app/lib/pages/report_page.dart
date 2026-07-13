@@ -31,11 +31,7 @@ class _ReportPageState extends State<ReportPage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: _frameDeco(),
-          child: Column(
+                Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               PageHeader(
@@ -157,7 +153,6 @@ class _ReportPageState extends State<ReportPage> {
               ),
             ],
           ),
-        ),
       ],
     );
 
@@ -186,21 +181,12 @@ class _ReportPageState extends State<ReportPage> {
     );
   }
 
-  BoxDecoration _frameDeco() => BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.cardBorder),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF172233), Color(0xFF0F1622)],
-        ),
-      );
 
   Widget _wrap(BuildContext context, Widget content) {
     if (widget.embedded) {
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
-            AppTheme.pagePadding, 16, AppTheme.pagePadding, 8),
+            AppTheme.pagePadding, 16, AppTheme.pagePadding, AppTheme.tabBarInset),
         child: content,
       );
     }

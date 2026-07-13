@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// 毛玻璃卡片 — 自动撑满父容器宽度
+/// 卡片 — 对齐 prototype .card / .metric
 class GlassCard extends StatelessWidget {
   final Widget child;
   final double? height;
@@ -22,10 +22,10 @@ class GlassCard extends StatelessWidget {
       width: double.infinity,
       height: height,
       margin: margin,
-      padding: padding ?? const EdgeInsets.all(16),
+      padding: padding ?? const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: AppTheme.cardFill,
-        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppTheme.cardBorder),
       ),
       child: child,
@@ -33,17 +33,19 @@ class GlassCard extends StatelessWidget {
   }
 }
 
-/// 渐变主按钮 — 自动撑满父容器宽度
+/// 渐变主按钮 — 对齐 prototype .btn.primary
 class GradientButton extends StatelessWidget {
   final String text;
   final VoidCallback? onTap;
   final bool secondary;
+  final Widget? icon;
 
   const GradientButton({
     super.key,
     required this.text,
     this.onTap,
     this.secondary = false,
+    this.icon,
   });
 
   @override
@@ -54,29 +56,33 @@ class GradientButton extends StatelessWidget {
         width: double.infinity,
         height: AppTheme.btnHeight,
         decoration: BoxDecoration(
-          gradient: secondary
-              ? null
-              : const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: AppTheme.btnGradient,
-                ),
-          borderRadius: BorderRadius.circular(AppTheme.btnRadius),
+          color: secondary ? AppTheme.btnSecondaryBg : AppTheme.accent,
+          borderRadius: BorderRadius.circular(9),
           border: secondary
               ? Border.all(color: AppTheme.cardBorder)
               : null,
         ),
         alignment: Alignment.center,
-        child: Text(
-          text,
-          style: secondary ? AppTheme.btnTextSecondary : AppTheme.btnText,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[icon!, const SizedBox(width: 8)],
+            Text(
+              text,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+                color: secondary ? AppTheme.textPrimary : AppTheme.textDark,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// 小按钮 — 配合 Expanded 使用
+/// 小按钮 — 对齐 prototype .btn
 class SmallButton extends StatelessWidget {
   final String text;
   final VoidCallback? onTap;
@@ -91,17 +97,17 @@ class SmallButton extends StatelessWidget {
         width: double.infinity,
         height: AppTheme.smallBtnHeight,
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppTheme.btnRadius),
-          border: Border.all(color: AppTheme.cardBorder),
+          borderRadius: BorderRadius.circular(9),
+          color: AppTheme.btnSecondaryBg,
         ),
         alignment: Alignment.center,
-        child: Text(text, style: AppTheme.btnTextSecondary),
+        child: Text(text, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppTheme.textPrimary)),
       ),
     );
   }
 }
 
-/// 状态标签 (如"最近在线")
+/// 状态标签 — 对齐 prototype .pill
 class StatusBadge extends StatelessWidget {
   final String text;
   final bool active;
@@ -111,26 +117,20 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: AppTheme.cardFill,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: AppTheme.cardBorder),
+        color: active
+            ? const Color.fromRGBO(99, 230, 167, 0.14)
+            : const Color.fromRGBO(255, 101, 112, 0.2),
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: active ? AppTheme.statusGreen : AppTheme.statusRed,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(text, style: AppTheme.bodyValue.copyWith(fontSize: 12)),
-        ],
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: active ? const Color(0xFFDCFFF0) : const Color(0xFFFFF2F3),
+        ),
       ),
     );
   }
@@ -168,7 +168,7 @@ class InfoRow extends StatelessWidget {
   }
 }
 
-/// 统计数值卡片
+/// 统计数值卡片 — 对齐 prototype .metric
 class StatBlock extends StatelessWidget {
   final String value;
   final String label;
@@ -185,12 +185,11 @@ class StatBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        if (icon != null) Icon(icon, color: AppTheme.accent, size: 22),
-        const SizedBox(height: 4),
-        Text(value, style: AppTheme.statValue),
-        const SizedBox(height: 4),
-        Text(label, style: AppTheme.statLabel),
+        Text(value, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
       ],
     );
   }

@@ -3,8 +3,11 @@ import '../theme/app_theme.dart';
 import '../services/car_state.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/page_shell.dart';
+import 'manual_control_page.dart';
 
 /// S03 - 地图与任务页面
+/// 对齐 prototype page-prototype/map.html
+/// 网格地图 + 路线线段 + 节点标记 + 小车位置
 class MapTaskPage extends StatefulWidget {
   final CarState carState;
   final bool embedded;
@@ -35,10 +38,10 @@ class _MapTaskPageState extends State<MapTaskPage> {
     if (mounted) setState(() {});
   }
 
-  /// 模拟任务进度（实际应接入小车定位）
-  void _simulateProgress() {
-    widget.carState.advanceProgress(0.15);
-  }
+  /// 小车在路线上的位置比例（对齐 prototype 41% 位置）
+  double get _carProgress => widget.carState.taskProgress > 0
+      ? widget.carState.taskProgress
+      : 0.41;
 
   @override
   Widget build(BuildContext context) {
@@ -47,73 +50,71 @@ class _MapTaskPageState extends State<MapTaskPage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: _frameDeco(),
-          child: Column(
+                Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // ── 页头：对齐 prototype 避障中 pill ──
               PageHeader(
                 title: '地图与任务',
-                subTitle: '多点导航 + 避障状态',
+                subTitle: '路径进度与障碍状态',
                 badgeText: cs.taskPaused
                     ? '已暂停'
-                    : (cs.taskRunning ? '正在前往' : '待命'),
+                    : (cs.taskRunning ? '避障中' : '待命'),
                 badgeActive: cs.taskRunning,
               ),
               const SizedBox(height: 20),
+              // ── 地图区域：网格 + 路线 + 节点 + 小车 ──
               GlassCard(
-                  height: 230,
-                  padding: const EdgeInsets.all(12),
-                  child: _MapView()),
-              const SizedBox(height: 14),
+                  height: 250,
+                  padding: const EdgeInsets.all(0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: _MapRouteView(carProgress: _carProgress),
+                  )),
+              const SizedBox(height: 12),
+              // ── 图例：对齐 prototype ──
               Row(
                 children: [
-                  _LegendDot(color: AppTheme.accent, label: '巡检点'),
+                  _LegendDot(color: AppTheme.cyan, label: '当前路径'),
                   const SizedBox(width: 12),
-                  _LegendDot(color: AppTheme.statusRed, label: '动态障碍'),
+                  _LegendDot(color: AppTheme.accent, label: '小车位置'),
                   const SizedBox(width: 12),
-                  _LegendDot(
-                      color: AppTheme.statusGreen, label: '当前目标'),
+                  _LegendDot(color: AppTheme.statusRed, label: '告警点'),
                 ],
               ),
               const SizedBox(height: 16),
+              // ── 进度卡片 ──
               GlassCard(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 14),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     InfoRow(
-                      label: '当前路径完成度',
-                      value: '${(cs.taskProgress * 100).round()}%',
+                      label: '巡检进度',
+                      value: '${(_carProgress * 100).round()}%',
                     ),
                     const SizedBox(height: 8),
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(999),
                       child: LinearProgressIndicator(
-                          value: cs.taskProgress,
-                          minHeight: 6,
-                          backgroundColor: AppTheme.cardBorder,
+                          value: _carProgress,
+                          minHeight: 8,
+                          backgroundColor: const Color(0xFF26364A),
                           color: AppTheme.accent),
                     ),
-                    const Divider(
-                        color: AppTheme.dividerLine, height: 22),
-                    InfoRow(
-                      label: '避障状态',
-                      value: cs.taskRunning
-                          ? '—'
-                          : '—',
+                    const SizedBox(height: 10),
+                    Text(
+                      cs.taskRunning
+                          ? '已到达 B2 区域，正在靠近配电柜 A。'
+                          : '任务尚未开始，点击下方按钮启动巡检。',
+                      style: AppTheme.bodyLabel,
                     ),
-                    const Divider(
-                        color: AppTheme.dividerLine, height: 22),
-                    InfoRow(
-                        label: '剩余点位',
-                        value: '—'),
                   ],
                 ),
               ),
               const SizedBox(height: 20),
+              // ── 操作按钮：对齐 prototype 暂停 + 手动接管 ──
               Row(
                 children: [
                   Expanded(
@@ -131,74 +132,36 @@ class _MapTaskPageState extends State<MapTaskPage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: SmallButton(
-                      text: '中止巡检',
-                      onTap: () => _abortConfirm(context, cs),
+                      text: '手动接管',
+                      onTap: () => _push(
+                          context,
+                          '手动接管',
+                          ManualControlPage(
+                              carState: cs, embedded: true)),
                     ),
                   ),
                 ],
               ),
-              if (cs.taskRunning && !cs.taskPaused) ...[
-                const SizedBox(height: 14),
-                GradientButton(
-                  text: '模拟推进进度 (+15%)',
-                  secondary: true,
-                  onTap: _simulateProgress,
-                ),
-              ],
             ],
           ),
-        ),
       ],
     );
 
     return _wrap(context, content);
   }
 
-  void _abortConfirm(BuildContext context, CarState cs) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF172233),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: AppTheme.cardBorder),
-        ),
-        title: const Text('中止巡检', style: AppTheme.pageTitle),
-        content: const Text('确定要中止当前巡检任务吗？小车将停止并返回待命状态。',
-            style: AppTheme.bodyLabel),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('取消', style: AppTheme.bodyLabel),
-          ),
-          TextButton(
-            onPressed: () {
-              cs.abortTask();
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('中止',
-                style: TextStyle(color: AppTheme.statusRed)),
-          ),
-        ],
-      ),
-    );
+  void _push(BuildContext context, String title, Widget page) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PageShell(title: title, child: page),
+    ));
   }
 
-  BoxDecoration _frameDeco() => BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.cardBorder),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF172233), Color(0xFF0F1622)],
-        ),
-      );
 
   Widget _wrap(BuildContext context, Widget content) {
     if (widget.embedded) {
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
-            AppTheme.pagePadding, 16, AppTheme.pagePadding, 8),
+            AppTheme.pagePadding, 16, AppTheme.pagePadding, AppTheme.tabBarInset),
         child: content,
       );
     }
@@ -213,86 +176,121 @@ class _MapTaskPageState extends State<MapTaskPage> {
   }
 }
 
-class _MapView extends StatelessWidget {
+/// 网格地图 + 路线线段 + 节点 + 小车指示器
+class _MapRouteView extends StatelessWidget {
+  final double carProgress;
+  const _MapRouteView({required this.carProgress});
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
-      return Stack(children: [
-        CustomPaint(
-            size: Size(constraints.maxWidth, constraints.maxHeight),
-            painter: _GridPainter()),
-        const _MapPoint(
-            x: 18, y: 150, color: AppTheme.accent, label: '起点'),
-        const _MapPoint(
-            x: 208,
-            y: 30,
-            color: AppTheme.statusGreen,
-            label: '配电柜A'),
-        const _MapPoint(
-            x: 120,
-            y: 58,
-            color: AppTheme.statusRed,
-            label: '临时障碍'),
-        const _MapPoint(
-            x: 236,
-            y: 166,
-            color: AppTheme.statusGreen,
-            label: '仓储通道C'),
-      ]);
+      final w = constraints.maxWidth;
+      final h = constraints.maxHeight;
+
+      // ── 路线路径定义（相对坐标，对齐 prototype）──
+      // Node A → Node B (水平线段) → Node C (垂直线段)
+      const ax = 60.0, ay = 82.0;   // 起点 A
+      const bx = 210.0, by = 82.0;  // 途经点 B (配电柜A)
+      const cx = 210.0, cy = 186.0; // 终点 C (仓储通道)
+      const nodeR = 14.0;
+
+      // ── 根据进度计算小车位置（沿 A→B→C 路线）──
+      final abLen = bx - ax;           // 水平段长度
+      final bcLen = cy - by;           // 垂直段长度
+      final totalLen = abLen + bcLen;
+      final traveled = carProgress * totalLen;
+
+      double carX, carY;
+      if (traveled <= abLen) {
+        // 在水平段上
+        carX = ax + traveled;
+        carY = ay;
+      } else {
+        // 在垂直段上
+        carX = bx;
+        carY = by + (traveled - abLen);
+      }
+
+      return CustomPaint(
+        size: Size(w, h),
+        painter: _RouteGridPainter(
+          ax: ax, ay: ay, bx: bx, by: by, cx: cx, cy: cy,
+          carX: carX, carY: carY, carR: nodeR,
+        ),
+      );
     });
   }
 }
 
-class _GridPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppTheme.cardBorder
-      ..strokeWidth = 0.5;
-    const step = 36.0;
-    for (double x = 0; x <= size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y <= size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
+class _RouteGridPainter extends CustomPainter {
+  final double ax, ay, bx, by, cx, cy, carX, carY, carR;
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _MapPoint extends StatelessWidget {
-  final double x, y;
-  final Color color;
-  final String label;
-  const _MapPoint({
-    required this.x,
-    required this.y,
-    required this.color,
-    required this.label,
+  _RouteGridPainter({
+    required this.ax, required this.ay,
+    required this.bx, required this.by,
+    required this.cx, required this.cy,
+    required this.carX, required this.carY,
+    required this.carR,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: x,
-      top: y,
-      child: Column(children: [
-        Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppTheme.textPrimary, width: 1.5),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(label, style: AppTheme.statLabel.copyWith(fontSize: 10)),
-      ]),
-    );
+  void paint(Canvas canvas, Size size) {
+    // ── 网格背景（对齐 prototype .map 网格 30x30）──
+    final gridPaint = Paint()
+      ..color = const Color.fromRGBO(48, 211, 255, 0.08)
+      ..strokeWidth = 1;
+    const step = 30.0;
+    for (double x = 0; x <= size.width; x += step) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y <= size.height; y += step) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
+    }
+
+    // ── 路线线段（水平 A→B + 垂直 B→C，对齐 prototype route-x / route-y）──
+    final routePaint = Paint()
+      ..color = AppTheme.cyan
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(Offset(ax, ay), Offset(bx, by), routePaint); // 水平段
+    canvas.drawLine(Offset(bx, by), Offset(cx, cy), routePaint); // 垂直段
+
+    // ── 节点 A（起点，青色）──
+    _drawNode(canvas, ax, ay, AppTheme.cyan, 'A');
+    // ── 节点 B（配电柜A，青色）──
+    _drawNode(canvas, bx, by, AppTheme.cyan, 'B');
+    // ── 节点 C（告警点，红色）──
+    _drawNode(canvas, cx, cy, AppTheme.statusRed, 'C');
+
+    // ── 小车位置（橙色，带光晕）──
+    final glowPaint = Paint()
+      ..color = const Color.fromRGBO(255, 151, 72, 0.13)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+    canvas.drawCircle(Offset(carX, carY), carR + 6, glowPaint);
+    canvas.drawCircle(Offset(carX, carY), carR, Paint()..color = AppTheme.accent);
   }
+
+  void _drawNode(Canvas canvas, double x, double y, Color color, String label) {
+    final r = carR / 2;
+    canvas.drawCircle(Offset(x, y), r, Paint()..color = color);
+    // 标签使用 TextPainter
+    final tp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: const TextStyle(
+          color: Color(0xFF08202A),
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(x - tp.width / 2, y - tp.height / 2));
+  }
+
+  @override
+  bool shouldRepaint(covariant _RouteGridPainter oldDelegate) =>
+      carX != oldDelegate.carX || carY != oldDelegate.carY;
 }
 
 class _LegendDot extends StatelessWidget {
@@ -304,11 +302,11 @@ class _LegendDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Container(
-          width: 8,
-          height: 8,
-          decoration:
-              BoxDecoration(color: color, shape: BoxShape.circle)),
-      const SizedBox(width: 4),
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 5),
       Text(label, style: AppTheme.subtitle),
     ]);
   }

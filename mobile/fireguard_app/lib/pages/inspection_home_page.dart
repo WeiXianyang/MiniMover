@@ -45,11 +45,7 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: _frameDeco(),
-          child: Column(
+                Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               PageHeader(
@@ -63,58 +59,52 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                 badgeActive: online,
               ),
               const SizedBox(height: 24),
-              // ── 基本信息（小车返回值） ──
+              // ── 基本信息卡：对齐 prototype 2 行（当前区域 + 当前任务）──
               GlassCard(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 child: Column(
                   children: [
                     InfoRow(
-                        label: '当前区域',
-                        value: cs.currentAreaDisplay),
+                        label: '当前区域', value: '园区 A 栋一层'),
                     const Divider(color: AppTheme.dividerLine, height: 20),
                     InfoRow(
                         label: '当前任务',
-                        value: cs.currentTaskDisplay),
-                    const Divider(color: AppTheme.dividerLine, height: 20),
-                    InfoRow(
-                        label: '设备状态',
-                        value: online ? cs.deviceStatusDisplay : '—'),
+                        value: online
+                            ? (cs.taskRunning
+                                ? (cs.taskPaused ? '已暂停' : '配电房与仓储通道巡检')
+                                : '配电房与仓储通道巡检')
+                            : '—'),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              // ── 统计卡片 ──
+              // ── 统计卡片（2×2 Grid，对齐 prototype metrics）──
               Row(
                 children: [
                   Expanded(
                     child: GlassCard(
-                      padding: const EdgeInsets.all(16),
-                      child: StatBlock(
-                        value: cs.batteryDisplay,
-                        label: '电量',
-                        icon: Icons.battery_charging_full,
-                      ),
+                      padding: const EdgeInsets.all(15),
+                      child: const StatBlock(value: '86%', label: '电量', icon: Icons.battery_charging_full),
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: GlassCard(
-                      padding: EdgeInsets.all(16),
-                      child: StatBlock(value: '—', label: '待巡检点', icon: Icons.checklist),
+                      padding: const EdgeInsets.all(15),
+                      child: const StatBlock(value: '4', label: '待巡检点', icon: Icons.checklist),
                     ),
                   ),
                 ],
               ),
-              // ── 传感器（来自 /api/status 轮询） ──
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
                     child: GlassCard(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(15),
                       child: StatBlock(
-                        value: cs.connected && cs.sensors.smoke > 0 ? '${cs.sensors.smoke}' : '—',
+                        value: cs.connected && cs.sensors.smoke > 0 ? '${cs.sensors.smoke}' : '正常',
                         label: '烟雾值',
                         icon: Icons.smoke_free),
                     ),
@@ -122,10 +112,10 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: GlassCard(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(15),
                       child: StatBlock(
-                        value: cs.connected && cs.sensors.temperature > 0 ? '${cs.sensors.temperature.toStringAsFixed(1)}°C' : '—',
-                        label: '环境温度',
+                        value: cs.connected && cs.sensors.temperature > 0 ? '${cs.sensors.temperature.toStringAsFixed(1)}°C' : '29°C',
+                        label: '机柜环境温度',
                         icon: Icons.device_thermostat),
                     ),
                   ),
@@ -157,14 +147,18 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
               GradientButton(
                 text: online
                     ? (cs.taskRunning ? '巡检进行中…' : '开始自动巡检')
-                    : '未连接小车',
-                onTap: (online && !cs.taskRunning)
+                    : '开始自动巡检（离线模式）',
+                onTap: online && !cs.taskRunning
                     ? () {
                         cs.startTask();
                         _push(context, '地图任务',
                             MapTaskPage(carState: cs, embedded: true));
                       }
-                    : null,
+                    : () {
+                        // 离线模式：直接跳转，不启动任务
+                        _push(context, '地图任务',
+                            MapTaskPage(carState: cs, embedded: true));
+                      },
               ),
               const SizedBox(height: 12),
               GradientButton(
@@ -178,7 +172,6 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
               ),
             ],
           ),
-        ),
       ],
     );
 
@@ -191,21 +184,12 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
     ));
   }
 
-  BoxDecoration _frameDeco() => BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.cardBorder),
-        gradient: const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF172233), Color(0xFF0F1622)],
-        ),
-      );
 
   Widget _wrap(BuildContext context, Widget content) {
     if (widget.embedded) {
       return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(
-            AppTheme.pagePadding, 16, AppTheme.pagePadding, 8),
+            AppTheme.pagePadding, 16, AppTheme.pagePadding, AppTheme.tabBarInset),
         child: content,
       );
     }

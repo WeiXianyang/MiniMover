@@ -1,11 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../services/car_state.dart';
 import '../models/control_layout.dart';
 import 'manual_control_settings_page.dart';
 import '../widgets/mjpeg_stream.dart';
+import '../widgets/app_icons.dart';
 
 /// S06 - 手动接管（横屏游戏风格）
 /// 所有组件位置/大小/透明度由 ControlLayout 驱动，可进入设置页拖拽调整
@@ -23,7 +26,8 @@ class ManualControlPage extends StatefulWidget {
 }
 
 class _ManualControlPageState extends State<ManualControlPage> {
-  final ControlLayout _layout = ControlLayout();
+  ControlLayout _layout = ControlLayout();
+  static const _layoutKey = 'fireguard.manualLayout';
 
   // 摇杆状态
   Offset _moveJoystick = Offset.zero;
@@ -42,9 +46,24 @@ class _ManualControlPageState extends State<ManualControlPage> {
   void initState() {
     super.initState();
     _lockLandscape();
+    _loadLayout();
     _fpsTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _fps = 28 + (DateTime.now().millisecond % 5));
     });
+  }
+
+  Future<void> _loadLayout() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_layoutKey);
+    if (raw != null) {
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      setState(() => _layout.fromJson(json));
+    }
+  }
+
+  Future<void> _saveLayout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_layoutKey, jsonEncode(_layout.toJson()));
   }
 
   @override
@@ -73,7 +92,10 @@ class _ManualControlPageState extends State<ManualControlPage> {
       MaterialPageRoute(
         builder: (_) => ManualControlSettingsPage(
           originalLayout: _layout,
-          onSave: (edited) => setState(() => _layout.copyFrom(edited)),
+          onSave: (edited) {
+            setState(() => _layout.copyFrom(edited));
+            _saveLayout();
+          },
         ),
       ),
     );
@@ -299,7 +321,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
                     border:
                         Border.all(color: AppTheme.cardBorder),
                   ),
-                  child: const Icon(Icons.settings, size: 14, color: AppTheme.textSecondary),
+                  child: AppIcons.settings(size: 14, color: AppTheme.textSecondary),
                 ),
               ),
               const SizedBox(width: 8),
@@ -532,25 +554,27 @@ class _ManualControlPageState extends State<ManualControlPage> {
   Widget _buildSideButtons(Size parent) {
     return Stack(
       children: [
-        _sideBtnItem(_layout.btnLight, parent, Icons.lightbulb_outline,
+        _sideBtnItem(_layout.btnLight, parent,
+            AppIcons.lightbulb(size: 18, color: _lightOn ? AppTheme.accent : AppTheme.textPrimary),
             _lightOn ? AppTheme.accent : AppTheme.textPrimary, () {
           setState(() => _lightOn = !_lightOn);
-          // 灯带（API 暂不支持，仅本地切换）
         }),
-        _sideBtnItem(_layout.btnMic, parent, Icons.mic,
+        _sideBtnItem(_layout.btnMic, parent,
+            AppIcons.mic(size: 18, color: _micOn ? AppTheme.statusGreen : AppTheme.textPrimary),
             _micOn ? AppTheme.statusGreen : AppTheme.textPrimary, () {
           setState(() => _micOn = !_micOn);
         }),
         _sideBtnItem(
-            _layout.btnRecord,
-            parent,
-            Icons.fiber_manual_record,
+            _layout.btnRecord, parent,
+            AppIcons.record(size: 18, color: _recording ? AppTheme.statusRed : AppTheme.textPrimary),
             _recording ? AppTheme.statusRed : AppTheme.textPrimary, () {
           setState(() => _recording = !_recording);
         }),
-        _sideBtnItem(_layout.btnMap, parent, Icons.map_outlined,
+        _sideBtnItem(_layout.btnMap, parent,
+            AppIcons.map(size: 18, color: AppTheme.textPrimary),
             AppTheme.textPrimary, () {}),
-        _sideBtnItem(_layout.btnRadar, parent, Icons.radar,
+        _sideBtnItem(_layout.btnRadar, parent,
+            AppIcons.radar(size: 18, color: _radarOn ? AppTheme.statusGreen : AppTheme.textPrimary),
             _radarOn ? AppTheme.statusGreen : AppTheme.textPrimary, () {
           setState(() => _radarOn = !_radarOn);
         }),
@@ -558,7 +582,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
     );
   }
 
-  Widget _sideBtnItem(ComponentConfig cfg, Size parent, IconData icon,
+  Widget _sideBtnItem(ComponentConfig cfg, Size parent, Widget icon,
       Color color, VoidCallback onTap) {
     final sz = cfg.toSize(parent);
     final offset = cfg.toOffset(parent);
@@ -580,9 +604,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
               border:
                   Border.all(color: const Color.fromRGBO(255, 255, 255, 0.10)),
             ),
-            child: Center(
-              child: Icon(icon, color: color, size: sz.shortestSide * 0.4),
-            ),
+            child: Center(child: icon),
           ),
         ),
       ),
@@ -597,7 +619,8 @@ class _ManualControlPageState extends State<ManualControlPage> {
       children: [
         // 返回
         if (_layout.btnBack.visible)
-          _bottomBtn(_layout.btnBack, parent, Icons.arrow_back, '返回', () {
+          _bottomBtn(_layout.btnBack, parent,
+              AppIcons.arrowLeft(size: 16, color: AppTheme.textSecondary), '返回', () {
             Navigator.of(context).pop();
           }),
         // 急停
@@ -609,14 +632,15 @@ class _ManualControlPageState extends State<ManualControlPage> {
           }),
         // 速度
         if (_layout.btnSpeed.visible)
-          _bottomBtn(_layout.btnSpeed, parent, Icons.speed,
+          _bottomBtn(_layout.btnSpeed, parent,
+              const Icon(Icons.speed, size: 16, color: AppTheme.accent),
               '${(_speed * 100).round()}%', _cycleSpeed,
               accent: true),
       ],
     );
   }
 
-  Widget _bottomBtn(ComponentConfig cfg, Size parent, IconData icon,
+  Widget _bottomBtn(ComponentConfig cfg, Size parent, Widget icon,
       String label, VoidCallback onTap,
       {bool accent = false}) {
     final sz = cfg.toSize(parent);
@@ -644,9 +668,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon,
-                      size: sz.height * 0.45,
-                      color: accent ? AppTheme.accent : AppTheme.textSecondary),
+                  icon,
                   const SizedBox(width: 4),
                   Text(label,
                       style: TextStyle(
