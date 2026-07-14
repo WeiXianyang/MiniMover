@@ -1,0 +1,43 @@
+erDiagram
+    alarm_event ||--o{ alarm_evidence : "产生"
+    alarm_event ||--o{ alarm_review : "触发"
+    alarm_event }o--|| inspection_robot : "上报来源"
+
+    alarm_event {
+        int id PK "自增主键"
+        varchar event_id UK "事件UUID"
+        varchar alarm_type "fire/smoke/obstacle"
+        text alarm_message "告警描述"
+        varchar device_sn "设备序列号"
+        varchar status "PENDING/CONFIRMED/RESOLVED"
+        text position "GPS/坐标JSON"
+        datetime created_at "创建时间"
+        datetime updated_at "更新时间"
+    }
+
+    alarm_evidence {
+        int id PK "自增主键"
+        varchar event_id FK "关联告警事件"
+        varchar evidence_type "image/video/log"
+        varchar file_path "证据文件路径"
+        datetime captured_at "采集时间"
+    }
+
+    alarm_review {
+        int id PK "自增主键"
+        varchar event_id FK "关联告警事件"
+        varchar reviewer "AI/Manual"
+        varchar decision "FIRE/NO_FIRE/UNCERTAIN"
+        float confidence "置信度0~1"
+        text detail "复核详情JSON"
+        datetime reviewed_at "复核时间"
+    }
+
+    inspection_robot {
+        int id PK "自增主键"
+        varchar device_sn UK "设备序列号"
+        varchar name "设备名称"
+        varchar status "ONLINE/OFFLINE/CHARGING"
+        json config "巡检配置JSON"
+        datetime last_heartbeat "最后心跳"
+    }
