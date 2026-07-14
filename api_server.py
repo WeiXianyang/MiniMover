@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
-import threading, time, os, sys, subprocess
+import threading, time, os, sys, subprocess, socket
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sensors.icar_sensor_driver import iCarSensorDriver
@@ -14,6 +14,37 @@ CORS(app)
 sensor = iCarSensorDriver()
 bot = Rosmaster(debug=False)
 bot.create_receive_threading()
+
+# 串口写锁 + 自动停止定时器（HTTP 和 TCP 控制共用）
+_move_lock = threading.Lock()
+_stop_timer = None
+
+def _execute_move(cmd, speed_pct, duration):
+    """底盘运动执行函数（HTTP 和 TCP 控制共用），线程安全"""
+    global _stop_timer
+    s = min(int(speed_pct), 100)
+    speed = s / 100.0
+    vx = vy = vz = 0
+    if cmd == 'forward':          vx = speed
+    elif cmd == 'backward':       vx = -speed
+    elif cmd == 'left':           vz = speed * 3
+    elif cmd == 'right':          vz = -speed * 3
+    elif cmd == 'rotate_left':    vz = speed * 3
+    elif cmd == 'rotate_right':   vz = -speed * 3
+    elif cmd == 'left_shift':     vy = speed
+    elif cmd == 'right_shift':    vy = -speed
+    # 取消上一次停止定时器
+    if _stop_timer:
+        _stop_timer.cancel()
+        _stop_timer = None
+    with _move_lock:
+        bot.set_car_motion(vx, vy, vz)
+    if cmd != 'stop' and duration > 0:
+        def _delayed_stop():
+            with _move_lock:
+                bot.set_car_motion(0, 0, 0)
+        _stop_timer = threading.Timer(duration, _delayed_stop)
+        _stop_timer.start()
 
 def get_ip():
     return os.popen('hostname -I').read().split()[0]
@@ -28,37 +59,14 @@ def get_status():
         'ip': ip
     }})
 
-# 串口写锁 + 自动停止定时器管理（防止多线程抢串口死机）
-_move_lock = threading.Lock()
-_stop_timer = None
-
 @app.route('/api/move', methods=['POST'])
 def move():
-    global _stop_timer
-    data = request.json; cmd = data.get('cmd','stop')
-    s = min(data.get('speed',50),100); t = data.get('duration',0.5)
-    speed = s/100.0; vx=vy=vz=0
-    if cmd=='forward': vx=speed
-    elif cmd=='backward': vx=-speed
-    elif cmd=='left': vz=speed*3
-    elif cmd=='right': vz=-speed*3
-    elif cmd=='rotate_left': vz=speed*3
-    elif cmd=='rotate_right': vz=-speed*3
-    elif cmd=='left_shift': vy=speed
-    elif cmd=='right_shift': vy=-speed
-    # 取消上一次的停止定时器，避免多个线程同时写串口
-    if _stop_timer:
-        _stop_timer.cancel()
-        _stop_timer = None
-    with _move_lock:
-        bot.set_car_motion(vx,vy,vz)
-    if cmd!='stop' and t>0:
-        def _delayed_stop():
-            with _move_lock:
-                bot.set_car_motion(0,0,0)
-        _stop_timer = threading.Timer(t, _delayed_stop)
-        _stop_timer.start()
-    return jsonify({'code':0,'msg':f'{cmd} @ {s}%'})
+    data = request.json
+    cmd = data.get('cmd', 'stop')
+    s = data.get('speed', 50)
+    t = data.get('duration', 0.5)
+    _execute_move(cmd, s, t)
+    return jsonify({'code': 0, 'msg': f'{cmd} @ {s}%'})
 
 @app.route('/api/sensors')
 def get_sensors():
@@ -510,5 +518,57 @@ setInterval(f,3000);f();
 </script></body></html>'''
 
 if __name__ == '__main__':
+    _control_running = True
+
+    def _start_control_server(port=5001):
+        """低延迟 TCP 控制服务，旁路 HTTP 栈，与旧版 :6000 同原理"""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(1.0)
+        sock.bind(('0.0.0.0', port))
+        sock.listen(1)
+        print(f"[tcp-ctrl] listening on :{port}")
+        while _control_running:
+            try:
+                conn, addr = sock.accept()
+                print(f"[tcp-ctrl] connected: {addr}")
+                buf = b''
+                while True:
+                    try:
+                        data = conn.recv(4096)
+                    except socket.timeout:
+                        continue
+                    if not data:
+                        break
+                    buf += data
+                    while b'\n' in buf:
+                        line, buf = buf.split(b'\n', 1)
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            parts = line.decode('utf-8').split()
+                            cmd = parts[0]
+                            speed = int(parts[1]) if len(parts) > 1 else 50
+                            dur = float(parts[2]) if len(parts) > 2 else 0.5
+                            _execute_move(cmd, speed, dur)
+                        except Exception as e:
+                            print(f"[tcp-ctrl] parse error: {e} (line={line})")
+                conn.close()
+                print("[tcp-ctrl] disconnected")
+            except socket.timeout:
+                continue
+            except Exception as e:
+                if _control_running:
+                    print(f"[tcp-ctrl] error: {e}")
+        sock.close()
+        print("[tcp-ctrl] stopped")
+
+    ctrl_thread = threading.Thread(target=_start_control_server, args=(5001,), daemon=True)
+    ctrl_thread.start()
+
     sensor.start()
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    try:
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    finally:
+        _control_running = False
