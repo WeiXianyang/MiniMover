@@ -33,3 +33,8 @@ class VoiceConfig:
         self.tts_voice = os.getenv("MINIMOVER_TTS_VOICE", "alloy")
         self.tts_command = os.getenv("MINIMOVER_TTS_COMMAND", "aplay -q -")
         self.car_speaker = os.getenv("MINIMOVER_CAR_SPEAKER", "0").lower() in {"1", "true", "yes", "on"}
+
+        # ---- wake-word configuration ----
+        self.wake_word = os.getenv("MINIMOVER_WAKE_WORD", "")
+        self.wake_greeting = os.getenv("MINIMOVER_WAKE_GREETING", "")
+        self.wake_idle_timeout = _float("MINIMOVER_WAKE_TIMEOUT", 30.0)

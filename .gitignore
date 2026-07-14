@@ -237,3 +237,4 @@ __marimo__/
 /traffic_light/Traffic-Light-Detection-Using-YOLOv3/
 /traffic_light/test_images/
 /traffic_light/test_plate.jpg
+/traffic_light/output_yolo/

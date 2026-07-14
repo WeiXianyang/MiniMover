@@ -5,9 +5,19 @@ from flask_cors import CORS
 from concurrent.futures import ThreadPoolExecutor
 import threading, time, math, requests, io, os, subprocess, sys
 
+import logging as _logging
+_logging.basicConfig(
+    level=_logging.INFO,
+    format='%(asctime)s [coordinator] %(message)s',
+    datefmt='%H:%M:%S',
+)
+_log = _logging.getLogger('coordinator')
+
 COORDINATOR_PORT = 8888
 POLL_INTERVAL = 5.0  # 状态轮询间隔(秒)，车慢时不堆积
 POLL_TIMEOUT = 3     # 单个车请求超时(秒)
+MOVE_CONNECT_TIMEOUT = 4  # 运动指令建立连接的最长等待时间(秒)
+MOVE_READ_TIMEOUT = 5     # 运动指令等待车辆响应的最长时间(秒)
 COLLISION_CRITICAL = 0.5  # 碰撞临界距离(米)
 COLLISION_WARNING = 1.0   # 碰撞预警距离(米)
 
@@ -34,19 +44,45 @@ os.makedirs(os.path.dirname(_voice_log_path), exist_ok=True)
 
 # ========== 工具函数 ==========
 
+MOVE_COMMANDS = frozenset({
+    'forward', 'backward', 'left', 'right',
+    'rotate_left', 'rotate_right', 'left_shift', 'right_shift', 'stop',
+})
+
+
 def api(car_id, endpoint, method='GET', data=None, timeout=3):
+    """通过车辆自身的 5000 端口 API 访问车辆服务。"""
     info = CARS.get(car_id)
     if not info:
         return {'code': -1, 'msg': 'unknown car'}
     url = f"http://{info['ip']}:{info['port']}{endpoint}"
     try:
-        if method == 'GET':
-            r = requests.get(url, timeout=timeout)
-        else:
-            r = requests.post(url, json=data, timeout=timeout)
-        return r.json()
-    except Exception as e:
-        return {'code': -1, 'msg': str(e)}
+        response = requests.request(method, url, json=data, timeout=timeout)
+        response.raise_for_status()
+        return response.json()
+    except requests.ConnectTimeout:
+        return {'code': -1, 'msg': f'{url}: 连接车辆超时'}
+    except requests.ReadTimeout:
+        return {'code': -1, 'msg': f'{url}: 等待车辆响应超时'}
+    except requests.RequestException as error:
+        return {'code': -1, 'msg': f'{url}: {error}'}
+    except ValueError:
+        return {'code': -1, 'msg': f'{url}: 响应不是 JSON'}
+
+
+def _move_payload(data):
+    """将总控面板输入规整为与车辆 /api/move 相同的请求体。"""
+    command = data.get('cmd', 'stop')
+    if command not in MOVE_COMMANDS:
+        raise ValueError(f'不支持的运动指令: {command}')
+
+    try:
+        speed = max(0, min(int(data.get('speed', 50)), 100))
+        duration = max(0, float(data.get('duration', 0.5)))
+    except (TypeError, ValueError) as error:
+        raise ValueError('speed 必须是 0-100 的整数，duration 必须是非负秒数') from error
+
+    return {'cmd': command, 'speed': speed, 'duration': duration}
 
 
 def poll_all():
@@ -159,34 +195,62 @@ def all_status():
 
 @app.route('/api/move_all', methods=['POST'])
 def move_all():
-    """并行控制所有车辆"""
-    data = request.json
-    cmd = data.get('cmd', 'stop')
-    speed = data.get('speed', 50)
-    print(f'[move_all] cmd={cmd} speed={speed}')
+    """将与车辆 API 一致的运动指令并行转发给所有已注册车辆。"""
+    try:
+        payload = _move_payload(request.get_json(silent=True) or {})
+    except ValueError as error:
+        return jsonify({'code': -1, 'msg': str(error)}), 400
 
-    def ctrl(cid):
-        return cid, api(cid, '/api/move', 'POST',
-                        {'cmd': cmd, 'speed': speed, 'duration': 0.5})
+    car_ids = list(CARS)
+    if not car_ids:
+        return jsonify({'code': -1, 'msg': '没有已注册车辆'}), 409
 
-    with ThreadPoolExecutor(max_workers=len(CARS)) as pool:
-        results = dict(pool.map(lambda cid: ctrl(cid), list(CARS.keys())))
-    return jsonify({'code': 0, 'results': results, 'cmd': cmd})
+    _log.info('BUTTON | %s speed=%s%% duration=%ss',
+              payload['cmd'].upper(), payload['speed'], payload['duration'])
+
+    def ctrl(car_id):
+        result = api(
+            car_id,
+            '/api/move',
+            'POST',
+            payload,
+            timeout=(MOVE_CONNECT_TIMEOUT, MOVE_READ_TIMEOUT),
+        )
+        _log.info('CAR %s | %s -> %s', car_id, payload['cmd'], result.get('msg', result))
+        return car_id, result
+
+    with ThreadPoolExecutor(max_workers=len(car_ids)) as pool:
+        results = dict(pool.map(ctrl, car_ids))
+
+    failed = [car_id for car_id, result in results.items() if result.get('code') != 0]
+    return jsonify({
+        'code': 0 if not failed else -1,
+        'cmd': payload['cmd'],
+        'speed': payload['speed'],
+        'duration': payload['duration'],
+        'results': results,
+        'failed_cars': failed,
+    }), 200 if not failed else 502
 
 
 @app.route('/api/move_one', methods=['POST'])
 def move_one():
-    """控制指定车辆"""
-    data = request.json
-    cid = data.get('car_id')
-    if cid not in CARS:
-        return jsonify({'code': -1, 'msg': f'car {cid} not found'}), 404
-    result = api(cid, '/api/move', 'POST', {
-        'cmd': data.get('cmd', 'stop'),
-        'speed': data.get('speed', 50),
-        'duration': data.get('duration', 0.5),
-    })
-    return jsonify(result)
+    """将与车辆 API 一致的运动指令转发给指定车辆。"""
+    data = request.get_json(silent=True) or {}
+    car_id = data.get('car_id')
+    if car_id not in CARS:
+        return jsonify({'code': -1, 'msg': f'car {car_id} not found'}), 404
+
+    try:
+        payload = _move_payload(data)
+    except ValueError as error:
+        return jsonify({'code': -1, 'msg': str(error)}), 400
+
+    _log.info('BUTTON | %s -> %s speed=%s%% duration=%ss',
+              car_id, payload['cmd'].upper(), payload['speed'], payload['duration'])
+    result = api(car_id, '/api/move', 'POST', payload)
+    _log.info('CAR %s | %s -> %s', car_id, payload['cmd'], result.get('msg', result))
+    return jsonify(result), 200 if result.get('code') == 0 else 502
 
 
 @app.route('/api/navigate', methods=['POST'])
@@ -571,6 +635,10 @@ function stopVoice(){{
 function renderCars(data){{
   var grid=document.getElementById('carGrid');
   var cars=data.cars||{{}}, cols=data.collisions||{{}};
+  var previousVideos={{}};
+  Array.prototype.forEach.call(grid.querySelectorAll('.car-video img[data-car-id]'),function(video){{
+    previousVideos[video.dataset.carId]=video;
+  }});
   grid.innerHTML='';
   var keys=Object.keys(cars);
   if(!keys.length){{grid.innerHTML='<div style="color:#8b949e;padding:20px">No cars registered.</div>';return}}
@@ -605,7 +673,7 @@ function renderCars(data){{
         '<div class="car-header">'+
           '<div class="car-name"><span class="id">'+cid+'</span></div>'+
           '<div><span class="car-badge badge-real">REAL</span> '+
-           '<button class="disconnect" onclick="disconnectCar(\''+cid+'\')">断开</button></div>'+
+           '<button class="disconnect" onclick="disconnectCar(' + "'" + cid + "'" + ')">断开</button></div>'+
         '</div>'+
         '<div class="car-body">'+
           '<div class="car-info">'+
@@ -617,13 +685,23 @@ function renderCars(data){{
             'SMK: <span>'+(d.sensors?d.sensors.smoke:'?')+'</span> | '+
             'PM: <span>'+(d.sensors?d.sensors.pm25:'?')+'</span>'+
           '</div>'+
-          '<div class="car-video"><img src="/proxy/camera/'+cid+'?'+Date.now()+'" onerror="this.style.display=' + "'none'" + '"></div>'+
+          '<div class="car-video" data-car-id="'+cid+'"></div>'+
         '</div>'+
         (hasColl&&cols[Object.keys(cols).find(function(k){{return cols[k].cars.indexOf(cid)>=0}})]?
           '<div class="car-collision collision-'+cols[Object.keys(cols).find(function(k){{return cols[k].cars.indexOf(cid)>=0}})].level.toLowerCase()+'">'+
             'Collision: '+cols[Object.keys(cols).find(function(k){{return cols[k].cars.indexOf(cid)>=0}})].distance+'m'+
           '</div>':'')+
       '</div>';
+
+    var videoContainer=grid.querySelector('.car-video[data-car-id="'+cid+'"]');
+    videoContainer.replaceChildren();
+    var video=previousVideos[cid]||document.createElement('img');
+    video.dataset.carId=cid;
+    if(!video.src){{
+      video.src='/proxy/camera/'+cid;
+    }}
+    video.onerror=function(){{this.remove();}};
+    videoContainer.appendChild(video);
   }}
 }}
 
@@ -651,13 +729,50 @@ function update(){{
 }}
 
 function moveAll(cmd,speed){{
-  SPEED=speed||parseInt(document.getElementById('speedRange').value);
-  var r=new XMLHttpRequest();
-  r.open('POST',API+'/api/move_all',true);
-  r.setRequestHeader('Content-Type','application/json');
-  r.onload=function(){{var b=document.getElementById('alertBar');b.style.display='block';b.textContent=cmd+' sent: '+r.responseText;}};
-  r.onerror=function(){{var b=document.getElementById('alertBar');b.style.display='block';b.textContent='FAILED: '+cmd;}};
-  r.send(JSON.stringify({{cmd:cmd,speed:SPEED}}));
+  if(window.moveRequestInFlight){{
+    return;
+  }}
+
+  var selectedSpeed=parseInt(document.getElementById('speedRange').value,10);
+  SPEED=Number.isFinite(selectedSpeed)?selectedSpeed:(speed||50);
+  var requestBody={{cmd:cmd,speed:SPEED,duration:0.5}};
+  var bar=document.getElementById('alertBar');
+  var controller=new AbortController();
+  var timeoutId=window.setTimeout(function(){{controller.abort();}},12000);
+  window.moveRequestInFlight=true;
+  bar.style.display='block';
+  bar.className='alert-bar';
+  bar.textContent='正在向车辆转发 '+cmd+' 指令...';
+
+  fetch(API+'/api/move_all',{{
+    method:'POST',
+    headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify(requestBody),
+    signal:controller.signal
+  }}).then(function(response){{
+    return response.json().then(function(body){{return {{ok:response.ok,body:body}};}});
+  }}).then(function(result){{
+    var body=result.body;
+    var details=Object.keys(body.results||{{}}).map(function(carId){{
+      var carResult=body.results[carId]||{{}};
+      return carId+': '+(carResult.msg||('code='+carResult.code));
+    }});
+    if(result.ok){{
+      bar.className='alert-bar';
+      bar.textContent='已转发 '+cmd+'。'+details.join(' | ');
+    }}else{{
+      bar.className='alert-bar critical';
+      bar.textContent='转发失败。'+(body.msg||details.join(' | ')||'未知错误');
+    }}
+  }}).catch(function(error){{
+    bar.className='alert-bar critical';
+    bar.textContent=error.name==='AbortError'
+      ? '转发超时，请检查车辆网络或服务后重试。'
+      : '无法连接调度服务: '+error;
+  }}).finally(function(){{
+    window.clearTimeout(timeoutId);
+    window.moveRequestInFlight=false;
+  }});
 }}
 
 function applyFormation(){{
@@ -692,4 +807,10 @@ if __name__ == '__main__':
     print(f'  车辆状态:   http://localhost:{COORDINATOR_PORT}/api/status')
     print(f'  队形控制:   POST /api/formation')
     print(f'  碰撞检测:   GET  /api/status (collisions 字段)')
-    app.run(host='0.0.0.0', port=COORDINATOR_PORT, debug=False, use_reloader=False)
+    app.run(
+        host='0.0.0.0',
+        port=COORDINATOR_PORT,
+        debug=False,
+        use_reloader=False,
+        threaded=True,
+    )
