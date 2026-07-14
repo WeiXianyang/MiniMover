@@ -1,6 +1,7 @@
 @echo off
 setlocal
-cd /d "E:\MiniMover"
+set "PROJECT_DIR=%~dp0"
+cd /d "%PROJECT_DIR%"
 
 echo ========================================
 echo   MiniMover Multi-Car Coordinator
@@ -15,8 +16,8 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist "multi_car_coordinator.py" (
-  echo [ERROR] Project file was not found: E:\MiniMover\multi_car_coordinator.py
+if not exist "%PROJECT_DIR%multi_car_coordinator.py" (
+  echo [ERROR] Project file was not found: %PROJECT_DIR%multi_car_coordinator.py
   pause
   exit /b 1
 )
@@ -26,7 +27,7 @@ for /f "tokens=5" %%P in ('netstat -ano ^| findstr ":8888" ^| findstr "LISTENING
 timeout /t 2 /nobreak >nul
 
 echo Starting coordinator...
-start "MiniMover Coordinator" /min python "E:\MiniMover\multi_car_coordinator.py"
+start "MiniMover Coordinator" /min python "%PROJECT_DIR%multi_car_coordinator.py"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline=(Get-Date).AddSeconds(15); do { Start-Sleep -Milliseconds 500; $ready=Get-NetTCPConnection -LocalPort 8888 -State Listen -ErrorAction SilentlyContinue } while (-not $ready -and (Get-Date) -lt $deadline); if (-not $ready) { exit 1 }"
 if errorlevel 1 (
