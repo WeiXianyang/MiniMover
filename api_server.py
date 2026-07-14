@@ -19,7 +19,6 @@ sensor = iCarSensorDriver()
 bot = Rosmaster(debug=False)
 bot.create_receive_threading()
 _bot_lock = threading.Lock()
-
 # 串口写锁 + 自动停止定时器（HTTP 和 TCP 控制共用）
 _move_lock = threading.Lock()
 _stop_timer = None
@@ -65,7 +64,6 @@ def get_status():
         'ip': ip
     }})
 
-<<<<<<< HEAD
 @app.route('/api/move', methods=['POST'])
 def move():
     data = request.json
@@ -74,41 +72,6 @@ def move():
     t = data.get('duration', 0.5)
     _execute_move(cmd, s, t)
     return jsonify({'code': 0, 'msg': f'{cmd} @ {s}%'})
-=======
-# 底盘访问锁 + 自动停止定时器管理（防止状态读取与运动命令并发抢串口）
-_stop_timer = None
-_stop_timer_lock = threading.Lock()
-
-@app.route('/api/move', methods=['POST'])
-def move():
-    global _stop_timer
-    data = request.json; cmd = data.get('cmd','stop')
-    s = min(data.get('speed',50),100); t = data.get('duration',0.5)
-    speed = s/100.0; vx=vy=vz=0
-    if cmd=='forward': vx=speed
-    elif cmd=='backward': vx=-speed
-    elif cmd=='left': vz=speed*3
-    elif cmd=='right': vz=-speed*3
-    elif cmd=='rotate_left': vz=speed*3
-    elif cmd=='rotate_right': vz=-speed*3
-    elif cmd=='left_shift': vy=speed
-    elif cmd=='right_shift': vy=-speed
-    with _stop_timer_lock:
-        if _stop_timer:
-            _stop_timer.cancel()
-            _stop_timer = None
-    with _bot_lock:
-        bot.set_car_motion(vx,vy,vz)
-    if cmd!='stop' and t>0:
-        def _delayed_stop():
-            with _bot_lock:
-                bot.set_car_motion(0,0,0)
-        timer = threading.Timer(t, _delayed_stop)
-        with _stop_timer_lock:
-            _stop_timer = timer
-        timer.start()
-    return jsonify({'code':0,'msg':f'{cmd} @ {s}%'})
->>>>>>> origin/main
 
 @app.route('/api/sensors')
 def get_sensors():
@@ -714,17 +677,13 @@ if __name__ == '__main__':
     ctrl_thread.start()
 
     sensor.start()
-<<<<<<< HEAD
     try:
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+        app.run(
+            host='0.0.0.0',
+            port=5000,
+            debug=False,
+            use_reloader=False,
+            threaded=True,
+        )
     finally:
         _control_running = False
-=======
-    app.run(
-        host='0.0.0.0',
-        port=5000,
-        debug=False,
-        use_reloader=False,
-        threaded=True,
-    )
->>>>>>> origin/main
