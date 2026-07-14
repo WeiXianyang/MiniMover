@@ -44,3 +44,13 @@ export const ALARM_TYPE_MAP: Record<AlarmType, { label: string; color: string; i
   suspected_smoke: { label: '疑似烟雾', color: 'accent', icon: 'cloud-smoke' },
   ai_unavailable: { label: 'AI 失效', color: 'warn', icon: 'bot-off' },
 };
+
+export interface HourlyStat {
+  hour: string;
+  count: number;
+}
+
+export interface VehicleStatusItem {
+  car_id: string;
+  last_seen: string;
+}

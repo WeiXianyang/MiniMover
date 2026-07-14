@@ -7,10 +7,43 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from 'recharts';
-import { MOCK_HOURLY_DATA } from '../../mock';
+import type { HourlyStat } from '../../types';
 
-export default function TrendChart() {
-  const data = MOCK_HOURLY_DATA;
+interface TrendChartProps {
+  data: HourlyStat[];
+  loading?: boolean;
+}
+
+export default function TrendChart({ data, loading }: TrendChartProps) {
+  if (loading) {
+    return (
+      <div className="panel p-4">
+        <div className="mb-3">
+          <h3 className="text-[15px] font-semibold text-text">24 小时趋势</h3>
+          <p className="text-[12px] text-muted-2">按小时聚合的告警数量</p>
+        </div>
+        <div className="h-[200px] flex items-center justify-center text-muted text-[13px]">
+          加载中...
+        </div>
+      </div>
+    );
+  }
+
+  const empty = data.length === 0 || data.every(d => d.count === 0);
+  if (empty) {
+    return (
+      <div className="panel p-4">
+        <div className="mb-3">
+          <h3 className="text-[15px] font-semibold text-text">24 小时趋势</h3>
+          <p className="text-[12px] text-muted-2">按小时聚合的告警数量</p>
+        </div>
+        <div className="h-[200px] flex items-center justify-center text-muted text-[13px]">
+          暂无数据
+        </div>
+      </div>
+    );
+  }
+
   const maxCount = Math.max(...data.map(d => d.count), 1);
 
   return (
@@ -34,6 +67,7 @@ export default function TrendChart() {
               axisLine={false}
               tickLine={false}
               tick={{ fill: '#667386', fontSize: 11 }}
+              allowDecimals={false}
             />
             <Tooltip
               contentStyle={{
