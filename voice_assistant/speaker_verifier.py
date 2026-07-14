@@ -1,4 +1,4 @@
-"""CAM++ speaker enrollment and verification for motion-command gating."""
+﻿"""CAM++ speaker enrollment and verification for motion-command gating."""
 
 import json
 import os
@@ -6,6 +6,7 @@ from pathlib import Path
 
 THRESHOLD = 0.38
 SAMPLE_RATE = 16000
+DEFAULT_MODEL = "damo/speech_campplus_sv_zh-cn_16k-common"
 
 
 def cosine_similarity(left, right):
@@ -35,7 +36,7 @@ class SpeakerVerifier:
             except ImportError as exc:
                 raise RuntimeError("speaker verification requires FunASR and CAM++ dependencies") from exc
             self._model = AutoModel(
-                model="iic/speech_campplus_sv_zh-cn_16k-common",
+                model=os.getenv("MINIMOVER_SPEAKER_MODEL", DEFAULT_MODEL),
                 disable_update=True,
                 disable_pbar=True,
             )
@@ -100,3 +101,5 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+

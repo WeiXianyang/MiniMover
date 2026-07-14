@@ -1,0 +1,39 @@
+block-beta
+    columns 6
+    block:frame:6
+        columns 6
+        header["0xA5"] value16["uint16 Value"] chk["Checksum"]
+        space node["Node ID"] type["Type"]
+    end
+    space:6
+    block:byte0:1
+        columns 1
+        b0["Byte 0\nHeader\n固定 0xA5"]
+    end
+    space
+    block:byte1:1
+        columns 1
+        b1["Byte 1\nNode ID\n0x01-0xFF"]
+    end
+    space
+    block:byte2:1
+        columns 1
+        b2["Byte 2\nType\n0x01-0x09"]
+    end
+    space
+    block:byte34:2
+        columns 2
+        b3["Byte 3\nValue[15:8]"]
+        b4["Byte 4\nValue[7:0]"]
+    end
+    space
+    block:byte5:1
+        columns 1
+        b5["Byte 5\nChecksum\n前5字节求和%256"]
+    end
+
+    frame --> byte0
+    frame --> byte1
+    frame --> byte2
+    frame --> byte34
+    frame --> byte5

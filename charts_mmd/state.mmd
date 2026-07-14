@@ -1,0 +1,39 @@
+stateDiagram-v2
+    [*] --> IDLE: 系统启动
+
+    IDLE --> DETECTING: 巡检开始
+    DETECTING --> IDLE: 巡检结束
+
+    DETECTING --> TRIGGERED: 置信度>=0.70<br/>2秒窗口>=5次
+    TRIGGERED --> DETECTING: 误触发<br/>auto_clear(10s)
+
+    TRIGGERED --> AI_REVIEWING: 触发AI复核
+    AI_REVIEWING --> FIRE_CONFIRMED: AI判定为火灾
+
+    AI_REVIEWING --> NO_FIRE: AI判定非火灾
+    NO_FIRE --> DETECTING: 复审间隔30s后恢复
+
+    AI_REVIEWING --> AI_FAILED: AI复核超时(30s)<br/>重试3次后失败
+    AI_FAILED --> MANUAL_PENDING: 转人工审核
+
+    FIRE_CONFIRMED --> ALARMING: 推送告警
+    ALARMING --> ALARMING: 每60s采集证据<br/>最多10张轮转
+
+    ALARMING --> MANUAL_CONFIRM: 人工确认火情
+    MANUAL_CONFIRM --> RESOLVED: 火情消除
+
+    ALARMING --> MANUAL_DISMISS: 人工解除误报
+    MANUAL_DISMISS --> IDLE: 重置状态
+
+    RESOLVED --> [*]: 事件归档
+
+    note right of TRIGGERED
+        临界区: 状态标记ALARMED
+        但上报可能失败 → 离线队列
+    end note
+
+    note right of AI_FAILED
+        Known Risk:
+        AI Worker无心跳监控
+        需人工兜底
+    end note

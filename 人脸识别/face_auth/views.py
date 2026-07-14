@@ -8,7 +8,8 @@ from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
-from .baidu_face import FACE_MATCH_THRESHOLD, match_face, register_faces_for_user, search_face
+from .baidu_face import FACE_MATCH_THRESHOLD, identify_person, match_face, register_faces_for_user
+from .identity_utils import resolve_display_name
 from .crypto import aes_decrypt_text, aes_encrypt_text
 from .models import UserProfile
 from .serializers import UserSerializer
@@ -142,38 +143,50 @@ def face_recognition(request):
     try:
         with open(temp_path, 'rb') as file:
             image_base64 = base64.b64encode(file.read()).decode('utf-8')
-        result, error = search_face(image_base64)
-        if error:
-            return Response({'msg': error}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        if result.get('error_code') != 0:
-            return Response({'msg': f"识别失败: {result.get('error_msg')}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        user_list = result.get('result', {}).get('user_list', [])
-        if not user_list:
-            return Response({'msg': '未识别到已知用户'}, status=status.HTTP_404_NOT_FOUND)
+        identified = identify_person(image_base64)
+        if not identified.get('ok'):
+            payload = {'msg': identified.get('msg', '识别失败')}
+            if identified.get('error_code') is not None:
+                payload['error_code'] = identified['error_code']
+            if identified.get('score') is not None:
+                payload['score'] = identified['score']
+            if identified.get('candidates'):
+                payload['candidates'] = identified['candidates']
+            status_code = status.HTTP_404_NOT_FOUND if identified.get('error_code') == 222207 else status.HTTP_400_BAD_REQUEST
+            return Response(payload, status=status_code)
 
-        top_user = user_list[0]
-        score = top_user.get('score')
-        if score < FACE_MATCH_THRESHOLD:
-            return Response({'msg': '无法确认身份，请靠近摄像头重试'}, status=status.HTTP_400_BAD_REQUEST)
-
-        user = UserProfile.objects.get(id=top_user.get('user_id'))
+        local_user = None
         try:
-            email = aes_decrypt_text(user.email)
-        except Exception:
-            email = user.email
-        request.session['username'] = user.username
+            local_user = UserProfile.objects.get(id=identified['user_id'])
+        except UserProfile.DoesNotExist:
+            local_user = None
+
+        identity = resolve_display_name(
+            identified,
+            local_username=local_user.username if local_user else None,
+        )
+        email = None
+        if local_user:
+            try:
+                email = aes_decrypt_text(local_user.email)
+            except Exception:
+                email = local_user.email
+            request.session['username'] = local_user.username
+
         return Response({
             'msg': '识别成功',
+            'identity': identity,
             'user': {
-                'id': user.id,
-                'username': user.username,
+                'id': identified['user_id'],
+                'username': identity,
                 'email': email,
-                'score': score,
+                'score': identified['score'],
+                'user_info': identified.get('user_info', ''),
+                'source': 'local_db' if local_user else 'baidu_cloud',
             },
+            'candidates': identified.get('candidates', []),
         })
-    except UserProfile.DoesNotExist:
-        return Response({'msg': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
     except Exception as exc:
         return Response({'msg': f'识别过程出错: {str(exc)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     finally:

@@ -1,0 +1,41 @@
+flowchart LR
+    subgraph 车端["小车端 (Jetson Orin Nano)"]
+        SENSOR["传感器层<br/>9种IoT传感器<br/>温湿烟PM2.5等"]
+        CAMERA["摄像头<br/>奥比中光<br/>深度相机"]
+        LIDAR["激光雷达<br/>RPLIDAR A1<br/>360°扫描"]
+        CHASSIS["底盘<br/>麦克纳姆轮<br/>AT32 MCU"]
+        MIC["麦克风<br/>语音输入"]
+
+        SENSOR_READER["sensor_reader<br/>串口解析<br/>6字节帧"]
+        FIRE_DETECT["detect.py<br/>YOLOv5<br/>烟火检测"]
+        AI_REVIEW["AI复核<br/>状态机<br/>二次确认"]
+        API_SERVER["api_server.py<br/>Flask REST<br/>主控服务"]
+        VOICE["voice_control<br/>ASR→LLM→TTS<br/>语音助手"]
+        NAV["navigation<br/>SLAM<br/>路径规划"]
+        APP_CAR["鸿蒙APP<br/>远程遥控"]
+
+        SENSOR -->|"/dev/ttyUSB2"| SENSOR_READER
+        CAMERA -->|"/dev/video0"| FIRE_DETECT
+        MIC --> VOICE
+        FIRE_DETECT -->|"检测结果"| AI_REVIEW
+        AI_REVIEW -->|"告警决策"| API_SERVER
+        SENSOR_READER -->|"环境数据"| API_SERVER
+        VOICE -->|"语音命令"| API_SERVER
+        NAV -->|"位姿/路径"| API_SERVER
+        APP_CAR -->|"TCP :6000"| API_SERVER
+        API_SERVER -->|"控制指令"| CHASSIS
+        LIDAR --> NAV
+    end
+
+    subgraph 云端["云平台 (8.140.28.233)"]
+        CLOUD_API["接收API<br/>gunicorn :8000<br/>Bearer Auth"]
+        MYSQL[("MySQL<br/>dev_fireguard<br/>告警+证据")]
+        REACT["React前端<br/>监控面板"]
+        NEO4J[("Neo4j<br/>RAG知识库<br/>文档检索")]
+
+        CLOUD_API --> MYSQL
+        MYSQL --> REACT
+        REACT --> NEO4J
+    end
+
+    API_SERVER -->|"HTTP POST /alarm<br/>离线outbox队列"| CLOUD_API
