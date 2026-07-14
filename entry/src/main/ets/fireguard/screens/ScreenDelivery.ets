@@ -9,7 +9,8 @@ import { FG } from '../Theme'
 import { FgPageHead, FgCard, FgRow, FgBar, FgButton, FgStatus, FgBtnType, FgRecommend } from '../Widgets'
 import { FgTab } from '../Tabs'
 import { restApiClient } from '../../tcp/RestApiClient'
-import { PatrolStatus, PatrolRoute, NavStackStatus, Waypoint, LinkedWaypoint, RouteNameItem } from '../../tcp/NavModels'
+import { PatrolStatus, PatrolRoute, NavStackStatus, Waypoint, LinkedWaypoint, RouteNameItem, NavMapMeta } from '../../tcp/NavModels'
+import { PRESET_POINTS, PresetPoint, pointsToPresets, mergePresets, PixelPoint, MapPixel } from '../../CarUtill/PatrolPresets'
 
 @Component
 export struct ScreenDelivery {
@@ -29,15 +30,23 @@ export struct ScreenDelivery {
   /** 自选路线途经点列表 */
   @State customPoints: LinkedWaypoint[] = []
 
-  /** 预设固定巡检点（坐标按实际地图调整，当前用示例值） */
-  private presetPoints: LinkedWaypoint[] = [
-    { x: -1.5, y: 3.2, label: '配电柜 A' },
-    { x: 2.0, y: -1.0, label: '配电柜 B' },
-    { x: -3.0, y: -0.5, label: '仓储通道' },
-    { x: 1.5, y: 2.0, label: '消防器材点' },
-    { x: 0.0, y: 0.0, label: '充电待命点' },
-    { x: -2.0, y: 1.5, label: '应急物资点 D' },
-  ]
+  /** 预设可选点（用户可编辑的静态预设 + 车端路线途经点合并去重） */
+  @State presetPoints: PresetPoint[] = PRESET_POINTS
+
+  /** 用户可编辑的静态预设点基准（编辑写入这里，refresh 以它为合并基准，不被静态常量覆盖） */
+  @State editablePresets: PresetPoint[] = PRESET_POINTS.map((p: PresetPoint): PresetPoint =>
+    ({ x: p.x, y: p.y, label: p.label, source: p.source }))
+
+  // ---- 编辑预设点 ----
+  @State editing: boolean = false
+  @State editX: string = ''
+  @State editY: string = ''
+  @State editLabel: string = ''
+  @State editIdx: number = -1
+
+  // ---- 地图预览 ----
+  @State mapMeta: NavMapMeta | null = null
+  @State mapUrl: string = ''
 
   private pollTimer: number = -1
 
@@ -54,15 +63,35 @@ export struct ScreenDelivery {
   }
 
   private async refreshAll(): Promise<void> {
+    // 核心状态：拉完就立即解除 loading，避免后续可选请求超时把页面卡在"正在连接"
     const ps: PatrolStatus | null = await restApiClient.getPatrolStatus()
-    const pr: PatrolRoute | null = await restApiClient.getPatrolRoute()
     const ss: NavStackStatus | null = await restApiClient.getStackStatus()
-    const sr: RouteNameItem[] = await restApiClient.getPatrolRoutes()
     this.patrolStatus = ps
-    this.patrolRoute = pr
     this.stackStatus = ss
-    this.savedRoutes = sr
     this.loading = false
+
+    // 以下为可选数据，失败不影响页面展示
+    const pr: PatrolRoute | null = await restApiClient.getPatrolRoute()
+    const sr: RouteNameItem[] = await restApiClient.getPatrolRoutes()
+    this.patrolRoute = pr
+    this.savedRoutes = sr
+
+    // 从车端已保存路线中提取途经点，与"用户可编辑的预设点"合并去重
+    const routeLists: PresetPoint[][] = [this.editablePresets]
+    for (let i = 0; i < sr.length; i++) {
+      const detail: PatrolRoute | null = await restApiClient.getPatrolRouteDetail(sr[i].name)
+      if (detail !== null && detail.points.length > 0) {
+        routeLists.push(pointsToPresets(detail.points, sr[i].name))
+      }
+    }
+    this.presetPoints = mergePresets(...routeLists)
+
+    // 拉取地图元数据 + 图片（用于路线预览坐标换算）
+    const meta: NavMapMeta | null = await restApiClient.getNavMapMeta()
+    if (meta !== null) {
+      this.mapMeta = meta
+      this.mapUrl = restApiClient.getNavMapImageUrl()
+    }
   }
 
   private labelForStatus(s: PatrolStatus | null): string {
@@ -92,6 +121,11 @@ export struct ScreenDelivery {
         }
       } else {
         this.buildReady()
+      }
+
+      // 编辑弹窗浮层
+      if (this.editing) {
+        this.editDialog()
       }
     }
     .width('100%')
@@ -171,10 +205,10 @@ export struct ScreenDelivery {
 
       // 可选点网格（2 列）
       Grid() {
-        ForEach(this.presetPoints, (p: LinkedWaypoint) => {
+        ForEach(this.presetPoints, (p: PresetPoint) => {
           GridItem() {
             Column() {
-              Text(p.label)
+              Text(p.source === 'route' ? `🛣 ${p.label}` : p.label)
                 .fontSize(FG.bodySize)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(FG.text)
@@ -189,10 +223,21 @@ export struct ScreenDelivery {
             .alignItems(HorizontalAlign.Center)
             .borderRadius(8)
             .border({ width: 1, color: FG.line })
-            .backgroundColor(FG.btnDefault)
-            .onClick(() => { this.addCustomPoint(p) })
+            .backgroundColor(p.source === 'route' ? '#1a2a3a' : FG.btnDefault)
+            .gesture(
+              GestureGroup(GestureMode.Exclusive,
+                LongPressGesture({ repeat: false })
+                  .onAction(() => {
+                    const fi: number = this.presetPoints.findIndex((pt: PresetPoint) => pt.label === p.label
+                      && Math.abs(pt.x - p.x) < 0.01 && Math.abs(pt.y - p.y) < 0.01)
+                    if (fi >= 0) { this.openEdit(fi) }
+                  }),
+                TapGesture()
+                  .onAction(() => { this.addCustomPoint(p) })
+              )
+            )
           }
-        }, (p: LinkedWaypoint) => p.label)
+        }, (p: PresetPoint) => p.label)
       }
       .columnsTemplate('1fr 1fr')
       .rowsGap(6)
@@ -209,6 +254,11 @@ export struct ScreenDelivery {
             .fontWeight(FontWeight.Bold)
             .fontColor(FG.orange)
             .margin({ bottom: 6 })
+
+          // 路线预览：地图 + 点 + 有向箭头
+          if (this.mapUrl.length > 0 && this.mapMeta !== null) {
+            this.routePreview()
+          }
 
           ForEach(this.customPoints, (p: LinkedWaypoint, idx: number) => {
             Row() {
@@ -365,9 +415,258 @@ export struct ScreenDelivery {
     .alignItems(HorizontalAlign.Start)
   }
 
+  /** 路线预览：地图为底，叠加途经点圆点和有向箭头 */
+  @Builder
+  routePreview() {
+    Stack() {
+      if (this.mapUrl.length > 0) {
+        Image(this.mapUrl)
+          .width('100%')
+          .height(120)
+          .objectFit(ImageFit.Contain)
+          .borderRadius(6)
+          .brightness(0.7)
+      }
+
+      this.routeDots()
+    }
+    .width('100%')
+    .height(120)
+    .borderRadius(8)
+    .clip(true)
+    .backgroundColor('#0a1622')
+    .margin({ top: 6, bottom: 10 })
+  }
+
+  @Builder
+  routeDots() {
+    ForEach(this.routePixels(), (it: MapPixel, idx: number) => {
+      this.waypointDot(it.x, it.y, idx + 1, idx === this.customPoints.length - 1)
+      if (it.nextX >= 0 && it.nextY >= 0) {
+        this.routeArrow(it.x, it.y, it.nextX, it.nextY)
+      }
+    }, (it: MapPixel) => `${it.x}_${it.y}`)
+  }
+
+  @Builder
+  waypointDot(x: number, y: number, num: number, isLast: boolean) {
+    Row() {
+      Column() {
+        Text(`${num}`)
+          .fontSize(9)
+          .fontColor('#fff')
+          .fontWeight(FontWeight.Bold)
+      }
+      .width(18)
+      .height(18)
+      .borderRadius(9)
+      .backgroundColor(isLast ? FG.orange : FG.cyan)
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+    }
+    .width(18)
+    .height(18)
+    .position({ x: x - 9, y: y - 9 })
+  }
+
+  @Builder
+  routeArrow(x1: number, y1: number, x2: number, y2: number) {
+    // 箭头线段
+    Line()
+      .width(Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1)))
+      .height(1.5)
+      .stroke('rgba(255, 151, 72, 0.7)').strokeWidth(2)
+      .position({ x: x1, y: y1 - 1 })
+      .rotate({
+        angle: Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI)
+      })
+      
+    // 箭头尖端三角
+    Line()
+      .width(8)
+      .height(0)
+      .stroke('rgba(255, 151, 72, 0.9)').strokeWidth(2)
+      .position({ x: x2 - 4, y: y2 - 2 })
+      .rotate({
+        angle: Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI) - 30
+      })
+          Line()
+      .width(8)
+      .height(0)
+      .stroke('rgba(255, 151, 72, 0.9)').strokeWidth(2)
+      .position({ x: x2 - 4, y: y2 })
+      .rotate({
+        angle: Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI) + 30
+      })
+        }
+
+  // ---- 编辑弹窗 ----
+  @Builder
+  editDialog() {
+    Column() {
+      Column() {
+        Text('编辑预设点')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(FG.text)
+          .margin({ bottom: 12 })
+
+        TextInput({ text: this.editLabel, placeholder: '名称' })
+          .fontSize(FG.bodySize).fontColor(FG.text)
+          .height(40).width('100%')
+          .padding({ left: 12, right: 12 })
+          .borderRadius(8).border({ width: 1, color: FG.inputBorder })
+          .backgroundColor(FG.inputBg)
+          .onChange((v: string) => { this.editLabel = v })
+          .margin({ bottom: 8 })
+
+        Row({ space: 8 }) {
+          TextInput({ text: this.editX, placeholder: 'X 坐标' })
+            .fontSize(FG.bodySize).fontColor(FG.text)
+            .height(40).width('100%')
+            .padding({ left: 12, right: 12 })
+            .borderRadius(8).border({ width: 1, color: FG.inputBorder })
+            .backgroundColor(FG.inputBg)
+            .onChange((v: string) => { this.editX = v })
+          TextInput({ text: this.editY, placeholder: 'Y 坐标' })
+            .fontSize(FG.bodySize).fontColor(FG.text)
+            .height(40).width('100%')
+            .padding({ left: 12, right: 12 })
+            .borderRadius(8).border({ width: 1, color: FG.inputBorder })
+            .backgroundColor(FG.inputBg)
+            .onChange((v: string) => { this.editY = v })
+        }
+        .width('100%')
+        .margin({ bottom: 16 })
+
+        Row() {
+          Row() {
+            Text('取消').fontSize(FG.bodySize).fontWeight(FontWeight.Bold).fontColor(FG.text)
+          }
+          .layoutWeight(1).height(42).justifyContent(FlexAlign.Center)
+          .borderRadius(FG.btnRadius).backgroundColor(FG.btnDefault)
+          .margin({ right: 5 })
+          .onClick(() => { this.editing = false })
+
+          Row() {
+            Text('保存').fontSize(FG.bodySize).fontWeight(FontWeight.Bold).fontColor('#10151d')
+          }
+          .layoutWeight(1).height(42).justifyContent(FlexAlign.Center)
+          .borderRadius(FG.btnRadius).backgroundColor(FG.orange)
+          .margin({ left: 5 })
+          .onClick(() => { this.saveEdit() })
+        }
+        .width('100%')
+      }
+      .width(300).padding(20)
+      .borderRadius(FG.cardRadius)
+      .border({ width: 1, color: FG.line })
+      .backgroundColor('#101927')
+    }
+    .width('100%').height('100%')
+    .justifyContent(FlexAlign.Center).alignItems(HorizontalAlign.Center)
+    .backgroundColor('rgba(0, 0, 0, 0.5)')
+  }
+
+  // ---- 坐标换算 ----
+
+  /** 返回所有途经点的像素坐标（含下一点的箭头终点），供 routeDots @Builder 直接遍历 */
+  private routePixels(): MapPixel[] {
+    const result: MapPixel[] = []
+    for (let i = 0; i < this.customPoints.length; i++) {
+      const p: LinkedWaypoint = this.customPoints[i]
+      const pos: PixelPoint = this.worldToPixelSafe(p.x, p.y)
+      const item: MapPixel = { x: pos.x, y: pos.y, nextX: -1, nextY: -1 }
+      if (i < this.customPoints.length - 1) {
+        const n: PixelPoint = this.worldToPixelSafe(this.customPoints[i + 1].x, this.customPoints[i + 1].y)
+        item.nextX = n.x
+        item.nextY = n.y
+      }
+      result.push(item)
+    }
+    return result
+  }
+
+  private worldToPixelSafe(wx: number, wy: number): PixelPoint {
+    const p: PixelPoint | null = this.worldToPixel(wx, wy)
+    return p !== null ? p : { x: 0, y: 0 }
+  }
+
+  private worldToPixel(wx: number, wy: number): PixelPoint | null {
+    if (this.mapMeta === null) return null
+    const m = this.mapMeta
+    const areaH: number = 120 // 预览区高度
+    // 图片按宽充满，按 aspect 居中：实际图片高度 = 宽 / w * h
+    const px: number = (wx - m.origin[0]) / m.resolution
+    const pyBot: number = (wy - m.origin[1]) / m.resolution // 从底部算的像素行
+    const imgX: number = (px / m.width) * 300 // 约等于页面可用宽
+    const imgH: number = (m.height / m.width) * 300 // 按比例算出图片显示高度
+    const imgY: number = areaH - (pyBot / m.height) * imgH - (areaH - imgH) / 2
+    return { x: imgX, y: imgY }
+  }
+
+  /** 长按预设点 → 打开编辑弹窗 */
+  private openEdit(idx: number): void {
+    const p: PresetPoint = this.presetPoints[idx]
+    this.editIdx = idx
+    this.editLabel = p.label
+    this.editX = p.x.toFixed(2)
+    this.editY = p.y.toFixed(2)
+    this.editing = true
+  }
+
+  private saveEdit(): void {
+    const nx: number = parseFloat(this.editX)
+    const ny: number = parseFloat(this.editY)
+    if (isNaN(nx) || isNaN(ny)) {
+      promptAction.showToast({ message: '坐标格式无效' })
+      return
+    }
+    if (this.editIdx < 0) {
+      this.editing = false
+      return
+    }
+    // 找到被编辑的点（按当前显示的 presetPoints 定位）
+    const target: PresetPoint = this.presetPoints[this.editIdx]
+    // 只允许编辑静态预设点（source==static），车端路由点不改
+    if (target.source !== 'static') {
+      promptAction.showToast({ message: '车端路线点不可编辑' })
+      this.editing = false
+      return
+    }
+    const newLabel: string = this.editLabel.length > 0 ? this.editLabel : target.label
+
+    // 写入可编辑基准 editablePresets（按 label 匹配原始点）
+    const base: PresetPoint[] = []
+    for (let i = 0; i < this.editablePresets.length; i++) {
+      const ep: PresetPoint = this.editablePresets[i]
+      if (ep.label === target.label && Math.abs(ep.x - target.x) < 0.01 && Math.abs(ep.y - target.y) < 0.01) {
+        base.push({ x: nx, y: ny, label: newLabel, source: 'static' })
+      } else {
+        base.push(ep)
+      }
+    }
+    this.editablePresets = base
+
+    // 同步更新当前显示列表
+    const disp: PresetPoint[] = []
+    for (let i = 0; i < this.presetPoints.length; i++) {
+      if (i === this.editIdx) {
+        disp.push({ x: nx, y: ny, label: newLabel, source: 'static' })
+      } else {
+        disp.push(this.presetPoints[i])
+      }
+    }
+    this.presetPoints = disp
+
+    this.editing = false
+    promptAction.showToast({ message: '预设点已更新（本次会话有效）' })
+  }
+
   /** 自选：添加预设点到路线 */
-  private addCustomPoint(p: LinkedWaypoint): void {
-    this.customPoints = this.customPoints.concat([p])
+  private addCustomPoint(p: PresetPoint): void {
+    const lp: LinkedWaypoint = { x: p.x, y: p.y, label: p.label }
+    this.customPoints = this.customPoints.concat([lp])
     this.selectedRoute = ''  // 自选模式下清除已保存路线的选中态
   }
 

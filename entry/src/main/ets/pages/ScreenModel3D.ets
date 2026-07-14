@@ -121,6 +121,9 @@ struct ScreenModel3D {
           .backgroundColor('#0a1622')
           .javaScriptAccess(true)
           .domStorageAccess(true)
+          .fileAccess(true)          // 允许加载 rawfile 同级的 three.js / car.glb
+          .imageAccess(true)
+          .onlineImageAccess(true)
           .javaScriptProxy({
             object: {
               onPart: (id: string): void => { this.onPartSelected(id) },

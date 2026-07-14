@@ -112,7 +112,7 @@ export struct ScreenHome {
           text: '开始巡检',
           type: FgBtnType.Primary,
           onTap: () => {
-            router.pushUrl({ url: 'pages/ScreenMapNav' })
+            this.gotoTab(FgTab.Delivery)
           }
         })
 
