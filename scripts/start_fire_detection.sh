@@ -46,13 +46,47 @@ fi
 mkdir -p "$DEBUG_DIR"
 echo "  [OK] Debug dir: $SCRIPT_DIR/$DEBUG_DIR"
 
-# 3. Check model file
+# 3. Check model file and recover from Git LFS pointer if needed
 MODEL_FILE="fire_smoke_detection/model/best.pt"
+MODEL_EXPECTED_SHA256="d1eae6859229ac1f5699c60f9445fa054dafc6a2cc59f00fc30ea6379dc3247e"
 if [ ! -f "$MODEL_FILE" ]; then
     echo "  [ERROR] Model not found: $MODEL_FILE"
+    echo "  Run: git lfs pull --include='$MODEL_FILE'"
     exit 1
 fi
-echo "  [OK] Model: $MODEL_FILE"
+
+# Check for Git LFS pointer (136-byte pointer file instead of real model)
+LFS_HEADER=$(head -c 50 "$MODEL_FILE" 2>/dev/null)
+if echo "$LFS_HEADER" | grep -q "git-lfs.github.com"; then
+    echo "  [WARN] Model file is a Git LFS pointer (size=$(stat -c%s "$MODEL_FILE" 2>/dev/null || echo '?') bytes)"
+    echo "  [INFO] Attempting git lfs pull to download real model..."
+    if command -v git &>/dev/null && git lfs version &>/dev/null; then
+        git lfs pull --include="$MODEL_FILE" 2>&1
+        if [ $? -ne 0 ] || head -c 50 "$MODEL_FILE" 2>/dev/null | grep -q "git-lfs.github.com"; then
+            echo "  [ERROR] git lfs pull failed or file is still a pointer."
+            echo "  Manual fix: cd $(pwd) && git lfs pull --include='$MODEL_FILE'"
+            exit 1
+        fi
+        echo "  [OK] Model downloaded via git lfs pull"
+    else
+        echo "  [ERROR] git-lfs not available on this system."
+        echo "  Install: sudo apt install git-lfs  (or copy model manually)"
+        exit 1
+    fi
+fi
+
+# Verify SHA256 if possible
+if command -v sha256sum &>/dev/null; then
+    ACTUAL_SHA=$(sha256sum "$MODEL_FILE" | cut -d' ' -f1)
+    if [ "$ACTUAL_SHA" != "$MODEL_EXPECTED_SHA256" ]; then
+        echo "  [ERROR] Model SHA256 mismatch!"
+        echo "    Expected: $MODEL_EXPECTED_SHA256"
+        echo "    Actual:   $ACTUAL_SHA"
+        exit 1
+    fi
+    echo "  [OK] SHA256 verified"
+fi
+echo "  [OK] Model: $MODEL_FILE ($(stat -c%s "$MODEL_FILE" 2>/dev/null || echo '?') bytes)"
 
 # 4. Start detection process
 ROS_STREAM="http://localhost:8080/stream?topic=/camera/color/image_raw"
