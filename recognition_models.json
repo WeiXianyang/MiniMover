@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "inference_location": "PC",
+  "video_sources": {
+    "car_A": "http://192.168.137.23:8080/stream?topic=/camera/color/image_raw",
+    "car_B": "http://192.168.137.254:8080/stream?topic=/camera/color/image_raw"
+  },
+  "models": {
+    "fire_smoke": {
+      "delivery": "git_lfs",
+      "path": "fire_smoke_detection/model/best.pt",
+      "size": 14758954,
+      "sha256": "d1eae6859229ac1f5699c60f9445fa054dafc6a2cc59f00fc30ea6379dc3247e",
+      "download_command": "git lfs pull --include=fire_smoke_detection/model/best.pt"
+    },
+    "traffic_light_yolo": {
+      "delivery": "external_download",
+      "runtime_path": "traffic_light/Traffic-Light-Detection-Using-YOLOv3",
+      "runtime_repository": "https://github.com/sovit-123/Traffic-Light-Detection-Using-YOLOv3.git",
+      "runtime_revision": "e04e11a",
+      "path": "traffic_light/Traffic-Light-Detection-Using-YOLOv3/weights/best_model_12.pt",
+      "size": 250783600,
+      "sha256": "84c4e835281e6d06c65623e3ac86a18215aa307e1d48a2816c078dab209ad27f",
+      "download_url": "https://drive.google.com/drive/folders/1nGRGqw5KP6js9UbXDL5G99j_jYdKgdXl?usp=sharing",
+      "license": "GPL-3.0"
+    },
+    "license_plate_hyperlpr": {
+      "delivery": "external_repository",
+      "runtime_path": "traffic_light/lp-HyperLPR",
+      "repository": "https://gitee.com/zeusees/HyperLPR.git",
+      "mirror": "https://github.com/zeusees/HyperLPR.git",
+      "revision": "aa70e2f",
+      "license": "Apache-2.0",
+      "files": {
+        "model/cascade.xml": {
+          "size": 356611,
+          "sha256": "336553ff5e50d5d1c0ad2be69f46f042f5557a8525d0a8d9c1beb9a70dd5d90e"
+        },
+        "model/cascade_lbp.xml": {
+          "size": 30525,
+          "sha256": "fb8df7c00319dcda8d7d922d5bc4ac592ece8215e119020f8f14ebe1659c7286"
+        },
+        "model/char_chi_sim.h5": {
+          "size": 2307544,
+          "sha256": "066733f2525c174a2592c309544723ced3299158d3f309a75cc86a9b660c9f12"
+        },
+        "model/char_judgement.h5": {
+          "size": 301912,
+          "sha256": "eec1b9535ee5bb320da2e513987f225787c6a67c84d49daf4d174099f4799463"
+        },
+        "model/char_judgement1.h5": {
+          "size": 39960,
+          "sha256": "1b43b7d48a3166df91ec5e12d56676e17e551e4d607cffcf7232466071a34c36"
+        },
+        "model/char_rec.h5": {
+          "size": 1851744,
+          "sha256": "84310bcac6306bbbf2b8512514992e18a090af36ef7dd6a6974d8e4b436bf8ae"
+        },
+        "model/model12.h5": {
+          "size": 70656,
+          "sha256": "60fd2045581437ea02f0b0da25b795644219bb19f1484410723c6751eaf27e57"
+        },
+        "model/ocr_plate_all_gru.h5": {
+          "size": 16729888,
+          "sha256": "5e20d3b7ab2536341c96626082768d2b98b722d92a5de66e043373abf7ff4afa"
+        },
+        "model/ocr_plate_all_w_rnn_2.h5": {
+          "size": 15281736,
+          "sha256": "554a8679e074f623a8059e56a1b417d904cb8c7a9387d090f5ef1d4229363c12"
+        },
+        "model/plate_type.h5": {
+          "size": 161000,
+          "sha256": "86d37ec24be21b2129bb4b18a73fb432a164160f621134f0f3c06f6a7d3b4cfa"
+        }
+      }
+    }
+  }
+}
