@@ -5,6 +5,7 @@
  */
 import http from '@ohos.net.http'
 import { CarStatus, SensorData, MapMeta, RecordStatus } from './CarModels'
+import { NavStackStatus, PatrolStatus, PatrolRoute, NavMapMeta, Waypoint, RouteNameItem } from './NavModels'
 
 /** 通用响应包络 */
 interface ApiEnvelope {
@@ -126,20 +127,122 @@ class RestApiClient {
       .then((data: object | null) => data !== null)
   }
 
-  /* ---------------- 地图导航 ---------------- */
+  /* ---------------- 导航 / 定点配送（/api/nav/） ---------------- */
 
-  /** GET /api/map — 地图元数据 */
+  /** GET /api/nav/map — 导航地图元数据 */
+  async getNavMapMeta(): Promise<NavMapMeta | null> {
+    const data: object | null = await this.requestJson('/api/nav/map', http.RequestMethod.GET)
+    return data === null ? null : data as NavMapMeta
+  }
+
+  /** 导航地图图片 URL */
+  getNavMapImageUrl(): string {
+    return `${this.baseUrl}/api/nav/map/image`
+  }
+
+  /** POST /api/nav/coord/pixel_to_map — 像素→世界坐标转换 */
+  async pixelToWorld(sx: number, sy: number, dw: number, dh: number): Promise<Waypoint | null> {
+    const body: string = JSON.stringify({ screen_x: sx, screen_y: sy, display_width: dw, display_height: dh })
+    const data: object | null = await this.requestJson('/api/nav/coord/pixel_to_map', http.RequestMethod.POST, body)
+    return data === null ? null : data as Waypoint
+  }
+
+  /** GET /api/nav/stack/status — 导航栈状态 */
+  async getStackStatus(): Promise<NavStackStatus | null> {
+    const data: object | null = await this.requestJson('/api/nav/stack/status', http.RequestMethod.GET)
+    return data === null ? null : data as NavStackStatus
+  }
+
+  /** POST /api/nav/stack/start — 启动导航栈 */
+  startStack(): Promise<boolean> {
+    return this.requestJson('/api/nav/stack/start', http.RequestMethod.POST, '{}')
+      .then((data: object | null) => data !== null)
+  }
+
+  /** POST /api/nav/stack/stop — 关闭导航栈 */
+  stopStack(): Promise<boolean> {
+    return this.requestJson('/api/nav/stack/stop', http.RequestMethod.POST, '{}')
+      .then((data: object | null) => data !== null)
+  }
+
+  /** POST /api/nav/initial_pose — 设置初始位姿 */
+  sendInitialPose(x: number, y: number, yaw: number): Promise<boolean> {
+    const body: string = JSON.stringify({ x: x, y: y, yaw: yaw })
+    return this.requestJson('/api/nav/initial_pose', http.RequestMethod.POST, body)
+      .then((data: object | null) => data !== null)
+  }
+
+  /** GET /api/nav/patrol/route — 获取当前巡逻路线 */
+  async getPatrolRoute(): Promise<PatrolRoute | null> {
+    const data: object | null = await this.requestJson('/api/nav/patrol/route', http.RequestMethod.GET)
+    return data === null ? null : data as PatrolRoute
+  }
+
+  /** POST /api/nav/patrol/route — 设置巡逻路线 */
+  setPatrolRoute(points: Waypoint[]): Promise<boolean> {
+    const body: string = JSON.stringify({ points: points })
+    return this.requestJson('/api/nav/patrol/route', http.RequestMethod.POST, body)
+      .then((data: object | null) => data !== null)
+  }
+
+  /** POST /api/nav/patrol/start — 开始巡逻 */
+  startPatrol(): Promise<boolean> {
+    return this.requestJson('/api/nav/patrol/start', http.RequestMethod.POST, '{}')
+      .then((data: object | null) => data !== null)
+  }
+
+  /** POST /api/nav/patrol/stop — 停止巡逻 */
+  stopPatrol(): Promise<boolean> {
+    return this.requestJson('/api/nav/patrol/stop', http.RequestMethod.POST, '{}')
+      .then((data: object | null) => data !== null)
+  }
+
+  /** POST /api/nav/patrol/clear — 清除巡逻路线 */
+  clearPatrol(): Promise<boolean> {
+    return this.requestJson('/api/nav/patrol/clear', http.RequestMethod.POST, '{}')
+      .then((data: object | null) => data !== null)
+  }
+
+  /** GET /api/nav/patrol/status — 巡逻运行状态 */
+  async getPatrolStatus(): Promise<PatrolStatus | null> {
+    const data: object | null = await this.requestJson('/api/nav/patrol/status', http.RequestMethod.GET)
+    return data === null ? null : data as PatrolStatus
+  }
+
+  /** POST /api/nav/patrol/loop — 设置巡逻循环模式 */
+  setPatrolLoop(loop: boolean): Promise<boolean> {
+    const body: string = JSON.stringify({ loop: loop })
+    return this.requestJson('/api/nav/patrol/loop', http.RequestMethod.POST, body)
+      .then((data: object | null) => data !== null)
+  }
+
+  /** GET /api/nav/patrol/routes — 已保存路线名称列表 */
+  async getPatrolRoutes(): Promise<RouteNameItem[]> {
+    const data: object | null = await this.requestJson('/api/nav/patrol/routes', http.RequestMethod.GET)
+    if (data === null) return []
+    // API 返回 {code:0, data: [{name:"campus"},{name:"warehouse"}]}
+    return data as RouteNameItem[]
+  }
+
+  /** GET /api/nav/patrol/routes/<name> — 获取已保存路线详情（含 points） */
+  async getPatrolRouteDetail(name: string): Promise<PatrolRoute | null> {
+    const data: object | null = await this.requestJson(`/api/nav/patrol/routes/${name}`, http.RequestMethod.GET)
+    return data === null ? null : data as PatrolRoute
+  }
+
+  // ---- 兼容旧版端点（/api/map, /api/map_image, /api/navigate）----
+  /** GET /api/map — 地图元数据（兼容旧版） */
   async getMapMeta(): Promise<MapMeta | null> {
     const data: object | null = await this.requestJson('/api/map', http.RequestMethod.GET)
     return data === null ? null : data as MapMeta
   }
 
-  /** 地图图片 URL（image/jpeg，直接给 Image 组件用） */
+  /** 地图图片 URL（兼容旧版） */
   getMapImageUrl(): string {
     return `${this.baseUrl}/api/map_image`
   }
 
-  /** POST /api/navigate — 发送导航目标点 */
+  /** POST /api/navigate — 发送导航目标点（兼容旧版） */
   sendNavigate(x: number, y: number, theta: number): Promise<boolean> {
     const body: string = JSON.stringify({ x: x, y: y, theta: theta })
     return this.requestJson('/api/navigate', http.RequestMethod.POST, body)

@@ -49,19 +49,27 @@ export struct ScreenAlert {
     return FgStatus.Green
   }
 
-  /** ISO 时间截断到分钟 */
+  /** ISO 时间截断到分钟（容错 null） */
   private fmtTime(iso: string): string {
+    if (iso === null || iso === undefined || iso.length === 0) {
+      return '--'
+    }
     if (iso.length >= 16) {
       return iso.substring(0, 16).replace('T', ' ')
     }
     return iso
   }
 
+  /** 安全取字符串，null/undefined 返回占位 */
+  private safeStr(s: string): string {
+    return (s !== null && s !== undefined && s.length > 0) ? s : '--'
+  }
+
   build() {
     Column() {
       FgPageHead({
         title: '告警详情',
-        subtitle: this.alarm !== null ? `${this.alarm.car_id} · ${this.typeLabel(this.alarm.alarm_type)}` : '云平台火情告警',
+        subtitle: this.alarm !== null ? `${this.safeStr(this.alarm.car_id)} · ${this.typeLabel(this.alarm.alarm_type)}` : '云平台火情告警',
         pillText: this.alarm !== null ? this.typeLabel(this.alarm.alarm_type) : (this.loading ? '加载中' : '暂无告警'),
         pillStatus: this.alarm !== null ? this.typeStatus(this.alarm.alarm_type) : FgStatus.Green
       })
@@ -108,18 +116,23 @@ export struct ScreenAlert {
 
     FgCard() {
       FgRow({ label: '识别类型', value: this.typeLabel(a.alarm_type) })
-      FgRow({ label: '命中类别', value: a.detection_classes.length > 0 ? a.detection_classes : '--' })
+      FgRow({
+        label: '命中类别',
+        value: (a.detection_classes !== null && a.detection_classes !== undefined && a.detection_classes.length > 0)
+          ? a.detection_classes : '--'
+      })
       FgRow({
         label: '置信度',
-        value: a.confidence !== null && a.confidence !== undefined ? `${Math.round(a.confidence * 100)}%` : '--'
+        value: (a.confidence !== null && a.confidence !== undefined) ? `${Math.round(a.confidence * 100)}%` : '--'
       })
       FgRow({ label: '发生时间', value: this.fmtTime(a.occurred_at) })
-      FgRow({ label: '车辆', value: a.car_id, showBorder: false })
+      FgRow({ label: '车辆', value: this.safeStr(a.car_id), showBorder: false })
     }
 
     FgRecommend({
       label: '处置建议',
-      title: a.reason !== null && a.reason.length > 0 ? a.reason : '请派发定点配送并通知现场人员确认。'
+      title: (a.reason !== null && a.reason !== undefined && a.reason.length > 0)
+        ? a.reason : '请派发定点配送并通知现场人员确认。'
     })
 
     Column({ space: 10 }) {

@@ -122,6 +122,13 @@ export struct ScreenHome {
             router.pushUrl({ url: 'pages/ScreenManualLandscape' })
           }
         })
+
+        FgButton({
+          text: '查看 3D 车模',
+          onTap: () => {
+            router.pushUrl({ url: 'pages/ScreenModel3D' })
+          }
+        })
       }
       .width('100%')
       .margin({ top: 10 })

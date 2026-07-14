@@ -30,12 +30,14 @@ function speedFromOffset(dx: number, dy: number, maxR: number): number {
 
 /** REST 轮询方向字符串映射 */
 function restDirCmd(d: CarDirection): string {
-  // 对齐《小车端功能对接文档》/api/move：forward/backward/left/right/left_shift/right_shift/stop
+  // 摇杆语境：水平拖拽 → 转向（left/right，对应服务端 vz=±speed*3），
+  // 竖拖 → 前进/后退（forward/backward，对应 vx），与服务端 D-pad 网页行为一致。
+  // 不同于 CarApi.ets 的 directionToRestCmd（那里 Left=平移 left_shift，给按钮控件用的）。
   switch (d) {
     case CarDirection.Front: return 'forward'
     case CarDirection.After: return 'backward'
-    case CarDirection.Left: return 'left_shift'
-    case CarDirection.Right: return 'right_shift'
+    case CarDirection.Left: return 'left'     // 摇杆横拖 = 转向
+    case CarDirection.Right: return 'right'    // 摇杆横拖 = 转向
     case CarDirection.LeftRotate: return 'left'
     case CarDirection.RightRotate: return 'right'
     default: return 'stop'
@@ -199,10 +201,10 @@ export struct ManualViewJoystick {
     .width(140)
     .height(62)
     .gesture(
-      PanGesture({ direction: PanDirection.Horizontal })
+      PanGesture({ direction: PanDirection.All, distance: 1 })
         .onActionUpdate((event: GestureEvent) => {
+          // 只取水平分量，放开方向限制避免手指纵移导致手势拒识
           this.knobX = Math.max(-this.maxDx, Math.min(this.maxDx, event.offsetX))
-          // 视角摇杆当前仅输出调试日志
         })
         .onActionEnd(() => {
           this.knobX = 0

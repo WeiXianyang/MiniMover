@@ -29,8 +29,14 @@ struct MainConsole {
 
   aboutToAppear(): void {
     let ctx = getContext(this)
+    ScreenUtils.setPortrait(ctx)  // 标签页主体竖屏；横屏页各自调 setLandscape
     ScreenUtils.getStatusBarHeight(ctx).then((h: number) => this.topSafe = h)
     ScreenUtils.getBottomSafeHeight(ctx).then((h: number) => this.bottomSafe = h)
+  }
+
+  onPageShow(): void {
+    let ctx = getContext(this)
+    ScreenUtils.setPortrait(ctx)  // 从横屏页返回到标签页时恢复竖屏
   }
 
   /** 切换屏幕 */

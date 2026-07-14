@@ -37,6 +37,12 @@ struct ScreenMapNav {
     }
   }
 
+  onBackPress(): boolean {
+    // 系统返回键也能退出本页
+    router.back()
+    return true
+  }
+
   private async loadMeta(): Promise<void> {
     const m: MapMeta | null = await restApiClient.getMapMeta()
     if (m !== null) {
@@ -46,7 +52,7 @@ struct ScreenMapNav {
 
   build() {
     Column() {
-      // 顶部返回
+      // 顶部返回（扩大触摸区域，避免点不到）
       Row() {
         Image($r('app.media.arrow_left'))
           .width(18)
@@ -57,7 +63,8 @@ struct ScreenMapNav {
           .fontColor(FG.text)
           .margin({ left: 4 })
       }
-      .height(32)
+      .height(40)
+      .padding({ left: 4, right: 16, top: 8, bottom: 8 })
       .alignSelf(ItemAlign.Start)
       .margin({ bottom: 12 })
       .onClick(() => { router.back() })

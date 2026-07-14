@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Car 3D Viewer</title>
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0a1622; }
+  #c { width: 100%; height: 100%; display: block; touch-action: none; }
+  #tip {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+    color: #93a4ba; font: 12px "PingFang SC", sans-serif;
+    background: rgba(5,8,13,0.7); padding: 6px 12px; border-radius: 999px;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="tip">点击部件查看详情 · 拖动旋转 · 双指缩放</div>
+<script src="three.min.js"></script>
+<script src="GLTFLoader.js"></script>
+<script src="OrbitControls.js"></script>
+<script>
+  // 与 ArkTS 通信：window.model3d.onPart(id) / onMeshNames(json)
+  var bridge = (typeof model3d !== 'undefined') ? model3d : null;
+
+  var scene, camera, renderer, controls, raycaster, pointer;
+  var autoRotate = true;
+  var highlighted = [];           // 当前高亮的 mesh
+  var origMat = new Map();        // mesh -> 原材质，用于取消高亮
+  var HL_COLOR = 0xff9748;        // 橙色高亮
+
+  function initThree() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a1622);
+
+    var w = window.innerWidth, h = window.innerHeight;
+    camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+    camera.position.set(3.2, 2.2, 3.2);
+
+    renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+
+    // 灯光
+    scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+    var dir = new THREE.DirectionalLight(0xffffff, 1.1);
+    dir.position.set(5, 8, 6);
+    scene.add(dir);
+    var dir2 = new THREE.DirectionalLight(0x88bbff, 0.4);
+    dir2.position.set(-5, 3, -4);
+    scene.add(dir2);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.1;
+    controls.minDistance = 1.5;
+    controls.maxDistance = 12;
+
+    raycaster = new THREE.Raycaster();
+    pointer = new THREE.Vector2();
+
+    loadModel();
+    window.addEventListener('resize', onResize);
+    renderer.domElement.addEventListener('click', onTap);
+    animate();
+  }
+
+  function loadModel() {
+    var loader = new THREE.GLTFLoader();
+    loader.load('car.glb', function (gltf) {
+      var root = gltf.scene;
+      // 居中 + 归一化尺寸
+      var box = new THREE.Box3().setFromObject(root);
+      var size = new THREE.Vector3(); box.getSize(size);
+      var center = new THREE.Vector3(); box.getCenter(center);
+      root.position.sub(center);
+      var maxDim = Math.max(size.x, size.y, size.z) || 1;
+      var scale = 2.4 / maxDim;
+      root.scale.setScalar(scale);
+
+      scene.add(root);
+
+      // 收集 mesh 名，回传给原生（调试用）
+      var names = [];
+      root.traverse(function (o) { if (o.isMesh) names.push(o.name); });
+      if (bridge && bridge.onMeshNames) { bridge.onMeshNames(JSON.stringify(names)); }
+      console.log('=== Model mesh names: ' + JSON.stringify(names));
+    }, undefined, function (err) {
+      console.error('GLB load failed', err);
+      if (bridge && bridge.onLoadError) { bridge.onLoadError(String(err)); }
+    });
+  }
+
+  function onResize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }
+
+  function animate() {
+    requestAnimationFrame(animate);
+    if (autoRotate && scene) { scene.rotation.y += 0.004; }
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  // ===== 部件匹配（对齐部署文档 mesh 名） =====
+  function matchPart(name) {
+    var n = (name || '').toLowerCase();
+    if (n.indexOf('lidar') >= 0 || n.indexOf('laser_link') >= 0) return 'lidar';
+    if (n.indexOf('camera') >= 0) return 'camera';
+    if (n.indexOf('cylinder003') >= 0 || n.indexOf('cylinder009') >= 0 || n.indexOf('headlight') >= 0) return 'light';
+    if (n.indexOf('wheel') >= 0 || n.indexOf('左') >= 0 || n.indexOf('右') >= 0) return 'wheel';
+    return null;
+  }
+
+  function onTap(e) {
+    var rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    var hits = raycaster.intersectObjects(scene.children, true);
+    for (var i = 0; i < hits.length; i++) {
+      var obj = hits[i].object;
+      if (obj.isMesh) {
+        var part = matchPart(obj.name);
+        if (part) { highlightPart(part); if (bridge && bridge.onPart) { bridge.onPart(part); } return; }
+      }
+    }
+  }
+
+  function clearHighlight() {
+    highlighted.forEach(function (m) {
+      if (origMat.has(m)) { m.material = origMat.get(m); }
+    });
+    highlighted = [];
+    origMat.clear();
+  }
+
+  // 供原生调用：高亮指定部件
+  window.highlightPart = function (id) {
+    clearHighlight();
+    var lower = (id || '').toLowerCase();
+    scene.traverse(function (n) {
+      if (!n.isMesh) return;
+      var nl = (n.name || '').toLowerCase();
+      var hit = false;
+      if (lower === 'lidar' && (nl.indexOf('lidar') >= 0 || nl.indexOf('laser_link') >= 0)) hit = true;
+      if (lower === 'camera' && nl.indexOf('camera') >= 0) hit = true;
+      if (lower === 'light' && (nl.indexOf('cylinder003') >= 0 || nl.indexOf('cylinder009') >= 0 || nl.indexOf('headlight') >= 0)) hit = true;
+      if (lower === 'wheel' && (nl.indexOf('wheel') >= 0 || nl.indexOf('左') >= 0 || nl.indexOf('右') >= 0)) hit = true;
+      if (hit) {
+        origMat.set(n, n.material);
+        var hlm = n.material.clone();
+        if (hlm.color) hlm.color.setHex(HL_COLOR);
+        if (hlm.emissive) hlm.emissive.setHex(0x552200);
+        n.material = hlm;
+        highlighted.push(n);
+      }
+    });
+    autoRotate = false;
+  };
+
+  window.clearHighlight = function () { clearHighlight(); };
+  window.setAutoRotate = function (on) { autoRotate = !!on; };
+  window.resetView = function () {
+    camera.position.set(3.2, 2.2, 3.2);
+    controls.target.set(0, 0, 0);
+    controls.update();
+    if (scene) scene.rotation.y = 0;
+    autoRotate = true;
+    clearHighlight();
+  };
+
+  initThree();
+</script>
+</body>
+</html>

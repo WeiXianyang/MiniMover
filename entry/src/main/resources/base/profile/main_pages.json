@@ -7,6 +7,7 @@
     "pages/NetworkSettings",
     "pages/ScreenManualLandscape",
     "pages/ScreenManualSettings",
-    "pages/ScreenMapNav"
+    "pages/ScreenMapNav",
+    "pages/ScreenModel3D"
   ]
 }
