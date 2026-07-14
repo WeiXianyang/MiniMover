@@ -52,6 +52,32 @@ python multi_car_coordinator.py
 | 视频流(彩色) | `http://<小车IP>:8080/stream?topic=/camera/color/image_raw` |
 | VNC | `<小车IP>:5900` |
 
+### 火灾检测服务（可选）
+
+在车辆服务启动后，额外启动 YOLOv5 火灾/烟雾识别：
+
+```bash
+# 一键启动（CPU 模式）
+bash ~/MiniMover/scripts/start_fire_detection.sh
+
+# GPU 模式（Jetson NX）
+bash ~/MiniMover/scripts/start_fire_detection.sh --device 0
+
+# 与全套服务一起启动（API + 火灾检测）
+FIRE_DETECT=1 bash ~/MiniMover/scripts/start_services.sh
+```
+
+启动后，控制面板 `http://<小车IP>:5000/` 的「检测状态」面板会自动显示：
+- 检测器状态（待命中 / AI复核中 / 火灾确认 / 烟雾报警）
+- YOLO 触发进度
+- AI 复核结果
+- 最近报警记录
+
+停止检测：
+```bash
+pkill -f detector.py
+```
+
 ---
 
 ## 二、API 接口总表
@@ -97,7 +123,31 @@ curl -X POST http://<小车IP>:5000/api/move \
   -d '{"cmd":"stop"}'
 ```
 
-### 2.3 视频流
+### 2.3 火灾检测
+
+| 接口 | 方法 | 功能 | 返回 |
+|---|---|---|---|
+| `/api/detection/status` | GET | 检测链路状态 + 近期报警 | `{"code":0,"data":{"fire_monitor":{"running":true,"state":"idle","hits":0},"last_alarm":null,"recent_alarms":[]}}` |
+
+**返回字段说明：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `fire_monitor.running` | bool | YOLO 检测进程是否运行 |
+| `fire_monitor.state` | string | 当前状态: `idle` / `ai_reviewing` / `alarmed_fire` / `alarmed_smoke` / `ai_rejected` / `ai_failed` |
+| `fire_monitor.hits` | int | YOLO 当前命中帧数（触发阈值 5 帧） |
+| `fire_monitor.ai_state` | string | AI 复核状态: `queued` / `completed` / `failed` |
+| `fire_monitor.ai_result` | string | AI 复核结论: `confirmed_fire` / `suspected_smoke` / `no_fire` |
+| `fire_monitor.ai_confidence` | float | AI 复核置信度 |
+| `last_alarm` | object | 最近一次报警（含类型/时间/置信度） |
+| `recent_alarms` | array | 最近 5 条报警历史 |
+
+**调用示例：**
+```bash
+curl http://<小车IP>:5000/api/detection/status
+```
+
+### 2.4 视频流
 
 | 接口 | 方法 | 功能 | 返回 |
 |---|---|---|---|
@@ -109,7 +159,7 @@ curl -X POST http://<小车IP>:5000/api/move \
 <img src="http://<小车IP>:5000/video_feed">
 ```
 
-### 2.4 地图导航
+### 2.5 地图导航
 
 | 接口 | 方法 | 功能 | 说明 |
 |---|---|---|---|
@@ -133,14 +183,14 @@ curl -X POST http://<小车IP>:5000/api/navigate \
   -d '{"x":1.5,"y":2.0,"theta":0}'
 ```
 
-### 2.5 前端页面
+### 2.6 前端页面
 
 | 路由 | 功能 |
 |---|---|
-| `/` | 控制面板（传感器 + 视频 + 方向控制 + 速度调节） |
-| `/nav` | 地图导航页面（点击地图选点 → 自动导航） |（还未实现导航）
+| `/` | 控制面板（传感器 + 视频 + 方向控制 + 速度调节 + 检测告警面板 + 录音/TTS） |
+| `/nav` | 地图导航页面（点击地图选点 → 自动导航） |（还未实现导航） |
 
-### 2.6 视频流访问
+### 2.7 视频流访问
 
 **直接访问小车：**
 
@@ -173,7 +223,7 @@ cap = cv2.VideoCapture("http://localhost:8888/proxy/camera/car_A")
 
 ---
 
-### 2.7 音频（录音 / 播放 / TTS）
+### 2.8 音频（录音 / 播放 / TTS）
 
 | 接口 | 方法 | 功能 | 说明 |
 |---|---|---|---|
@@ -258,7 +308,7 @@ play_wav(wav)                         # 直接播放
 
 ---
 
-### 2.8 多车协同（调度中心 :8888）
+### 2.9 多车协同（调度中心 :8888）
 
 在 PC 运行 `python3 multi_car_coordinator.py` 后，以下接口可用：
 

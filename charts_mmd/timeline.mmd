@@ -1,0 +1,52 @@
+%%{init: {'theme': 'default', 'flowchart': {'nodeSpacing': 15, 'rankSpacing': 50}}}%%
+flowchart LR
+    subgraph M1["M1 基础环境搭建<br/>7/6 ~ 7/7 · 9 commits"]
+        direction TB
+        m1a["仓库初始化<br/>小车代码导入"]
+        m1b["底盘·摄像头<br/>SLAM就绪"]
+        m1c["AGENTS.md<br/>使用指南"]
+    end
+
+    subgraph M2["M2 服务化与初始开发<br/>7/8 ~ 7/9 · 7 commits"]
+        direction TB
+        m2a["REST API<br/>服务器上线"]
+        m2b["9种传感器<br/>驱动就绪"]
+        m2c["Docker CI/CD<br/>鸿蒙APP初始化"]
+    end
+
+    subgraph M3["M3 核心模块开发<br/>7/10 ~ 7/11 · 24 commits"]
+        direction TB
+        m3a["YOLOv5烟火<br/>车牌检测迁移"]
+        m3b["检测器Demo<br/>答辩演示准备"]
+        m3c["地图导航<br/>功能实现"]
+    end
+
+    subgraph M4["M4 多模块全面开发<br/>7/12 · 41 commits"]
+        direction TB
+        m4a["AI复核<br/>状态机+告警"]
+        m4b["人脸识别<br/>注册+1:N"]
+        m4c["多车协调器<br/>编队+碰撞"]
+    end
+
+    subgraph M5["M5 全栈联调与集成<br/>7/13 · 52 commits"]
+        direction TB
+        m5a["语音助手全链路<br/>ASR-LLM-TTS"]
+        m5b["鸿蒙APP迭代<br/>云平台上线"]
+        m5c["RAG知识库<br/>3D模型+文档"]
+    end
+
+    subgraph M6["M6 答辩交付准备<br/>7/14"]
+        direction TB
+        m6a["巡检闭环联调<br/>演示视频录制"]
+        m6b["最终PPT<br/>需求分析报告"]
+        m6c["测试报告+日报<br/>稳定镜像+回滚"]
+    end
+
+    M1 --> M2 --> M3 --> M4 --> M5 --> M6
+
+    style M1 fill:#e8f5e9,stroke:#34a853,stroke-width:2px,color:#202124
+    style M2 fill:#e8f5e9,stroke:#34a853,stroke-width:2px,color:#202124
+    style M3 fill:#e8f5e9,stroke:#34a853,stroke-width:2px,color:#202124
+    style M4 fill:#e8f5e9,stroke:#34a853,stroke-width:2px,color:#202124
+    style M5 fill:#fff3e0,stroke:#fbbc04,stroke-width:2px,color:#202124
+    style M6 fill:#fce8e6,stroke:#ea4335,stroke-width:2px,color:#202124
