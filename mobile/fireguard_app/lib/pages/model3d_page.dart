@@ -414,9 +414,9 @@ class _Model3DPageState extends State<Model3DPage>
       child: Row(children: [
         _bBtn(Icons.arrow_back, '返回主页', () => Navigator.of(context).pop()),
         const SizedBox(width: 8),
-        _bBtn(null, '自动旋转', _toggleRotate, icon: AppIcons.rotateCcw(size: 14), active: _autoRotate),
+        _bBtn(null, '自动旋转', _toggleRotate, icon: AppIcons.rotateCcw(size: 14, color: AppTheme.textPrimary), active: _autoRotate),
         const SizedBox(width: 8),
-        _bBtn(null, '重置视角', _resetView, icon: AppIcons.move(size: 14)),
+        _bBtn(null, '重置视角', _resetView, icon: AppIcons.move(size: 14, color: AppTheme.textPrimary)),
       ]),
     );
   }
@@ -434,7 +434,7 @@ class _Model3DPageState extends State<Model3DPage>
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           if (icon != null) ...[icon, const SizedBox(width: 5)],
-          if (iconData != null) ...[Icon(iconData, size: 14, color: active ? AppTheme.accent : AppTheme.textSecondary), const SizedBox(width: 5)],
+          if (iconData != null) ...[Icon(iconData, size: 14, color: active ? AppTheme.accent : AppTheme.textPrimary), const SizedBox(width: 5)],
           Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: active ? AppTheme.accent : AppTheme.textSecondary)),
         ]),
       ),
