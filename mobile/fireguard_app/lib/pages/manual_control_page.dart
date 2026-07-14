@@ -33,7 +33,6 @@ class _ManualControlPageState extends State<ManualControlPage> {
   Offset _moveJoystick = Offset.zero;
   double _viewJoystickX = 0;
   // 开关
-  bool _lightOn = false;
   bool _micOn = false;
   bool _recording = false;
   bool _emergencyStopped = false;
@@ -117,7 +116,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
     _lastSend = now;
     widget.carState.setSpeed((dy.abs() > dx.abs() ? dy.abs() : dx.abs() * _speed * 100).round().clamp(10, 100));
     if (dy.abs() > dx.abs()) { if (dy < -0.3) widget.carState.moveForward(); else if (dy > 0.3) widget.carState.moveBackward(); else widget.carState.stop(); }
-    else { if (dx < -0.3) widget.carState.moveLeft(); else if (dx > 0.3) widget.carState.moveRight(); else widget.carState.stop(); }
+    else { if (dx < -0.3) widget.carState.shiftLeft(); else if (dx > 0.3) widget.carState.shiftRight(); else widget.carState.stop(); }
   }
   void _onMoveEnd() {
     setState(() => _moveJoystick = Offset.zero);
@@ -210,7 +209,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
             return Stack(
               children: [
                 _buildVideoBackground(parent),
-                Container(color: const Color.fromRGBO(0, 0, 0, 0.35)),
+                Container(color: const Color.fromRGBO(0, 0, 0, 0.0)),
                 // 顶部栏
                 if (_layout.topBar.visible)
                   _pos(_layout.topBar, parent, _buildTopBar()),
@@ -253,29 +252,24 @@ class _ManualControlPageState extends State<ManualControlPage> {
   // 视频背景
   // ═══════════════════════════════════════════
   Widget _buildVideoBackground(Size size) {
-    final connected = widget.carState.connected;
     return Positioned.fill(
-      child: connected
-          ? MjpegStream(
+      child: MjpegStream(
               host: widget.carState.host,
-              port: widget.carState.port,
               width: size.width,
               height: size.height,
               placeholder: (ctx) => _buildVideoFallback(size),
               errorBuilder: (ctx) => _buildVideoFallback(size),
             )
-          : _buildVideoFallback(size),
     );
   }
 
-  Widget _buildVideoFallback(Size size) {
-    return CustomPaint(
-      size: size,
-      painter: _RoadPainter(),
-      child: const Center(
-        child: Icon(Icons.videocam,
-            color: Color.fromRGBO(255, 255, 255, 0.06), size: 80),
-      ),
+  Widget _buildVideoFallback(Size size, [String? msg]) {
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.videocam, color: Color.fromRGBO(255, 255, 255, 0.18), size: 60),
+        const SizedBox(height: 8),
+        Text(msg ?? "视频未连接", style: const TextStyle(color: Color(0xFF9AA8BF), fontSize: 12)),
+      ]),
     );
   }
 
@@ -556,14 +550,14 @@ class _ManualControlPageState extends State<ManualControlPage> {
     return Stack(
       children: [
         _sideBtnItem(_layout.btnLight, parent,
-            AppIcons.lightbulb(size: 18, color: _lightOn ? AppTheme.accent : AppTheme.textPrimary),
-            _lightOn ? AppTheme.accent : AppTheme.textPrimary, () {
-          setState(() => _lightOn = !_lightOn);
+            AppIcons.lightbulb(size: 18, color: AppTheme.textSecondary),
+            AppTheme.textSecondary, () {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("灯光仅 TCP 6000 通道可用"), duration: Duration(seconds: 1)));
         }),
         _sideBtnItem(_layout.btnMic, parent,
             AppIcons.mic(size: 18, color: _micOn ? AppTheme.statusGreen : AppTheme.textPrimary),
             _micOn ? AppTheme.statusGreen : AppTheme.textPrimary, () {
-          setState(() => _micOn = !_micOn);
+          setState(() => _micOn = !_micOn); if (_micOn) { widget.carState.startRecording(duration: 0); } else { widget.carState.stopRecording(); }
         }),
         _sideBtnItem(
             _layout.btnRecord, parent,

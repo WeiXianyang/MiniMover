@@ -86,14 +86,14 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                   Expanded(
                     child: GlassCard(
                       padding: const EdgeInsets.all(15),
-                      child: const StatBlock(value: '86%', label: '电量', icon: Icons.battery_charging_full),
+                      child: StatBlock(value: '${widget.carState.batteryPercent}%', label: '电量', icon: Icons.battery_charging_full),
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: GlassCard(
                       padding: const EdgeInsets.all(15),
-                      child: const StatBlock(value: '4', label: '待巡检点', icon: Icons.checklist),
+                      child: StatBlock(value: '${widget.carState.totalPoints - widget.carState.completedPoints}', label: '待巡检点', icon: Icons.checklist),
                     ),
                   ),
                 ],

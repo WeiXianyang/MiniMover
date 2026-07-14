@@ -322,16 +322,16 @@ class _Model3DPageState extends State<Model3DPage>
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       GlassCard(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: const Column(children: [
-          InfoRow(label: '车型', value: 'Rosmaster X3 Plus'),
-          Divider(color: AppTheme.dividerLine, height: 18),
-          InfoRow(label: '主控', value: 'NVIDIA Jetson Orin Nano'),
-          Divider(color: AppTheme.dividerLine, height: 18),
-          InfoRow(label: '传感器', value: 'LiDAR + 深度相机 + 8×IoT'),
-          Divider(color: AppTheme.dividerLine, height: 18),
-          InfoRow(label: '驱动方式', value: '四轮独立驱动 (麦轮)'),
-          Divider(color: AppTheme.dividerLine, height: 18),
-          InfoRow(label: '电池', value: '12.6V 锂电池 · 86%'),
+        child: Column(children: [
+          const InfoRow(label: '车型', value: 'Rosmaster X3 Plus'),
+          const Divider(color: AppTheme.dividerLine, height: 18),
+          const InfoRow(label: '主控', value: 'NVIDIA Jetson Orin Nano'),
+          const Divider(color: AppTheme.dividerLine, height: 18),
+          const InfoRow(label: '传感器', value: 'LiDAR + 深度相机 + 8×IoT'),
+          const Divider(color: AppTheme.dividerLine, height: 18),
+          const InfoRow(label: '驱动方式', value: '四轮独立驱动 (麦轮)'),
+          const Divider(color: AppTheme.dividerLine, height: 18),
+          InfoRow(label: '电池', value: '12.6V 锂电池 · ${widget.carState.batteryPercent}%'),
         ]),
       ),
       const SizedBox(height: 14),

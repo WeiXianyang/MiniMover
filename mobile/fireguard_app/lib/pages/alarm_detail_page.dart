@@ -21,10 +21,21 @@ class AlarmDetailPage extends StatefulWidget {
 }
 
 class _AlarmDetailPageState extends State<AlarmDetailPage> {
+  bool _fetched = false;
+
   @override
   void initState() {
     super.initState();
     widget.carState.addListener(_onChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_fetched) {
+      _fetched = true;
+      widget.carState.fetchCloudAlarm();
+    }
   }
 
   @override

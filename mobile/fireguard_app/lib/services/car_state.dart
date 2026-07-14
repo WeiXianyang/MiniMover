@@ -1,10 +1,20 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'api_service.dart';
+import 'tcp5001_service.dart';
+import 'cloud_alarm_service.dart';
 
 class CarState extends ChangeNotifier {
   final ApiService api;
+  final Tcp5001Service tcp5001 = Tcp5001Service();
+  final CloudAlarmService cloudAlarm = CloudAlarmService();
+
   CarState({required this.api}) { _subscribe(); }
+
+  CloudAlarm? _latestCloudAlarm;
+  CloudAlarm? get latestCloudAlarm => _latestCloudAlarm;
+  bool _cloudAlarmLoading = false;
+  bool get cloudAlarmLoading => _cloudAlarmLoading;
 
   bool get connected => api.connected;
   String get host => api.host;
@@ -12,6 +22,11 @@ class CarState extends ChangeNotifier {
 
   CarStatus? _status;
   CarStatus? get status => _status;
+  // ── GPS ──
+  String get gpsDisplay => sensors.gps?.display ?? '—';
+  double get latitude => sensors.gps?.lat ?? 0;
+  double get longitude => sensors.gps?.lon ?? 0;
+
   double get batteryVoltage => _status?.battery ?? 0;
   int get batteryPercent {
     if (batteryVoltage <= 0) return 0;
@@ -59,18 +74,51 @@ class CarState extends ChangeNotifier {
   StreamSubscription<CarStatus>? _sSub; StreamSubscription<bool>? _cSub;
   void _subscribe() { _cSub = api.connectionChanges.listen((_) => notifyListeners()); _sSub = api.statusStream.listen((s) { _status = s; notifyListeners(); }); }
 
-  // ═══ 操作 ═══
-  Future<bool> connect(String host, int port) async { api.updateConfig(host, port); final ok = await api.connect(); notifyListeners(); return ok; }
-  void disconnect() { api.disconnect(); _taskRunning = false; notifyListeners(); }
+  // ═══ 连接 ═══
+  Future<bool> connect(String host, int port) async {
+    api.updateConfig(host, port);
+    tcp5001.updateHost(host);
+    final ok = await api.connect();
+    if (ok) tcp5001.connect(); // 5001 可选，失败不影响
+    notifyListeners();
+    return ok;
+  }
+  void disconnect() {
+    api.disconnect();
+    tcp5001.dispose();
+    _taskRunning = false;
+    notifyListeners();
+  }
 
-  void moveForward() => api.move('forward', speed: _speed);
-  void moveBackward() => api.move('backward', speed: _speed);
-  void moveLeft() => api.move('left', speed: _speed);
-  void moveRight() => api.move('right', speed: _speed);
-  void shiftLeft() => api.move('left_shift', speed: _speed);
-  void shiftRight() => api.move('right_shift', speed: _speed);
-  void emergencyStop() { api.emergencyStop(); _addLog('急停'); notifyListeners(); }
-  void stop() => api.stop();
+  // ═══ 运动 — 5001 优先 + HTTP 回退 ═══
+  void _sendMove(String cmd, {int? speed}) {
+    if (!tcp5001.send(cmd, speed: speed ?? _speed)) {
+      api.move(cmd, speed: speed ?? _speed);
+    }
+  }
+  void moveForward() => _sendMove('forward');
+  void moveBackward() => _sendMove('backward');
+  void moveLeft() => _sendMove('left');
+  void moveRight() => _sendMove('right');
+  void shiftLeft() => _sendMove('left_shift');
+  void shiftRight() => _sendMove('right_shift');
+  void emergencyStop() { tcp5001.stop(); api.emergencyStop(); _addLog('急停'); notifyListeners(); }
+  void stop() { tcp5001.stop(); api.stop(); }
+
+  // ═══ 云平台告警 ═══
+  Future<void> fetchCloudAlarm() async {
+    _cloudAlarmLoading = true; notifyListeners();
+    _latestCloudAlarm = await cloudAlarm.fetchLatest();
+    _cloudAlarmLoading = false;
+    if (_latestCloudAlarm != null) {
+      triggerAlarm(
+        l: _latestCloudAlarm!.carId,
+        c: _latestCloudAlarm!.confidence,
+        lv: _latestCloudAlarm!.typeLabel,
+      );
+    }
+    notifyListeners();
+  }
 
   void startTask() { _taskRunning = true; _taskPaused = false; _taskProgress = 0.0; _addLog('巡检开始'); notifyListeners(); }
   void pauseTask() { _taskPaused = true; _addLog('暂停'); notifyListeners(); }
@@ -82,6 +130,20 @@ class CarState extends ChangeNotifier {
   void cancelDelivery() { _deliveryActive = false; _deliveryStatus = '已取消'; notifyListeners(); }
   void triggerAlarm({required String l, required double c, required String lv}) { _hasAlarm = true; _alarmLocation = l; _alarmConfidence = c; _alarmLevel = lv; _addLog('[$lv] $l'); notifyListeners(); }
   void clearAlarm() { _hasAlarm = false; notifyListeners(); }
+
+  // ═══ 摄像头 / 地图 / 音频 — 透传 api ═══
+  Future<CameraInfo?> fetchCameraInfo() => api.fetchCameraInfo();
+  Future<MapMeta?> fetchMapMeta() => api.fetchMapMeta();
+  Future<SensorData?> fetchSensors() => api.fetchSensors();
+  Future<List<String>?> fetchAudioDevices() => api.fetchAudioDevices();
+  Future<AudioRecordInfo?> startRecording({int? duration}) => api.startRecording(duration: duration);
+  Future<AudioRecordInfo?> stopRecording() => api.stopRecording();
+  Future<Map<String, dynamic>?> getRecordingStatus() => api.getRecordingStatus();
+  String getRecordUrl(String id) => api.getRecordUrl(id);
+  Future<String?> ttsSay(String text, {String lang = 'zh'}) => api.ttsSay(text, lang: lang);
+  Future<bool> audioStop() => api.audioStop();
+  String get videoFeedUrl => api.videoUrl;
+  String get mapImageUrl => api.mapImageUrl;
 
   void _addLog(String m) { final t = DateTime.now().toIso8601String().substring(11,19); _eventLog.add('[$t] $m'); if (_eventLog.length > 100) _eventLog.removeAt(0); }
 

@@ -1,15 +1,16 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
 /// MJPEG 视频流组件
 ///
-/// 连接小车 Flask 后端 /video_feed 路由，
+/// 直连小车 ROS2 web_video_server (8080)，dart:io HttpClient 确保流式兼容
 /// 解析 multipart/x-mixed-replace 流并逐帧渲染
 class MjpegStream extends StatefulWidget {
   final String host;
   final int port;
+  final String path;
   final double? width;
   final double? height;
   final WidgetBuilder? placeholder;
@@ -18,26 +19,27 @@ class MjpegStream extends StatefulWidget {
   const MjpegStream({
     super.key,
     required this.host,
-    this.port = 6500,
+    this.port = 8080,
+    this.path = '/stream?topic=/camera/color/image_raw',
     this.width,
     this.height,
     this.placeholder,
     this.errorBuilder,
   });
 
-  /// 完整视频流 URL
-  String get url => 'http://$host:$port/video_feed';
+  String get url => 'http://$host:$port$path';
 
   @override
   State<MjpegStream> createState() => _MjpegStreamState();
 }
 
 class _MjpegStreamState extends State<MjpegStream> {
-  http.Client? _client;
+  HttpClient? _client;
   StreamSubscription<Uint8List>? _subscription;
   Uint8List? _latestFrame;
   String? _error;
   bool _loading = true;
+  int _lastFrameMs = 0;
 
   @override
   void initState() {
@@ -55,68 +57,54 @@ class _MjpegStreamState extends State<MjpegStream> {
   }
 
   void _connect() {
-    _client = http.Client();
+    _disconnect();
+    _client = HttpClient();
     _loading = true;
     _error = null;
 
-    final request = http.Request('GET', Uri.parse(widget.url));
-    final futureStream = _client!.send(request);
-
-    futureStream.then((response) {
-      if (response.statusCode != 200) {
-        setState(() {
-          _error = 'HTTP ${response.statusCode}';
-          _loading = false;
-        });
-        return;
-      }
-
-      setState(() => _loading = false);
-
-      final transformer = _MjpegTransformer();
-      _subscription = response.stream.transform(transformer).listen(
-        (frame) {
-          if (mounted) setState(() => _latestFrame = frame);
-        },
-        onError: (e) {
-          if (mounted) {
-            setState(() {
-              _error = e.toString();
-              _loading = false;
-            });
+    _client!
+        .getUrl(Uri.parse(widget.url))
+        .then((req) {
+          req.headers.set('Accept', 'multipart/x-mixed-replace, image/jpeg');
+          return req.close();
+        })
+        .then((resp) {
+          if (resp.statusCode != 200) {
+            setState(() { _error = 'HTTP ${resp.statusCode}'; _loading = false; });
+            return;
           }
-        },
-        onDone: () {
-          // 流结束，尝试重连
+          setState(() => _loading = false);
+          _subscription = resp
+              .map((chunk) => chunk is Uint8List ? chunk : Uint8List.fromList(chunk))
+              .transform(_MjpegTransformer())
+              .listen(
+                (frame) {
+                final now = DateTime.now().millisecondsSinceEpoch;
+                if (now - _lastFrameMs < 80) return; // 节流 ~12fps
+                _lastFrameMs = now;
+                if (mounted) setState(() => _latestFrame = frame);
+              },
+                onError: (e) {
+                  if (mounted) setState(() { _error = e.toString(); _loading = false; });
+                },
+                onDone: () {
+                  if (mounted) Future.delayed(const Duration(seconds: 2), () { if (mounted) _connect(); });
+                },
+                cancelOnError: false,
+              );
+        })
+        .catchError((e) {
           if (mounted) {
-            Future.delayed(const Duration(seconds: 2), () {
-              if (mounted) _connect();
-            });
-          }
-        },
-        cancelOnError: false,
-      );
-    }).catchError((e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-          _loading = false;
-        });
-        // 自动重试
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            _disconnect();
-            _connect();
+            setState(() { _error = e.toString(); _loading = false; });
+            Future.delayed(const Duration(seconds: 3), () { if (mounted) _connect(); });
           }
         });
-      }
-    });
   }
 
   void _disconnect() {
     _subscription?.cancel();
     _subscription = null;
-    _client?.close();
+    _client?.close(force: true);
     _client = null;
   }
 
@@ -149,6 +137,7 @@ class _MjpegStreamState extends State<MjpegStream> {
           width: widget.width ?? double.infinity,
           height: widget.height ?? 242,
           fit: BoxFit.contain,
+          gaplessPlayback: true,
         ),
       );
     }
@@ -215,9 +204,9 @@ class _MjpegTransformer extends StreamTransformerBase<Uint8List, Uint8List> {
 
       if (soi == -1 || eoi == -1 || eoi <= soi) break;
 
-      // 提取完整 JPEG
+      // 提取完整 JPEG（至少 1KB，确保是有效帧）
       final frame = Uint8List.sublistView(bytes, soi, eoi + 2);
-      sink.add(frame);
+      if (frame.length > 1000) sink.add(frame);
 
       // 丢弃已处理的数据
       _buffer.discard(eoi + 2);

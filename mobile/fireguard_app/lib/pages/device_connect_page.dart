@@ -14,7 +14,7 @@ class DeviceConnectPage extends StatefulWidget {
 }
 
 class _DeviceConnectPageState extends State<DeviceConnectPage> {
-  final _ipCtrl = TextEditingController(text: '192.168.8.188');
+  final _ipCtrl = TextEditingController(text: '10.227.111.171');
   final _portCtrl = TextEditingController(text: '5000');
   bool _connecting = false;
 
