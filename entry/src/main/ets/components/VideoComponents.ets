@@ -8,8 +8,8 @@ let TAG = "VideoComponents"
 @Component
 export struct VideoComponents {
   controller: web_webview.WebviewController = new web_webview.WebviewController()
-  public static port: number = 6500;
-  public static ip: string = "192.168.1.11"
+  public static port: number = 8080;
+  public static ip: string = "192.168.137.23"
   // 当前是否正在录制视频
   @State isRecording: boolean = false
 
@@ -75,7 +75,8 @@ export struct VideoComponents {
   }
 
   getWebSrc() {
-    let v = `http://${VideoComponents.ip}:${VideoComponents.port}/index2`
+    // ROS2 web_video_server(8080) 彩色相机原流，弃用旧版 6500/index2
+    let v = `http://${VideoComponents.ip}:${VideoComponents.port}/stream?topic=/camera/color/image_raw`
     console.log(TAG, "getWebSrc()", v)
     return v
 

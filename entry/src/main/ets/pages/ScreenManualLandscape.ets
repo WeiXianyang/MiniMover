@@ -12,6 +12,8 @@ import { ManualMoveJoystick, ManualViewJoystick } from '../components/ManualJoys
 import { BackendState, BackendType } from '../CarUtill/BackendType'
 import { carApi } from '../CarUtill/CarApi'
 import { CarDirection } from '../CarUtill/CarEnum'
+import { restApiClient } from '../tcp/RestApiClient'
+import { ManualLayout } from '../CarUtill/ManualLayout'
 import web_webview from '@ohos.web.webview'
 
 @Entry
@@ -22,6 +24,12 @@ struct ScreenManualLandscape {
   @State signalText: string = '86'
   /** 雷达开关状态 */
   @State showRadar: boolean = true
+  /** 语音录音状态 */
+  @State recording: boolean = false
+  /** TTS 喊话输入面板显隐 */
+  @State showTts: boolean = false
+  /** TTS 待发送文本 */
+  @State ttsText: string = ''
   /** 实际屏幕尺寸（vp），用于自适应定位，默认给一个横屏兜底值 */
   @State stageW: number = 780
   @State stageH: number = 360
@@ -32,7 +40,15 @@ struct ScreenManualLandscape {
     ScreenUtils.setLandscape(ctx)
   }
 
+  onPageShow(): void {
+    // 从布局设置页返回时本页实例仍存活，不会再触发 aboutToAppear，
+    // 故在此重新置横屏，修复"设置保存后变竖屏"的 bug。
+    const ctx = getContext(this)
+    ScreenUtils.setLandscape(ctx)
+  }
+
   aboutToDisappear(): void {
+    // 仅在真正离开手动接管流程（返回竖屏标签页）时恢复竖屏
     const ctx = getContext(this)
     ScreenUtils.setPortrait(ctx)
   }
@@ -170,45 +186,32 @@ struct ScreenManualLandscape {
       .backgroundColor('rgba(5, 8, 13, 0.82)')
       .position({ x: this.stageW - 148, y: 12 })
 
-      // ===== 右侧工具列 =====
+      // ===== 右侧工具列：灯光 / 语音 / 拍照 / 雷达 / 地图 =====
       Column({ space: 8 }) {
-        this.toolIconBtn($r('app.media.lightbulb'), '灯')
-        this.toolIconBtn($r('app.media.mic'), '麦')
-        this.toolIconBtn($r('app.media.record'), '录')
-        this.toolIconBtn($r('app.media.radar'), '雷')
-        // 第五个：雷达开关
-        Row() {
-          Image($r('app.media.map'))
-            .width(18)
-            .height(18)
-            .fillColor(this.showRadar ? FG.orange : FG.muted)
-        }
-        .width(44)
-        .height(42)
-        .borderRadius(10)
-        .border({
-          width: 1,
-          color: this.showRadar ? 'rgba(232, 139, 69, 0.28)' : 'rgba(147, 164, 186, 0.16)'
-        })
-        .backgroundColor('rgba(28, 37, 50, 0.86)')
-        .justifyContent(FlexAlign.Center)
-        .onClick(() => {
-          this.showRadar = !this.showRadar
-        })
+        // 灯光：TCP 6000 RGB 灯带（30/31/32），5000 无此接口 → 占位
+        this.toolIconBtn($r('app.media.lightbulb'), '灯光（需 TCP 通道）', false)
+        // 语音：5000 /api/audio 录音开关
+        this.voiceBtn()
+        // 拍照：TCP 6000 拍照（60），5000 无此接口 → 占位
+        this.toolIconBtn($r('app.media.record'), '拍照（需 TCP 通道）', false)
+        // 雷达：本地开关（雷达小窗显隐）
+        this.radarToggleBtn()
+        // 地图：跳转地图导航页
+        this.mapBtn()
       }
       .position({ x: this.stageW - 44 - 12, y: 56 })
 
-      // ===== 左下：运动摇杆 (120x120)，从底边反向锚定，避免溢出 =====
+      // ===== 运动摇杆 (120x120)：自定义布局优先，否则从底边锚定 =====
       ManualMoveJoystick()
         .width(120)
         .height(120)
-        .position({ x: 20, y: this.stageH - 120 - 14 })
+        .position(this.movePos())
 
-      // ===== 右下：视角摇杆 (140x62)，从右下角反向锚定 =====
+      // ===== 视角摇杆 (140x62)：自定义布局优先，否则右下角锚定 =====
       ManualViewJoystick()
         .width(140)
         .height(62)
-        .position({ x: this.stageW - 140 - 16, y: this.stageH - 62 - 60 })
+        .position(this.viewPos())
 
       // ===== 底部居中：急停 + 速度 =====
       Row() {
@@ -252,6 +255,11 @@ struct ScreenManualLandscape {
       }
       .position({ x: '50%', y: this.stageH - 42 - 12 })
       .translate({ x: '-50%', y: 0 })
+
+      // TTS 喊话浮层（最上层）
+      if (this.showTts) {
+        this.ttsPanel()
+      }
     }
     .width('100%')
     .height('100%')
@@ -263,9 +271,147 @@ struct ScreenManualLandscape {
   }
 
   @Builder
-  toolIconBtn(icon: Resource, label: string) {
+  toolIconBtn(icon: Resource, label: string, enabled: boolean) {
     Row() {
       Image(icon)
+        .width(18)
+        .height(18)
+        .fillColor(enabled ? FG.muted : 'rgba(147, 164, 186, 0.4)')
+    }
+    .width(44)
+    .height(42)
+    .borderRadius(10)
+    .border({ width: 1, color: 'rgba(147, 164, 186, 0.16)' })
+    .backgroundColor('rgba(28, 37, 50, 0.86)')
+    .justifyContent(FlexAlign.Center)
+    .onClick(() => {
+      promptAction.showToast({ message: label })
+    })
+  }
+
+  /** 语音：单击喊话(TTS)，长按录音开关，均接 5000 /api/audio */
+  @Builder
+  voiceBtn() {
+    Row() {
+      Image($r('app.media.mic'))
+        .width(18)
+        .height(18)
+        .fillColor(this.recording ? FG.red : FG.muted)
+    }
+    .width(44)
+    .height(42)
+    .borderRadius(10)
+    .border({
+      width: 1,
+      color: this.recording ? 'rgba(255, 101, 112, 0.5)' : 'rgba(147, 164, 186, 0.16)'
+    })
+    .backgroundColor('rgba(28, 37, 50, 0.86)')
+    .justifyContent(FlexAlign.Center)
+    .gesture(
+      GestureGroup(GestureMode.Exclusive,
+        LongPressGesture({ repeat: false })
+          .onAction(() => { this.toggleRecording() }),
+        TapGesture()
+          .onAction(() => { this.showTts = true })
+      )
+    )
+  }
+
+  /** TTS 喊话输入面板（居中浮层） */
+  @Builder
+  ttsPanel() {
+    Column() {
+      Column() {
+        Text('车端喊话')
+          .fontSize(16)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(FG.text)
+          .margin({ bottom: 12 })
+
+        TextInput({ text: this.ttsText, placeholder: '输入要在车上播报的文字' })
+          .fontSize(FG.bodySize)
+          .fontColor(FG.text)
+          .height(43)
+          .width('100%')
+          .padding({ left: 12, right: 12 })
+          .borderRadius(8)
+          .border({ width: 1, color: FG.inputBorder })
+          .backgroundColor(FG.inputBg)
+          .onChange((v: string) => { this.ttsText = v })
+
+        Row() {
+          Row() {
+            Text('取消')
+              .fontSize(FG.bodySize)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(FG.text)
+          }
+          .layoutWeight(1)
+          .height(42)
+          .justifyContent(FlexAlign.Center)
+          .borderRadius(FG.btnRadius)
+          .backgroundColor(FG.btnDefault)
+          .margin({ right: 5 })
+          .onClick(() => { this.showTts = false })
+
+          Row() {
+            Text('播报')
+              .fontSize(FG.bodySize)
+              .fontWeight(FontWeight.Bold)
+              .fontColor('#10151d')
+          }
+          .layoutWeight(1)
+          .height(42)
+          .justifyContent(FlexAlign.Center)
+          .borderRadius(FG.btnRadius)
+          .backgroundColor(FG.orange)
+          .margin({ left: 5 })
+          .onClick(() => { this.sendTts() })
+        }
+        .width('100%')
+        .margin({ top: 16 })
+      }
+      .width(320)
+      .padding(20)
+      .borderRadius(FG.cardRadius)
+      .border({ width: 1, color: FG.line })
+      .backgroundColor('#101927')
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .backgroundColor('rgba(0, 0, 0, 0.5)')
+  }
+
+  /** 雷达：本地显隐开关 */
+  @Builder
+  radarToggleBtn() {
+    Row() {
+      Image($r('app.media.radar'))
+        .width(18)
+        .height(18)
+        .fillColor(this.showRadar ? FG.orange : FG.muted)
+    }
+    .width(44)
+    .height(42)
+    .borderRadius(10)
+    .border({
+      width: 1,
+      color: this.showRadar ? 'rgba(232, 139, 69, 0.28)' : 'rgba(147, 164, 186, 0.16)'
+    })
+    .backgroundColor('rgba(28, 37, 50, 0.86)')
+    .justifyContent(FlexAlign.Center)
+    .onClick(() => {
+      this.showRadar = !this.showRadar
+    })
+  }
+
+  /** 地图：跳转地图导航页 */
+  @Builder
+  mapBtn() {
+    Row() {
+      Image($r('app.media.map'))
         .width(18)
         .height(18)
         .fillColor(FG.muted)
@@ -277,8 +423,47 @@ struct ScreenManualLandscape {
     .backgroundColor('rgba(28, 37, 50, 0.86)')
     .justifyContent(FlexAlign.Center)
     .onClick(() => {
-      promptAction.showToast({ message: `${label}（待后端接入）` })
+      router.pushUrl({ url: 'pages/ScreenMapNav' })
     })
+  }
+
+  /** 录音开关（长按触发）：REST 模式接 /api/audio/record */
+  private async toggleRecording(): Promise<void> {
+    if (BackendState.type !== BackendType.REST) {
+      promptAction.showToast({ message: '录音需 REST 连接' })
+      return
+    }
+    if (!this.recording) {
+      const ok: boolean = await restApiClient.startRecord(0)
+      if (ok) {
+        this.recording = true
+        promptAction.showToast({ message: '录音已开始（再次长按停止）' })
+      } else {
+        promptAction.showToast({ message: '录音启动失败' })
+      }
+    } else {
+      const ok: boolean = await restApiClient.stopRecord()
+      this.recording = false
+      promptAction.showToast({ message: ok ? '录音已停止' : '停止录音失败' })
+    }
+  }
+
+  /** TTS 喊话（单击触发）：REST 模式接 /api/audio/say */
+  private async sendTts(): Promise<void> {
+    if (BackendState.type !== BackendType.REST) {
+      promptAction.showToast({ message: '喊话需 REST 连接' })
+      return
+    }
+    if (this.ttsText.length === 0) {
+      promptAction.showToast({ message: '请输入播报文字' })
+      return
+    }
+    const ok: boolean = await restApiClient.sendTts(this.ttsText, 'zh')
+    promptAction.showToast({ message: ok ? '已下发车端播报' : '播报失败' })
+    if (ok) {
+      this.showTts = false
+      this.ttsText = ''
+    }
   }
 
   @Builder
@@ -328,15 +513,36 @@ struct ScreenManualLandscape {
       colors: [['rgba(91, 174, 199, 0.12)', 0], [Color.Transparent, 1]]
     })
     .backgroundColor('rgba(19, 28, 40, 0.48)')
-    .position({ x: (this.stageW - 140) / 2, y: Math.max(56, (this.stageH - 140) / 2 - 20) })
+    .position(this.radarPos())
+  }
+
+  /** 运动摇杆位置：自定义优先，否则默认左下锚定 */
+  private movePos(): Position {
+    if (ManualLayout.customized) {
+      return { x: ManualLayout.moveXR * this.stageW, y: ManualLayout.moveYR * this.stageH }
+    }
+    return { x: 20, y: this.stageH - 120 - 14 }
+  }
+
+  /** 视角摇杆位置：自定义优先，否则默认右下锚定 */
+  private viewPos(): Position {
+    if (ManualLayout.customized) {
+      return { x: ManualLayout.viewXR * this.stageW, y: ManualLayout.viewYR * this.stageH }
+    }
+    return { x: this.stageW - 140 - 16, y: this.stageH - 62 - 60 }
+  }
+
+  /** 雷达小窗位置：自定义优先，否则默认居中偏上 */
+  private radarPos(): Position {
+    if (ManualLayout.customized) {
+      return { x: ManualLayout.radarXR * this.stageW, y: ManualLayout.radarYR * this.stageH }
+    }
+    return { x: (this.stageW - 140) / 2, y: Math.max(56, (this.stageH - 140) / 2 - 20) }
   }
 
   private getVideoUrl(): string {
-    if (BackendState.type === BackendType.REST) {
-      return `http://${BackendState.ip}:${BackendState.restPort}/video_feed`
-    } else {
-      return `http://${BackendState.ip}:${BackendState.videoPort}/video_feed`
-    }
+    // 两种模式都直连 ROS2 web_video_server(视频端口，默认 8080) 原流
+    return `http://${BackendState.ip}:${BackendState.videoPort}/stream?topic=/camera/color/image_raw`
   }
 
   private emergencyStop(): void {

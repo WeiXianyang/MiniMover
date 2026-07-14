@@ -13,15 +13,16 @@ import { VideoComponents } from '../../components/VideoComponents'
 import { MyUtils } from '../../utils/MyUtils'
 import { BackendState, BackendType } from '../../CarUtill/BackendType'
 import { restApiClient } from '../../tcp/RestApiClient'
+import { ctrl5001Client } from '../../tcp/Ctrl5001Client'
 
 @Component
 export struct ScreenConnect {
   /** 切换到指定 tab（连接成功后进入主页） */
   gotoTab: (tab: FgTab) => void = () => {}
 
-  @State ip: string = '192.168.1.11'
+  @State ip: string = '192.168.137.23'
   @State tcpPort: string = '6000'
-  @State videoPort: string = '6500'
+  @State videoPort: string = '8080'
   @State restPort: string = '5000'
   @State backendType: number = 0
 
@@ -144,7 +145,8 @@ export struct ScreenConnect {
         .border({ width: 1, color: FG.line })
         .backgroundColor(FG.cardBg)
       } else {
-        // REST 模式：显示 REST API 端口
+        // REST 模式：显示 REST API 端口 + 视频端口
+        // REST API 端口
         Column() {
           Text('REST API 端口')
             .fontSize(FG.labelSize)
@@ -160,6 +162,31 @@ export struct ScreenConnect {
             .border({ width: 1, color: FG.inputBorder })
             .backgroundColor(FG.inputBg)
             .onChange((v: string) => this.restPort = v)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .width('100%')
+        .padding(14)
+        .margin({ bottom: 14 })
+        .borderRadius(FG.cardRadius)
+        .border({ width: 1, color: FG.line })
+        .backgroundColor(FG.cardBg)
+
+        // 视频端口（ROS2 web_video_server，默认 8080）
+        Column() {
+          Text('视频端口')
+            .fontSize(FG.labelSize)
+            .fontColor(FG.muted)
+            .margin({ bottom: 8 })
+          TextInput({ text: this.videoPort })
+            .fontSize(FG.bodySize)
+            .fontColor(FG.text)
+            .height(43)
+            .width('100%')
+            .padding({ left: 12, right: 12 })
+            .borderRadius(8)
+            .border({ width: 1, color: FG.inputBorder })
+            .backgroundColor(FG.inputBg)
+            .onChange((v: string) => this.videoPort = v)
         }
         .alignItems(HorizontalAlign.Start)
         .width('100%')
@@ -209,6 +236,7 @@ export struct ScreenConnect {
       BackendState.ip = this.ip
       BackendState.tcpPort = Number.parseInt(this.tcpPort)
       BackendState.videoPort = Number.parseInt(this.videoPort)
+      BackendState.ctrlConnected = false  // TCP 模式不用 5001
       promptAction.showToast({ message: 'TCP 连接成功' })
       TCPClientSendUtils.getInstance().init()
       this.gotoTab(FgTab.Home)
@@ -229,7 +257,12 @@ export struct ScreenConnect {
       BackendState.connected = true
       BackendState.ip = this.ip
       BackendState.restPort = restPortNum
-      promptAction.showToast({ message: 'REST 连接成功' })
+      BackendState.videoPort = Number.parseInt(this.videoPort)
+      // 额外建立 5001 低延迟控制通道；失败不影响 REST 使用（回退 HTTP）
+      ctrl5001Client.init(this.ip, BackendState.ctrlPort)
+      const ctrlOk: boolean = await ctrl5001Client.connect()
+      BackendState.ctrlConnected = ctrlOk
+      promptAction.showToast({ message: ctrlOk ? 'REST 连接成功（含 5001 低延迟通道）' : 'REST 连接成功（5001 不可用，走 HTTP）' })
       this.gotoTab(FgTab.Home)
     } else {
       promptAction.showToast({ message: 'REST API 不可达，请检查信息' })

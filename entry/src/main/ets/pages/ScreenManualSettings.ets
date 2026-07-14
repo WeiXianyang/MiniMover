@@ -7,9 +7,7 @@ import promptAction from '@ohos.promptAction'
 import router from '@ohos.router'
 import { ScreenUtils } from '../utils/ScreenUtils'
 import { FG } from '../fireguard/Theme'
-import { CarDirection } from '../CarUtill/CarEnum'
-import { carApi } from '../CarUtill/CarApi'
-import { BackendState, BackendType } from '../CarUtill/BackendType'
+import { ManualLayout } from '../CarUtill/ManualLayout'
 
 @Entry
 @Component
@@ -31,9 +29,11 @@ struct ScreenManualSettings {
     ScreenUtils.setLandscape(ctx)
   }
 
-  aboutToDisappear(): void {
+  onPageShow(): void {
+    // 从本页返回时保持横屏；不在 aboutToDisappear 里设竖屏，
+    // 否则会把返回到的手动接管页也一起翻成竖屏（严重 bug）。
     const ctx = getContext(this)
-    ScreenUtils.setPortrait(ctx)
+    ScreenUtils.setLandscape(ctx)
   }
 
   onBackPress(): boolean {
@@ -271,6 +271,7 @@ struct ScreenManualSettings {
         .borderRadius(8)
         .backgroundColor(FG.orange)
         .onClick(() => {
+          this.saveLayout()
           promptAction.showToast({ message: '布局已保存' })
           router.back()
         })
@@ -322,20 +323,45 @@ struct ScreenManualSettings {
     this.viewStartY = this.viewY
   }
 
-  /** 按实际舞台尺寸计算各节点默认位置：移动摇杆左下、雷达居中偏上、视角摇杆右下 */
+  /**
+   * 首次布局：已有自定义则按比例还原，否则用默认锚定位置。
+   */
   private applyDefaultLayout(): void {
     const w = this.stageW
     const h = this.stageH
-    // 移动摇杆 124×124：左下角
+    if (ManualLayout.customized) {
+      // 按已保存比例还原（乘当前舞台尺寸）
+      this.moveX = ManualLayout.moveXR * w
+      this.moveY = ManualLayout.moveYR * h
+      this.radarX = ManualLayout.radarXR * w
+      this.radarY = ManualLayout.radarYR * h
+      this.viewX = ManualLayout.viewXR * w
+      this.viewY = ManualLayout.viewYR * h
+      this.clampAll()
+      return
+    }
+    // 默认布局：移动摇杆左下、雷达居中偏上、视角摇杆右下
     this.moveX = 28
     this.moveY = Math.max(44, h - 124 - 24)
-    // 雷达 140×140：水平居中，垂直靠上
     this.radarX = Math.max(0, (w - 140) / 2)
     this.radarY = 70
-    // 视角摇杆 148×52：右下角
     this.viewX = Math.max(0, w - 148 - 28)
     this.viewY = Math.max(44, h - 52 - 40)
     this.panStartSnapshot()
+  }
+
+  /** 保存当前布局为比例坐标，供接管页读取 */
+  private saveLayout(): void {
+    if (this.stageW <= 0 || this.stageH <= 0) {
+      return
+    }
+    ManualLayout.moveXR = this.moveX / this.stageW
+    ManualLayout.moveYR = this.moveY / this.stageH
+    ManualLayout.radarXR = this.radarX / this.stageW
+    ManualLayout.radarYR = this.radarY / this.stageH
+    ManualLayout.viewXR = this.viewX / this.stageW
+    ManualLayout.viewYR = this.viewY / this.stageH
+    ManualLayout.customized = true
   }
 
   /** 尺寸变化后把所有节点重新夹取到边界内，避免溢出 */
@@ -350,6 +376,7 @@ struct ScreenManualSettings {
   }
 
   private resetDefault(): void {
+    ManualLayout.customized = false  // 清除自定义，接管页恢复默认锚定
     this.applyDefaultLayout()
     this.selected = ''
     promptAction.showToast({ message: '已重置默认布局' })
