@@ -22,6 +22,9 @@ struct ScreenManualLandscape {
   @State signalText: string = '86'
   /** 雷达开关状态 */
   @State showRadar: boolean = true
+  /** 实际屏幕尺寸（vp），用于自适应定位，默认给一个横屏兜底值 */
+  @State stageW: number = 780
+  @State stageH: number = 360
   private webCtl: web_webview.WebviewController = new web_webview.WebviewController()
 
   aboutToAppear(): void {
@@ -165,7 +168,7 @@ struct ScreenManualLandscape {
       .borderRadius(10)
       .border({ width: 1, color: 'rgba(147, 164, 186, 0.12)' })
       .backgroundColor('rgba(5, 8, 13, 0.82)')
-      .position({ x: '88%', y: 12 })
+      .position({ x: this.stageW - 148, y: 12 })
 
       // ===== 右侧工具列 =====
       Column({ space: 8 }) {
@@ -193,19 +196,19 @@ struct ScreenManualLandscape {
           this.showRadar = !this.showRadar
         })
       }
-      .position({ x: '94%', y: 56 })
+      .position({ x: this.stageW - 44 - 12, y: 56 })
 
-      // ===== 左下：运动摇杆 (120x120) =====
+      // ===== 左下：运动摇杆 (120x120)，从底边反向锚定，避免溢出 =====
       ManualMoveJoystick()
         .width(120)
         .height(120)
-        .position({ x: 20, y: '68%' })
+        .position({ x: 20, y: this.stageH - 120 - 14 })
 
-      // ===== 右下：视角摇杆 (140x62) =====
+      // ===== 右下：视角摇杆 (140x62)，从右下角反向锚定 =====
       ManualViewJoystick()
         .width(140)
         .height(62)
-        .position({ x: '74%', y: '78%' })
+        .position({ x: this.stageW - 140 - 16, y: this.stageH - 62 - 60 })
 
       // ===== 底部居中：急停 + 速度 =====
       Row() {
@@ -247,12 +250,16 @@ struct ScreenManualLandscape {
         .border({ width: 1, color: 'rgba(147, 164, 186, 0.14)' })
         .backgroundColor('rgba(17, 26, 39, 0.72)')
       }
-      .position({ x: '50%', y: '92%' })
+      .position({ x: '50%', y: this.stageH - 42 - 12 })
       .translate({ x: '-50%', y: 0 })
     }
     .width('100%')
     .height('100%')
     .backgroundColor('#0c1826')
+    .onAreaChange((_o: Area, n: Area) => {
+      this.stageW = new Number(n.width).valueOf()
+      this.stageH = new Number(n.height).valueOf()
+    })
   }
 
   @Builder
@@ -321,12 +328,12 @@ struct ScreenManualLandscape {
       colors: [['rgba(91, 174, 199, 0.12)', 0], [Color.Transparent, 1]]
     })
     .backgroundColor('rgba(19, 28, 40, 0.48)')
-    .position({ x: 240, y: 120 })
+    .position({ x: (this.stageW - 140) / 2, y: Math.max(56, (this.stageH - 140) / 2 - 20) })
   }
 
   private getVideoUrl(): string {
     if (BackendState.type === BackendType.REST) {
-      return `http://${BackendState.ip}:5000/video_feed`
+      return `http://${BackendState.ip}:${BackendState.restPort}/video_feed`
     } else {
       return `http://${BackendState.ip}:${BackendState.videoPort}/video_feed`
     }

@@ -23,6 +23,8 @@ struct ScreenManualSettings {
   @State selected: string = ''
   @State stageW: number = 920
   @State stageH: number = 390
+  /** 是否已按实际舞台尺寸初始化节点位置 */
+  private layoutInited: boolean = false
 
   aboutToAppear(): void {
     const ctx = getContext(this)
@@ -202,6 +204,12 @@ struct ScreenManualSettings {
       .onAreaChange((oldValue: Area, newValue: Area) => {
         this.stageW = new Number(newValue.width).valueOf()
         this.stageH = new Number(newValue.height).valueOf()
+        if (!this.layoutInited && this.stageW > 0 && this.stageH > 0) {
+          this.layoutInited = true
+          this.applyDefaultLayout()
+        } else {
+          this.clampAll()
+        }
       })
 
       // 顶栏头部
@@ -314,14 +322,35 @@ struct ScreenManualSettings {
     this.viewStartY = this.viewY
   }
 
-  private resetDefault(): void {
+  /** 按实际舞台尺寸计算各节点默认位置：移动摇杆左下、雷达居中偏上、视角摇杆右下 */
+  private applyDefaultLayout(): void {
+    const w = this.stageW
+    const h = this.stageH
+    // 移动摇杆 124×124：左下角
     this.moveX = 28
-    this.moveY = 215
-    this.radarX = 240
-    this.radarY = 120
-    this.viewX = 620
-    this.viewY = 226
+    this.moveY = Math.max(44, h - 124 - 24)
+    // 雷达 140×140：水平居中，垂直靠上
+    this.radarX = Math.max(0, (w - 140) / 2)
+    this.radarY = 70
+    // 视角摇杆 148×52：右下角
+    this.viewX = Math.max(0, w - 148 - 28)
+    this.viewY = Math.max(44, h - 52 - 40)
     this.panStartSnapshot()
+  }
+
+  /** 尺寸变化后把所有节点重新夹取到边界内，避免溢出 */
+  private clampAll(): void {
+    this.moveX = Math.max(0, Math.min(this.stageW - 124, this.moveX))
+    this.moveY = Math.max(44, Math.min(this.stageH - 124, this.moveY))
+    this.radarX = Math.max(0, Math.min(this.stageW - 140, this.radarX))
+    this.radarY = Math.max(44, Math.min(this.stageH - 140, this.radarY))
+    this.viewX = Math.max(0, Math.min(this.stageW - 148, this.viewX))
+    this.viewY = Math.max(44, Math.min(this.stageH - 52, this.viewY))
+    this.panStartSnapshot()
+  }
+
+  private resetDefault(): void {
+    this.applyDefaultLayout()
     this.selected = ''
     promptAction.showToast({ message: '已重置默认布局' })
   }

@@ -6,6 +6,7 @@
     "pages/RemoteControl",
     "pages/NetworkSettings",
     "pages/ScreenManualLandscape",
-    "pages/ScreenManualSettings"
+    "pages/ScreenManualSettings",
+    "pages/ScreenMapNav"
   ]
 }

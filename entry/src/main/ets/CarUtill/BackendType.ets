@@ -10,7 +10,7 @@ export enum BackendType {
 export class BackendState {
   static type: BackendType = BackendType.TCP
   static connected: boolean = false
-  static ip: string = '192.168.1.11'
+  static ip: string = '192.168.137.23'
   static tcpPort: number = 6000
   static restPort: number = 5000
   static videoPort: number = 6500

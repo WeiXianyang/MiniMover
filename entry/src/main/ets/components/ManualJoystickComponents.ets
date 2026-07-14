@@ -30,13 +30,14 @@ function speedFromOffset(dx: number, dy: number, maxR: number): number {
 
 /** REST 轮询方向字符串映射 */
 function restDirCmd(d: CarDirection): string {
+  // 对齐《小车端功能对接文档》/api/move：forward/backward/left/right/left_shift/right_shift/stop
   switch (d) {
     case CarDirection.Front: return 'forward'
     case CarDirection.After: return 'backward'
-    case CarDirection.Left: return 'left'
-    case CarDirection.Right: return 'right'
-    case CarDirection.LeftRotate: return 'rotate_left'
-    case CarDirection.RightRotate: return 'rotate_right'
+    case CarDirection.Left: return 'left_shift'
+    case CarDirection.Right: return 'right_shift'
+    case CarDirection.LeftRotate: return 'left'
+    case CarDirection.RightRotate: return 'right'
     default: return 'stop'
   }
 }
@@ -80,11 +81,12 @@ export struct ManualMoveJoystick {
         .height(1)
         .stroke('rgba(147, 164, 186, 0.16)').strokeWidth(1)
 
-      // 橙色旋钮 52×52
+      // 橙色旋钮 52×52，跟随拖拽偏移
       Circle()
         .width(52)
         .height(52)
         .fill(FG.orange)
+        .translate({ x: this.knobX, y: this.knobY })
     }
     .width(120)
     .height(120)
@@ -187,11 +189,12 @@ export struct ManualViewJoystick {
         .border({ width: 1, color: 'rgba(147, 164, 186, 0.24)' })
         .backgroundColor('rgba(14, 22, 31, 0.62)')
 
-      // 橙色旋钮 52×52，水平偏移
+      // 橙色旋钮 52×52，跟随水平拖拽偏移
       Circle()
         .width(52)
         .height(52)
         .fill(FG.orange)
+        .translate({ x: this.knobX, y: 0 })
     }
     .width(140)
     .height(62)

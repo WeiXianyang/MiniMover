@@ -6,13 +6,15 @@ import { BackendState, BackendType } from './BackendType';
 import { restApiClient } from '../tcp/RestApiClient';
 
 function directionToRestCmd(d: CarDirection): string {
+  // 对齐《小车端功能对接文档》/api/move：仅 forward/backward/left/right/left_shift/right_shift/stop
+  // CarEnum 中 Left/Right 为麦轮平移，LeftRotate/RightRotate 为转向
   switch (d) {
     case CarDirection.Front: return 'forward';
     case CarDirection.After: return 'backward';
-    case CarDirection.Left: return 'left';
-    case CarDirection.Right: return 'right';
-    case CarDirection.LeftRotate: return 'rotate_left';
-    case CarDirection.RightRotate: return 'rotate_right';
+    case CarDirection.Left: return 'left_shift';
+    case CarDirection.Right: return 'right_shift';
+    case CarDirection.LeftRotate: return 'left';
+    case CarDirection.RightRotate: return 'right';
     default: return 'stop';
   }
 }
