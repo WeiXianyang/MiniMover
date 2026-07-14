@@ -162,6 +162,72 @@ def audio_stop():
     stop_playback()
     return jsonify({'code': 0, 'msg': '已停止'})
 
+# ===== 音乐播放（BGM）=====
+_BGM_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bgm.wav')
+_music_playing = False
+
+@app.route('/api/music/status')
+def music_status():
+    """查询 BGM 状态：文件是否存在、是否正在播放"""
+    exists = os.path.isfile(_BGM_FILE)
+    return jsonify({'code': 0, 'data': {
+        'exists': exists,
+        'playing': _music_playing,
+        'file': 'bgm.wav' if exists else None,
+        'size': os.path.getsize(_BGM_FILE) if exists else 0,
+    }})
+
+@app.route('/api/music/play', methods=['POST'])
+def music_play():
+    """播放 BGM（bgm.wav），若非 WAV 格式则自动用 ffmpeg 转码"""
+    global _music_playing
+    if not os.path.isfile(_BGM_FILE):
+        return jsonify({'code': -1, 'msg': 'bgm.wav 不存在，请先上传到小车 ~/MiniMover/'}), 404
+    try:
+        # 检查文件头：WAV 以 RIFF 开头，MP3 以 ID3 或 0xFF 开头
+        with open(_BGM_FILE, 'rb') as f:
+            header = f.read(4)
+        is_wav = header[:4] == b'RIFF'
+        if is_wav:
+            # 直接读取播放
+            with open(_BGM_FILE, 'rb') as f:
+                wav_data = f.read()
+        else:
+            # 非 WAV 格式（如 MP3），通过 ffmpeg 实时转码
+            import subprocess as _sp
+            proc = _sp.run(
+                ['ffmpeg', '-i', _BGM_FILE, '-f', 'wav', '-acodec', 'pcm_s16le',
+                 '-ar', '44100', '-ac', '2', '-y', '-loglevel', 'error', 'pipe:1'],
+                capture_output=True, timeout=30)
+            if proc.returncode != 0 or len(proc.stdout) < 44:
+                raise RuntimeError(f'ffmpeg 转码失败: {proc.stderr.decode(errors="replace")[:200]}')
+            wav_data = proc.stdout
+        play_wav(wav_data)
+        _music_playing = True
+        return jsonify({'code': 0, 'msg': 'BGM 播放中'})
+    except Exception as e:
+        _music_playing = False
+        return jsonify({'code': -1, 'msg': f'播放失败: {e}'}), 500
+
+@app.route('/api/music/stop', methods=['POST'])
+def music_stop():
+    """停止 BGM 播放"""
+    global _music_playing
+    stop_playback()
+    _music_playing = False
+    return jsonify({'code': 0, 'msg': 'BGM 已停止'})
+
+@app.route('/api/music/bgm.wav')
+def music_download():
+    """下载 bgm.wav 文件"""
+    if not os.path.isfile(_BGM_FILE):
+        return jsonify({'code': -1, 'msg': 'bgm.wav 不存在'}), 404
+    return Response(
+        open(_BGM_FILE, 'rb').read(),
+        mimetype='audio/wav',
+        headers={'Content-Disposition': 'attachment; filename="bgm.wav"'}
+    )
+
 # ===== 地图导航页面（单点导航；巡逻页见 /nav/patrol，API 见 /api/nav/*）=====
 @app.route('/nav')
 def nav_page():
@@ -425,6 +491,19 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .audio-status{font-size:12px;color:#aaa;margin:2px 0}
 
+/* 音乐播放器 */
+.music-panel{background:#16213e;border-radius:10px;padding:8px 12px;margin:8px auto;text-align:left;font-size:13px}
+.music-panel .music-title{color:#e94560;font-weight:bold;margin-bottom:6px;font-size:14px}
+.music-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.music-bar button{padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:13px;min-width:60px}
+.music-bar button:active{transform:scale(.92)}
+.music-bar .play-btn{background:#22c55e;color:#fff}
+.music-bar .stop-btn{background:#e94560;color:#fff}
+.music-bar .upload-btn{background:#0f3460;color:#eee}
+.music-status{font-size:12px;color:#aaa;margin-top:4px}
+.music-progress{height:4px;background:#0f3460;border-radius:2px;margin:6px 0;overflow:hidden}
+.music-progress .bar{height:100%;width:0%;background:#22c55e;border-radius:2px;transition:width .3s}
+
 /* 检测告警面板 */
 .detect-panel{background:#16213e;border-radius:10px;padding:8px 12px;margin:6px auto;text-align:left;font-size:13px}
 .detect-panel .detect-title{color:#38bdf8;font-weight:bold;margin-bottom:4px;font-size:14px}
@@ -481,6 +560,21 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 </div>
 <div class="audio-status" id="audioStatus"></div>
 <audio id="audioPlayer" controls style="display:none"></audio>
+
+<!-- 音乐播放器 -->
+<div class="music-panel">
+ <div class="music-title">🎵 音乐播放</div>
+ <div class="music-bar">
+  <button class="play-btn" id="musicPlayBtn" onclick="musicPlay()">▶ 播放 BGM</button>
+  <button class="stop-btn" id="musicStopBtn" onclick="musicStop()">⏹ 停止</button>
+  <label>
+   <button class="upload-btn" onclick="document.getElementById('musicFileInput').click()">📁 上传音乐</button>
+   <input type="file" id="musicFileInput" accept=".wav" style="display:none" onchange="uploadMusic(this)">
+  </label>
+ </div>
+ <div class="music-progress" id="musicProgress"><div class="bar" id="musicBar"></div></div>
+ <div class="music-status" id="musicStatus">就绪</div>
+</div>
 
 <script>
 var API=window.location.origin;
@@ -584,6 +678,66 @@ function updateDetectionUI(d){
   el.className='detect-val '+(la.alarm_type==='confirmed_fire'?'alarm-fire':la.alarm_type==='suspected_smoke'?'alarm-smoke':'alarm-ai');
  }else{row.style.display='none'}
 }
+// ===== 音乐播放控制 =====
+function musicPlay(){
+ var btn=document.getElementById('musicPlayBtn');
+ btn.textContent='⏳ 播放中...';
+ btn.disabled=true;
+ var r=new XMLHttpRequest();
+ r.open('POST',API+'/api/music/play',true);
+ r.onload=function(){
+  var j=JSON.parse(r.responseText);
+  document.getElementById('musicStatus').textContent=j.msg;
+  if(j.code==0){
+   document.getElementById('musicBar').style.width='100%';
+   document.getElementById('musicStopBtn').style.display='inline-block';
+  }
+  btn.textContent='▶ 播放 BGM';
+  btn.disabled=false;
+ };
+ r.onerror=function(){
+  document.getElementById('musicStatus').textContent='请求失败，检查小车网络';
+  btn.textContent='▶ 播放 BGM';
+  btn.disabled=false;
+ };
+ r.send();
+}
+function musicStop(){
+ var r=new XMLHttpRequest();
+ r.open('POST',API+'/api/music/stop',true);
+ r.onload=function(){
+  var j=JSON.parse(r.responseText);
+  document.getElementById('musicStatus').textContent=j.msg;
+  document.getElementById('musicBar').style.width='0%';
+  document.getElementById('musicStopBtn').style.display='none';
+ };
+ r.send();
+}
+function uploadMusic(input){
+ var file=input.files[0];
+ if(!file)return;
+ if(!file.name.endsWith('.wav')){
+  document.getElementById('musicStatus').textContent='仅支持 .wav 文件';
+  return;
+ }
+ var fd=new FormData();
+ fd.append('file',file);
+ var r=new XMLHttpRequest();
+ r.open('POST',API+'/api/audio/play',true);
+ r.onload=function(){
+  var j=JSON.parse(r.responseText);
+  document.getElementById('musicStatus').textContent=j.code==0?'🎵 正在播放上传的音乐':'播放失败: '+j.msg;
+ };
+ r.send(fd);
+}
+// 初始化音乐状态
+fetch(API+'/api/music/status').then(function(r){return r.json()}).then(function(j){
+ var d=j.data||{};
+ document.getElementById('musicStatus').textContent=d.exists
+  ? '已加载 bgm.wav ('+(d.size/1024).toFixed(0)+'KB)'
+  : '未找到 bgm.wav，请先上传到小车';
+ document.getElementById('musicStopBtn').style.display='none';
+}).catch(function(){});
 function f(){
  var r=new XMLHttpRequest();
  r.open("GET",API+"/api/status",true);
