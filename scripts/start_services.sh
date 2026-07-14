@@ -77,10 +77,21 @@ sleep 3
 echo -e "  ${GREEN}[OK] video stream :8080${NC}"
 
 # 8. API service
-pkill -f api_server.py 2>/dev/null; sleep 1
-cd ~/MiniMover && python3 api_server.py > /tmp/api.log 2>&1 &
+API_PIDS=$(sudo ss -ltnp 'sport = :5000' 2>/dev/null | grep -oP 'pid=\K[0-9]+' | sort -u)
+if [ -n "$API_PIDS" ]; then
+    sudo kill $API_PIDS 2>/dev/null
+    sleep 1
+fi
+cd ~/MiniMover && nohup /usr/bin/python3 api_server.py > /tmp/api.log 2>&1 &
 sleep 3
 echo -e "  ${GREEN}[OK] API :5000${NC}"
+
+# 9. (可选) 火灾检测 — 默认跳过，可传入 FIRE_DETECT=1 开启
+if [ "${FIRE_DETECT:-0}" = "1" ]; then
+    echo -e ""
+    cd ~/MiniMover && bash scripts/start_fire_detection.sh 2>/dev/null || \
+        echo -e "  ${YELLOW}[SKIP] 火灾检测启动失败，可稍后手动执行 scripts/start_fire_detection.sh${NC}"
+fi
 
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo -e "\n${GREEN}========================================${NC}"

@@ -14,6 +14,7 @@ CORS(app)
 sensor = iCarSensorDriver()
 bot = Rosmaster(debug=False)
 bot.create_receive_threading()
+_bot_lock = threading.Lock()
 
 def get_ip():
     return os.popen('hostname -I').read().split()[0]
@@ -21,16 +22,17 @@ def get_ip():
 @app.route('/api/status')
 def get_status():
     ip = get_ip()
-    vol = bot.get_battery_voltage()
+    with _bot_lock:
+        vol = bot.get_battery_voltage()
     return jsonify({'code':0, 'data':{
         'sensors': sensor.get_data(),
         'battery': round(vol, 1) if vol else 12.0,
         'ip': ip
     }})
 
-# 串口写锁 + 自动停止定时器管理（防止多线程抢串口死机）
-_move_lock = threading.Lock()
+# 底盘访问锁 + 自动停止定时器管理（防止状态读取与运动命令并发抢串口）
 _stop_timer = None
+_stop_timer_lock = threading.Lock()
 
 @app.route('/api/move', methods=['POST'])
 def move():
@@ -46,18 +48,20 @@ def move():
     elif cmd=='rotate_right': vz=-speed*3
     elif cmd=='left_shift': vy=speed
     elif cmd=='right_shift': vy=-speed
-    # 取消上一次的停止定时器，避免多个线程同时写串口
-    if _stop_timer:
-        _stop_timer.cancel()
-        _stop_timer = None
-    with _move_lock:
+    with _stop_timer_lock:
+        if _stop_timer:
+            _stop_timer.cancel()
+            _stop_timer = None
+    with _bot_lock:
         bot.set_car_motion(vx,vy,vz)
     if cmd!='stop' and t>0:
         def _delayed_stop():
-            with _move_lock:
+            with _bot_lock:
                 bot.set_car_motion(0,0,0)
-        _stop_timer = threading.Timer(t, _delayed_stop)
-        _stop_timer.start()
+        timer = threading.Timer(t, _delayed_stop)
+        with _stop_timer_lock:
+            _stop_timer = timer
+        timer.start()
     return jsonify({'code':0,'msg':f'{cmd} @ {s}%'})
 
 @app.route('/api/sensors')
@@ -331,21 +335,82 @@ function cancelGoal(){
 </body>
 </html>'''
 
+# ---- 视频流代理：逐帧从 ROS snapshot 抓取，urllib 替代 curl 子进程 ----
+# 保持逐帧抓取的稳健性（单帧超时不影响后续帧），但不用 subprocess 开 curl
+import urllib.request as _urllib_request
+
+_SNAPSHOT_URL = 'http://localhost:8080/snapshot?topic=/camera/color/image_raw'
+
 @app.route('/video_feed')
 def video_feed():
     def gen():
         while True:
             try:
-                jpeg = subprocess.check_output(
-                    ['curl', '-s', 'http://localhost:8080/snapshot?topic=/camera/color/image_raw'],
-                    timeout=3)
+                with _urllib_request.urlopen(_SNAPSHOT_URL, timeout=3) as resp:
+                    jpeg = resp.read()
                 if len(jpeg) > 1000:
                     yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg + b'\r\n')
                 else:
                     time.sleep(0.2)
-            except:
+            except Exception:
                 time.sleep(0.5)
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# ===== 检测状态接口：读取火灾检测遥测文件 =====
+import json as _json
+
+_DET_DEBUG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               'fire_smoke_detection', 'runtime', 'debug')
+_DET_ALARMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                'fire_smoke_detection', 'runtime', 'alarms.jsonl')
+
+@app.route('/api/detection/status')
+def detection_status():
+    """返回火灾检测链路状态 + 最近报警"""
+    data = {
+        'fire_monitor': {'running': False, 'state': 'idle', 'hits': 0, 'trigger_min': 5},
+        'last_alarm': None,
+        'recent_alarms': [],
+    }
+    # 读取遥测 status.json
+    status_path = os.path.join(_DET_DEBUG_DIR, 'status.json')
+    try:
+        with open(status_path, 'r', encoding='utf-8') as f:
+            telemetry = _json.load(f)
+        data['fire_monitor']['running'] = True
+        data['fire_monitor']['state'] = telemetry.get('event', {}).get('state', 'idle')
+        data['fire_monitor']['hits'] = telemetry.get('detector', {}).get('hit_count', 0)
+        data['fire_monitor']['trigger_min'] = telemetry.get('detector', {}).get('trigger_min_hits', 5)
+        data['fire_monitor']['classes'] = telemetry.get('detector', {}).get('classes', [])
+        data['fire_monitor']['max_confidence'] = telemetry.get('detector', {}).get('max_confidence', 0)
+        ai = telemetry.get('ai', {})
+        data['fire_monitor']['ai_state'] = ai.get('state', '')
+        data['fire_monitor']['ai_result'] = ai.get('result', '')
+        data['fire_monitor']['ai_confidence'] = ai.get('confidence')
+        alarm = telemetry.get('alarm', {})
+        data['fire_monitor']['alarm_state'] = alarm.get('state', '')
+        data['fire_monitor']['alarm_type'] = alarm.get('type', '')
+    except Exception:
+        pass
+
+    # 读取最近报警
+    try:
+        if os.path.exists(_DET_ALARMS_FILE):
+            with open(_DET_ALARMS_FILE, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            # 取最近 5 条
+            for line in lines[-5:]:
+                try:
+                    alarm = _json.loads(line.strip())
+                    data['recent_alarms'].append(alarm)
+                except Exception:
+                    pass
+            if data['recent_alarms']:
+                data['last_alarm'] = data['recent_alarms'][-1]
+    except Exception:
+        pass
+
+    return jsonify({'code': 0, 'data': data})
 
 @app.route('/')
 def dashboard():
@@ -389,12 +454,32 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 .audio-bar input[type=text]{padding:6px 10px;border:none;border-radius:6px;font-size:13px;width:120px;background:#16213e;color:#eee}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .audio-status{font-size:12px;color:#aaa;margin:2px 0}
+
+/* 检测告警面板 */
+.detect-panel{background:#16213e;border-radius:10px;padding:8px 12px;margin:6px auto;text-align:left;font-size:13px}
+.detect-panel .detect-title{color:#38bdf8;font-weight:bold;margin-bottom:4px;font-size:14px}
+.detect-panel .detect-row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #1a1a2e}
+.detect-panel .detect-row:last-child{border:none}
+.detect-panel .detect-val{font-weight:bold}
+.detect-panel .alarm-fire{color:#e94560;animation:pulse 0.8s infinite}
+.detect-panel .alarm-smoke{color:#f59e0b;animation:pulse 1.5s infinite}
+.detect-panel .alarm-ai{color:#ef4444}
+.detect-panel .ok{color:#22c55e}
+.detect-panel .warn{color:#f59e0b}
 </style></head><body>
 <h1>FIRECUARD</h1>
 <a class="nav-link" href="/nav">🗺️ 地图导航</a>
 <div class="ip-bar" id="ipBar">连接中...</div>
 <div class="sensors" id="sensorBar"></div>
 <div class="video-wrap"><img id="videoFeed" src="" alt="video"></div>
+
+<div class="detect-panel" id="detectPanel">
+ <div class="detect-title">🔥 检测状态 <span id="detectBadge" style="font-size:11px;float:right"></span></div>
+ <div class="detect-row"><span>火灾检测器</span><span class="detect-val" id="detState">未启动</span></div>
+ <div class="detect-row"><span>触发进度</span><span class="detect-val" id="detHits">-</span></div>
+ <div class="detect-row"><span>AI 复核</span><span class="detect-val" id="detAI">-</span></div>
+ <div class="detect-row" id="detAlarmRow" style="display:none"><span>最近报警</span><span class="detect-val" id="detAlarm"></span></div>
+</div>
 
 <div class="dpad">
 <button class="fwd" onpointerdown="m('forward')">▲</button>
@@ -487,6 +572,47 @@ function speak(){
  };
  r.send(JSON.stringify({text:t,lang:'zh'}));
 }
+function updateDetectionUI(d){
+ // 检测器运行状态
+ var fm=d.fire_monitor;
+ var badge=document.getElementById('detectBadge');
+ var stateEl=document.getElementById('detState');
+ if(!fm.running){stateEl.className='detect-val warn';stateEl.textContent='未启动';badge.textContent='';}
+ else{
+  var es=fm.state;
+  if(es==='idle'){stateEl.className='detect-val ok';stateEl.textContent='待命中'}
+  else if(es==='ai_reviewing'){stateEl.className='detect-val warn';stateEl.textContent='AI复核中'}
+  else if(es==='alarmed_fire'){stateEl.className='detect-val alarm-fire';stateEl.textContent='🔥 火灾确认!'}
+  else if(es==='alarmed_smoke'){stateEl.className='detect-val alarm-smoke';stateEl.textContent='💨 烟雾报警!'}
+  else if(es==='ai_rejected'){stateEl.className='detect-val ok';stateEl.textContent='误报已排除'}
+  else if(es==='ai_failed'){stateEl.className='detect-val alarm-ai';stateEl.textContent='AI失效!'}
+  else{stateEl.className='detect-val';stateEl.textContent=es}
+  badge.textContent=fm.running?'● 运行中':'';
+  badge.style.color=fm.running?'#22c55e':'#aaa';
+ }
+ // 触发进度
+ var hits=fm.hits||0, min=fm.trigger_min||5;
+ document.getElementById('detHits').textContent=hits+'/'+min+(hits>=min?' ⚡':'');
+ document.getElementById('detHits').className='detect-val'+(hits>=min?' warn':'');
+ // AI 复核
+ var ai=document.getElementById('detAI');
+ if(fm.ai_state==='queued'){ai.textContent='排队中...';ai.className='detect-val'}
+ else if(fm.ai_state==='completed'&&fm.ai_result==='confirmed_fire'){ai.textContent='确认: 火灾 ('+(fm.ai_confidence||0).toFixed(2)+')';ai.className='detect-val alarm-fire'}
+ else if(fm.ai_state==='completed'&&fm.ai_result==='suspected_smoke'){ai.textContent='确认: 烟雾 ('+(fm.ai_confidence||0).toFixed(2)+')';ai.className='detect-val alarm-smoke'}
+ else if(fm.ai_state==='completed'){ai.textContent=fm.ai_result||'已复核';ai.className='detect-val ok'}
+ else if(fm.ai_state==='failed'){ai.textContent='复核失败';ai.className='detect-val alarm-ai'}
+ else{ai.textContent=fm.ai_state||'-';ai.className='detect-val'}
+ // 最近报警
+ var row=document.getElementById('detAlarmRow');
+ var el=document.getElementById('detAlarm');
+ if(d.last_alarm){
+  row.style.display='';
+  var la=d.last_alarm;
+  var typeMap={confirmed_fire:'🔥 火灾',suspected_smoke:'💨 烟雾',ai_unavailable:'⚠ AI失效'};
+  el.textContent=(typeMap[la.alarm_type]||la.alarm_type)+' @'+(la.occurred_at||'').substr(11,8);
+  el.className='detect-val '+(la.alarm_type==='confirmed_fire'?'alarm-fire':la.alarm_type==='suspected_smoke'?'alarm-smoke':'alarm-ai');
+ }else{row.style.display='none'}
+}
 function f(){
  var r=new XMLHttpRequest();
  r.open("GET",API+"/api/status",true);
@@ -494,11 +620,16 @@ function f(){
   var j=JSON.parse(r.responseText);
   if(j.code!=0)return;
   document.getElementById("ipBar").textContent="IP: "+j.data.ip;
-  document.getElementById("videoFeed").src=API+"/video_feed?"+Date.now();
   var s=j.data.sensors;
   document.getElementById("sensorBar").innerHTML="<span>T:"+s.temperature.toFixed(1)+"C</span><span>H:"+s.humidity.toFixed(0)+"%</span><span>SMK:"+s.smoke+"</span><span>PM:"+s.pm25+"</span><span>P:"+s.pressure.toFixed(0)+"hPa</span><span>CO2:"+s.co2+"</span><span>BAT:"+j.data.battery+"V</span>";
+  // 检测告警轮询
+  fetch(API+"/api/detection/status").then(function(r2){return r2.json()}).then(function(dj){
+   if(dj.code==0) updateDetectionUI(dj.data);
+  }).catch(function(){});
  }; r.send();
 }
+// 视频流仅设置一次，不加 ?t= 缓存破坏（MJPEG 是长连接流，反复重连会卡）
+document.getElementById("videoFeed").src=API+"/video_feed";
 function m(c){
  var s=document.getElementById("sp").value;
  var r=new XMLHttpRequest();
@@ -511,4 +642,10 @@ setInterval(f,3000);f();
 
 if __name__ == '__main__':
     sensor.start()
-    app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
+    app.run(
+        host='0.0.0.0',
+        port=5000,
+        debug=False,
+        use_reloader=False,
+        threaded=True,
+    )
