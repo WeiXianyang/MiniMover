@@ -124,6 +124,7 @@ class CarState extends ChangeNotifier {
   void pauseTask() { _taskPaused = true; _addLog('暂停'); notifyListeners(); }
   void resumeTask() { _taskPaused = false; _addLog('恢复'); notifyListeners(); }
   void abortTask() { _taskRunning = false; _addLog('中止'); notifyListeners(); }
+  void completeTask() { _taskRunning = false; _taskProgress = 1.0; _addLog('巡检完成'); notifyListeners(); }
   void advanceProgress(double d) { _taskProgress = (_taskProgress + d).clamp(0.0, 1.0); notifyListeners(); }
   void startDelivery() { _deliveryActive = true; _deliveryProgress = 0.0; _deliveryStatus = '配送中'; notifyListeners(); }
   void updateDeliveryProgress(double p) { _deliveryProgress = p; if (p >= 1) { _deliveryActive = false; _deliveryStatus = '已送达'; } notifyListeners(); }
@@ -142,6 +143,7 @@ class CarState extends ChangeNotifier {
   String getRecordUrl(String id) => api.getRecordUrl(id);
   Future<String?> ttsSay(String text, {String lang = 'zh'}) => api.ttsSay(text, lang: lang);
   Future<bool> audioStop() => api.audioStop();
+  Future<List<int>?> downloadRecord(String recordId) => api.downloadRecord(recordId);
   String get videoFeedUrl => api.videoUrl;
   String get mapImageUrl => api.mapImageUrl;
 

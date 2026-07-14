@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../theme/app_theme.dart';
 import '../services/car_state.dart';
+import '../services/nav_service.dart';
 import '../models/control_layout.dart';
 import 'manual_control_settings_page.dart';
 import '../widgets/mjpeg_stream.dart';
@@ -33,10 +36,20 @@ class _ManualControlPageState extends State<ManualControlPage> {
   Offset _moveJoystick = Offset.zero;
   double _viewJoystickX = 0;
   // 开关
-  bool _micOn = false;
-  bool _recording = false;
   bool _emergencyStopped = false;
-  bool _radarOn = false;
+  // 语音对讲
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _sttAvailable = false;
+  bool _voiceListening = false;
+  String _voiceStatus = '';
+  // 地图弹窗
+  final NavService _navService = NavService();
+  bool _showMapOverlay = false;
+  Uint8List? _mapImageBytes;
+  bool _mapLoading = false;
+  // 拍照快照
+  Uint8List? _cachedFrame;
+  bool _showSnapshot = false;
   double _speed = 0.5;
   int _fps = 0;
   Timer? _fpsTimer;
@@ -46,9 +59,15 @@ class _ManualControlPageState extends State<ManualControlPage> {
     super.initState();
     _lockLandscape();
     _loadLayout();
+    _initStt();
     _fpsTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _fps = 28 + (DateTime.now().millisecond % 5));
     });
+  }
+
+  Future<void> _initStt() async {
+    final available = await _speech.initialize();
+    if (mounted) setState(() => _sttAvailable = available);
   }
 
   Future<void> _loadLayout() async {
@@ -68,6 +87,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
   @override
   void dispose() {
     _fpsTimer?.cancel();
+    _speech.stop();
     _restoreOrientation();
     super.dispose();
   }
@@ -135,45 +155,6 @@ class _ManualControlPageState extends State<ManualControlPage> {
   void _emergencyStop() { setState(() => _emergencyStopped = !_emergencyStopped); widget.carState.emergencyStop(); }
 
   // ═══════════════════════════════════════════
-  // 雷达小窗
-  // ═══════════════════════════════════════════
-  Widget _buildRadarOverlay(Size parent) {
-    final cfg = _layout.radarOverlay;
-    final sz = cfg.toSize(parent);
-    final pos = cfg.toOffset(parent);
-    // 用小窗宽度做方形边长
-    final side = sz.width.clamp(80.0, parent.width * 0.5);
-
-    return Positioned(
-      left: pos.dx,
-      top: pos.dy,
-      child: Opacity(
-        opacity: cfg.opacity,
-        child: GestureDetector(
-          onTap: () => setState(() => _radarOn = false),
-          child: Container(
-            width: side,
-            height: side,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color.fromRGBO(0, 0, 0, 0.55),
-              border: Border.all(
-                  color: AppTheme.statusGreen.withAlpha(100), width: 1.5),
-              boxShadow: [
-                BoxShadow(
-                    color: AppTheme.statusGreen.withAlpha(60),
-                    blurRadius: 12),
-              ],
-            ),
-            child: ClipOval(
-              child: CustomPaint(painter: _RadarPainter()),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   /// 根据电量区间返回对应电池图标
   Widget _batteryIcon(int pct) {
     final icon = pct >= 90 ? Icons.battery_full
@@ -192,6 +173,177 @@ class _ManualControlPageState extends State<ManualControlPage> {
       final idx = speeds.indexOf(_speed);
       _speed = speeds[(idx + 1) % speeds.length];
     });
+  }
+
+  // ═══════════════════════════════════════════
+  // 语音对讲（长按传话）
+  // ═══════════════════════════════════════════
+  String _recognizedText = '';
+
+  void _startVoiceTalk() {
+    if (!_sttAvailable) {
+      setState(() => _voiceStatus = '语音识别不可用');
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) setState(() => _voiceStatus = '');
+      });
+      return;
+    }
+    _recognizedText = '';
+    setState(() { _voiceListening = true; _voiceStatus = '聆听中…'; });
+    _speech.listen(
+      localeId: 'zh_CN',
+      listenFor: const Duration(seconds: 30),
+      onResult: (result) {
+        _recognizedText = result.recognizedWords;
+        if (mounted) setState(() => _voiceStatus = '聆听中… ${_recognizedText.isNotEmpty ? _recognizedText : ''}');
+      },
+    );
+  }
+
+  Future<void> _stopVoiceTalk() async {
+    if (!_voiceListening) return;
+    _speech.stop();
+    final text = _recognizedText.trim();
+    setState(() { _voiceListening = false; _voiceStatus = text.isNotEmpty ? '传话中…' : ''; });
+
+    if (text.isEmpty) {
+      if (mounted) setState(() => _voiceStatus = '');
+      return;
+    }
+
+    // 发送文字到小车 TTS 播放
+    await widget.carState.ttsSay(text);
+
+    // 等 TTS 播完（约 2s + 文字长度估算）
+    final speakSecs = (2 + text.length * 0.15).clamp(3.0, 10.0);
+    await Future.delayed(Duration(milliseconds: (speakSecs * 1000).round()));
+
+    if (mounted) setState(() => _voiceStatus = '');
+  }
+
+  void _cancelVoiceTalk() {
+    _speech.stop();
+    setState(() { _voiceListening = false; _voiceStatus = ''; });
+  }
+
+  // ═══════════════════════════════════════════
+  // 地图弹窗
+  // ═══════════════════════════════════════════
+  void _openMapOverlay() async {
+    setState(() { _showMapOverlay = true; _mapLoading = true; _mapImageBytes = null; });
+    _navService.updateConfig(widget.carState.host);
+    final img = await _navService.fetchMapImage();
+    if (mounted) setState(() { _mapImageBytes = img != null ? Uint8List.fromList(img) : null; _mapLoading = false; });
+  }
+
+  void _closeMapOverlay() {
+    setState(() => _showMapOverlay = false);
+  }
+
+  Widget _buildSnapshotOverlay() {
+    return GestureDetector(
+      onTap: () => setState(() => _showSnapshot = false),
+      child: Container(
+        color: const Color.fromRGBO(0, 0, 0, 0.88),
+        width: double.infinity,
+        height: double.infinity,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                minScale: 0.5,
+                maxScale: 4.0,
+                child: Image.memory(_cachedFrame!, fit: BoxFit.contain),
+              ),
+            ),
+            // 关闭按钮
+            Positioned(
+              top: 16, right: 16,
+              child: GestureDetector(
+                onTap: () => setState(() => _showSnapshot = false),
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color.fromRGBO(0, 0, 0, 0.6),
+                    border: Border.all(color: const Color.fromRGBO(255, 255, 255, 0.2)),
+                  ),
+                  child: const Icon(Icons.close, size: 18, color: Colors.white),
+                ),
+              ),
+            ),
+            // 顶部标签
+            Positioned(
+              top: 20, left: 0, right: 0,
+              child: Center(
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.camera_alt, size: 14, color: AppTheme.accent),
+                  const SizedBox(width: 6),
+                  const Text('快照', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                ]),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapOverlay() {
+    return GestureDetector(
+      onTap: _closeMapOverlay,
+      child: Container(
+        color: const Color.fromRGBO(0, 0, 0, 0.85),
+        width: double.infinity,
+        height: double.infinity,
+        child: Stack(
+          children: [
+            Center(
+              child: _mapLoading
+                  ? const Column(mainAxisSize: MainAxisSize.min, children: [
+                      CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent),
+                      SizedBox(height: 12),
+                      Text('加载地图…', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                    ])
+                  : _mapImageBytes != null
+                      ? InteractiveViewer(
+                          minScale: 0.5,
+                          maxScale: 4.0,
+                          child: Image.memory(_mapImageBytes!, fit: BoxFit.contain),
+                        )
+                      : const Column(mainAxisSize: MainAxisSize.min, children: [
+                          Icon(Icons.error_outline, size: 48, color: AppTheme.textSecondary),
+                          SizedBox(height: 8),
+                          Text('地图不可用', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                        ]),
+            ),
+            // 关闭按钮
+            Positioned(
+              top: 16, right: 16,
+              child: GestureDetector(
+                onTap: _closeMapOverlay,
+                child: Container(
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color.fromRGBO(0, 0, 0, 0.6),
+                    border: Border.all(color: const Color.fromRGBO(255, 255, 255, 0.2)),
+                  ),
+                  child: const Icon(Icons.close, size: 18, color: Colors.white),
+                ),
+              ),
+            ),
+            // 顶部标签
+            const Positioned(
+              top: 20, left: 0, right: 0,
+              child: Center(
+                child: Text('地图', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -225,8 +377,37 @@ class _ManualControlPageState extends State<ManualControlPage> {
                 Positioned.fill(child: _buildSideButtons(parent)),
                 // 底部控制
                 Positioned.fill(child: _buildBottomBar(parent)),
-                // 雷达小窗
-                if (_radarOn) _buildRadarOverlay(parent),
+                // 地图弹窗
+                if (_showMapOverlay)
+                  _buildMapOverlay(),
+                // 拍照快照
+                if (_showSnapshot && _cachedFrame != null)
+                  _buildSnapshotOverlay(),
+                // 语音对讲状态指示
+                if (_voiceStatus.isNotEmpty)
+                  Positioned(
+                    top: 60,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color.fromRGBO(0, 0, 0, 0.75),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: _voiceListening ? AppTheme.statusRed : AppTheme.statusGreen, width: 1.5),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          if (_voiceListening)
+                            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.statusRed))
+                          else
+                            const Icon(Icons.volume_up, size: 16, color: AppTheme.statusGreen),
+                          const SizedBox(width: 8),
+                          Text(_voiceStatus, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _voiceListening ? AppTheme.statusRed : AppTheme.statusGreen)),
+                        ]),
+                      ),
+                    ),
+                  ),
               ],
             );
           },
@@ -259,6 +440,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
               height: size.height,
               placeholder: (ctx) => _buildVideoFallback(size),
               errorBuilder: (ctx) => _buildVideoFallback(size),
+              onFrame: (f) => _cachedFrame = f,
             )
     );
   }
@@ -555,33 +737,43 @@ class _ManualControlPageState extends State<ManualControlPage> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("灯光仅 TCP 6000 通道可用"), duration: Duration(seconds: 1)));
         }),
         _sideBtnItem(_layout.btnMic, parent,
-            AppIcons.mic(size: 18, color: _micOn ? AppTheme.statusGreen : AppTheme.textPrimary),
-            _micOn ? AppTheme.statusGreen : AppTheme.textPrimary, () {
-          setState(() => _micOn = !_micOn); if (_micOn) { widget.carState.startRecording(duration: 0); } else { widget.carState.stopRecording(); }
-        }),
+            AppIcons.mic(size: 18, color: _voiceListening ? AppTheme.statusRed : AppTheme.textPrimary),
+            _voiceListening ? AppTheme.statusRed : AppTheme.textPrimary,
+            () => widget.carState.ttsSay('前方请注意'),
+            onLongPressStart: (_) => _startVoiceTalk(),
+            onLongPressEnd: (_) => _stopVoiceTalk(),
+            onLongPressCancel: _cancelVoiceTalk,
+          ),
         _sideBtnItem(
             _layout.btnRecord, parent,
-            AppIcons.record(size: 18, color: _recording ? AppTheme.statusRed : AppTheme.textPrimary),
-            _recording ? AppTheme.statusRed : AppTheme.textPrimary, () {
-          setState(() => _recording = !_recording);
+            AppIcons.camera(size: 18, color: _cachedFrame != null ? AppTheme.textPrimary : AppTheme.textSecondary),
+            _cachedFrame != null ? AppTheme.textPrimary : AppTheme.textSecondary, () {
+          if (_cachedFrame != null) {
+            setState(() => _showSnapshot = true);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('视频流未连接，无法拍照'), duration: Duration(seconds: 1)));
+          }
         }),
         _sideBtnItem(_layout.btnMap, parent,
             AppIcons.map(size: 18, color: AppTheme.textPrimary),
-            AppTheme.textPrimary, () {}),
-        _sideBtnItem(_layout.btnRadar, parent,
-            AppIcons.radar(size: 18, color: _radarOn ? AppTheme.statusGreen : AppTheme.textPrimary),
-            _radarOn ? AppTheme.statusGreen : AppTheme.textPrimary, () {
-          setState(() => _radarOn = !_radarOn);
-        }),
+            AppTheme.textPrimary, _openMapOverlay),
+        const SizedBox(),
       ],
     );
   }
 
   Widget _sideBtnItem(ComponentConfig cfg, Size parent, Widget icon,
-      Color color, VoidCallback onTap) {
+      Color color, VoidCallback onTap,
+      {VoidCallback? onLongPress,
+       GestureLongPressStartCallback? onLongPressStart,
+       GestureLongPressEndCallback? onLongPressEnd,
+       GestureLongPressUpCallback? onLongPressUp,
+       VoidCallback? onLongPressCancel}) {
     final sz = cfg.toSize(parent);
     final offset = cfg.toOffset(parent);
     if (!cfg.visible) return const SizedBox.shrink();
+
+    final useLongPressDetail = onLongPressStart != null;
 
     return Positioned(
       left: offset.dx,
@@ -590,6 +782,11 @@ class _ManualControlPageState extends State<ManualControlPage> {
         opacity: cfg.opacity,
         child: GestureDetector(
           onTap: onTap,
+          onLongPress: useLongPressDetail ? null : onLongPress,
+          onLongPressStart: onLongPressStart,
+          onLongPressEnd: onLongPressEnd,
+          onLongPressUp: onLongPressUp,
+          onLongPressCancel: onLongPressCancel,
           child: Container(
             width: sz.width,
             height: sz.height,
@@ -714,83 +911,6 @@ class _ManualControlPageState extends State<ManualControlPage> {
   }
 }
 
-// ═══════════════════════════════════════════
-// 雷达绘制
-// ═══════════════════════════════════════════
-class _RadarPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2 - 2;
-
-    // 同心圆
-    for (int i = 1; i <= 4; i++) {
-      final r = radius * i / 4;
-      canvas.drawCircle(
-        center,
-        r,
-        Paint()
-          ..color = AppTheme.statusGreen.withAlpha(20)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.5,
-      );
-    }
-
-    // 十字线
-    canvas.drawLine(
-        Offset(center.dx - radius, center.dy),
-        Offset(center.dx + radius, center.dy),
-        Paint()
-          ..color = AppTheme.statusGreen.withAlpha(20)
-          ..strokeWidth = 0.5);
-    canvas.drawLine(
-        Offset(center.dx, center.dy - radius),
-        Offset(center.dx, center.dy + radius),
-        Paint()
-          ..color = AppTheme.statusGreen.withAlpha(20)
-          ..strokeWidth = 0.5);
-
-    // 模拟障碍点
-    final points = [
-      Offset(0.4, 0.2),
-      Offset(-0.35, 0.45),
-      Offset(0.5, -0.15),
-      Offset(-0.2, -0.5),
-      Offset(0.6, 0.35),
-    ];
-    for (final p in points) {
-      final px = center.dx + p.dx * radius;
-      final py = center.dy + p.dy * radius;
-      canvas.drawCircle(
-        Offset(px, py),
-        3,
-        Paint()..color = AppTheme.statusGreen.withAlpha(160),
-      );
-    }
-
-    // 圆心
-    canvas.drawCircle(
-        center, 4, Paint()..color = AppTheme.statusGreen.withAlpha(220));
-    canvas.drawCircle(center, 2, Paint()..color = AppTheme.statusGreen);
-
-    // 标签
-    final tp = TextPainter(
-      text: const TextSpan(
-        text: 'LiDAR',
-        style: TextStyle(
-            color: AppTheme.statusGreen,
-            fontSize: 9,
-            fontWeight: FontWeight.w700),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    tp.layout();
-    tp.paint(canvas, Offset(center.dx - tp.width / 2, center.dy + 8));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter o) => false;
-}
 
 // ═══════════════════════════════════════════
 // 道路背景绘制

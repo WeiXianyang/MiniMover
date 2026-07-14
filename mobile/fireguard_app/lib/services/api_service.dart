@@ -260,6 +260,15 @@ class ApiService {
 
   String getRecordUrl(String recordId) => '$baseUrl/api/audio/record/$recordId.wav';
 
+  /// 下载录音 WAV 文件，返回字节数据
+  Future<List<int>?> downloadRecord(String recordId) async {
+    try {
+      final r = await _client.get(Uri.parse(getRecordUrl(recordId))).timeout(const Duration(seconds: 10));
+      if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) return r.bodyBytes;
+    } catch (_) {}
+    return null;
+  }
+
   Future<bool> playAudioFile(String filePath) async {
     try {
       final r = await _client.post(Uri.parse('$baseUrl/api/audio/play')).timeout(const Duration(seconds: 5));

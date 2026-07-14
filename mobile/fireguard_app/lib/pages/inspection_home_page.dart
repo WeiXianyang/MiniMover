@@ -133,7 +133,7 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                     Text(
                       online
                           ? (cs.taskRunning
-                              ? '巡检进行中…'
+                              ? (cs.taskPaused ? '已暂停，点击恢复继续巡检' : '巡检进行中…')
                               : '点击下方按钮开始自动巡检')
                           : '请先在「设备连接」页连接小车',
                       style: const TextStyle(
@@ -147,7 +147,9 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
               const SizedBox(height: 20),
               GradientButton(
                 text: online
-                    ? (cs.taskRunning ? '巡检进行中…' : '开始自动巡检')
+                    ? (cs.taskRunning
+                        ? (cs.taskPaused ? '恢复自动巡检' : '巡检进行中…')
+                        : '开始自动巡检')
                     : '开始自动巡检',
                 onTap: online && !cs.taskRunning
                     ? () {

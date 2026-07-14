@@ -15,6 +15,7 @@ class MjpegStream extends StatefulWidget {
   final double? height;
   final WidgetBuilder? placeholder;
   final WidgetBuilder? errorBuilder;
+  final void Function(Uint8List frame)? onFrame;
 
   const MjpegStream({
     super.key,
@@ -25,6 +26,7 @@ class MjpegStream extends StatefulWidget {
     this.height,
     this.placeholder,
     this.errorBuilder,
+    this.onFrame,
   });
 
   String get url => 'http://$host:$port$path';
@@ -82,6 +84,7 @@ class _MjpegStreamState extends State<MjpegStream> {
                 final now = DateTime.now().millisecondsSinceEpoch;
                 if (now - _lastFrameMs < 80) return; // 节流 ~12fps
                 _lastFrameMs = now;
+                widget.onFrame?.call(frame);
                 if (mounted) setState(() => _latestFrame = frame);
               },
                 onError: (e) {

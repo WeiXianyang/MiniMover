@@ -1,313 +1,208 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/car_state.dart';
+import '../services/nav_service.dart';
 import '../widgets/common_widgets.dart';
 import '../widgets/page_shell.dart';
 import 'manual_control_page.dart';
 
-/// S03 - 地图与任务页面
-/// 对齐 prototype page-prototype/map.html
-/// 网格地图 + 路线线段 + 节点标记 + 小车位置
+/// S03 - 地图与巡逻
+/// 对接小车 /api/nav/* 导航巡逻 API
 class MapTaskPage extends StatefulWidget {
   final CarState carState;
   final bool embedded;
-  const MapTaskPage({
-    super.key,
-    required this.carState,
-    this.embedded = false,
-  });
-
+  const MapTaskPage({super.key, required this.carState, this.embedded = false});
   @override
   State<MapTaskPage> createState() => _MapTaskPageState();
 }
 
 class _MapTaskPageState extends State<MapTaskPage> {
+  final NavService _nav = NavService();
+  NavMapMeta? _mapMeta;
+  Uint8List? _mapImage;
+  PatrolStatus? _patrolStatus;
+  List<NavPoint> _routePoints = [];
+  bool _stackReady = false;
+  bool _loading = true;
+  String _statusText = '';
+
   @override
   void initState() {
     super.initState();
-    widget.carState.addListener(_onChanged);
+    _nav.updateConfig(widget.carState.host);
+    _initNav();
+    widget.carState.addListener(_onCs);
   }
 
   @override
   void dispose() {
-    widget.carState.removeListener(_onChanged);
+    _nav.stopPatrol();
+    _nav.dispose();
+    widget.carState.removeListener(_onCs);
     super.dispose();
   }
 
-  void _onChanged() {
-    if (mounted) setState(() {});
+  void _onCs() { if (mounted) setState(() {}); }
+
+  Future<void> _initNav() async {
+    setState(() => _statusText = '启动导航栈…');
+    final meta = await _nav.fetchMapMeta();
+    if (meta != null) {
+      setState(() { _mapMeta = meta; _statusText = '加载地图…'; });
+      final img = await _nav.fetchMapImage();
+      if (img != null) setState(() => _mapImage = Uint8List.fromList(img));
+    }
+    final s = await _nav.stackStatus();
+    setState(() { _stackReady = s.patrolReady; _statusText = s.patrolReady ? '就绪' : s.hint; _loading = false; });
   }
 
-  /// 小车在路线上的位置比例（对齐 prototype 41% 位置）
-  double get _carProgress => widget.carState.taskProgress > 0
-      ? widget.carState.taskProgress
-      : 0.41;
+  Future<void> _startStack() async {
+    setState(() => _statusText = '启动中 (约15s)…');
+    final ok = await _nav.stackStart();
+    if (ok) { final s = await _nav.stackStatus(); setState(() { _stackReady = s.patrolReady; _statusText = s.patrolReady ? '就绪' : s.hint; }); }
+  }
+
+  Future<void> _stopStack() async {
+    await _nav.stackStop();
+    widget.carState.abortTask();
+    setState(() { _stackReady = false; _statusText = '已关闭'; _routePoints = []; });
+  }
+
+  void _onTapMap(TapUpDetails d, double displayW, double displayH) {
+    if (_mapMeta == null || !_stackReady) return;
+    final px = d.localPosition.dx * _mapMeta!.width / displayW;
+    final py = d.localPosition.dy * _mapMeta!.height / displayH;
+    final mx = px * _mapMeta!.resolution + _mapMeta!.origin[0];
+    final my = (_mapMeta!.height - py) * _mapMeta!.resolution + _mapMeta!.origin[1];
+    setState(() { _routePoints = [..._routePoints, NavPoint(mx, my)]; });
+  }
+
+  Future<void> _setPoseAndRoute() async {
+    if (_routePoints.isEmpty) return;
+    await _nav.setInitialPose(_routePoints.first.x, _routePoints.first.y);
+    await _nav.setPatrolRoute(_routePoints);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已设置 ${_routePoints.length} 个路径点'), duration: const Duration(seconds: 1)),
+    );
+  }
+
+  Future<void> _startPatrol() async {
+    if (_routePoints.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('至少需要 2 个路径点'), duration: Duration(seconds: 1)),
+      );
+      return;
+    }
+    await _setPoseAndRoute();
+    await _nav.startPatrol();
+    _pollStatus();
+  }
+
+  Future<void> _stopPatrol() async {
+    await _nav.stopPatrol();
+    widget.carState.abortTask();
+    setState(() => _patrolStatus = null);
+  }
+
+  void _pollStatus() async {
+    final s = await _nav.patrolStatus();
+    if (mounted) {
+      final wasActive = _patrolStatus?.patrolActive == true;
+      setState(() => _patrolStatus = s);
+      if (s?.patrolActive == true) {
+        Future.delayed(const Duration(seconds: 2), _pollStatus);
+      } else if (wasActive) {
+        widget.carState.completeTask();
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final cs = widget.carState;
-
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-                Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── 页头：对齐 prototype 避障中 pill ──
-              PageHeader(
-                title: '地图与任务',
-                subTitle: '路径进度与障碍状态',
-                badgeText: cs.taskPaused
-                    ? '已暂停'
-                    : (cs.taskRunning ? '避障中' : '待命'),
-                badgeActive: cs.taskRunning,
-              ),
-              const SizedBox(height: 20),
-              // ── 地图区域：网格 + 路线 + 节点 + 小车 ──
-              GlassCard(
-                  height: 250,
-                  padding: const EdgeInsets.all(0),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: _MapRouteView(carProgress: _carProgress),
-                  )),
-              const SizedBox(height: 12),
-              // ── 图例：对齐 prototype ──
-              Row(
-                children: [
-                  _LegendDot(color: AppTheme.cyan, label: '当前路径'),
-                  const SizedBox(width: 12),
-                  _LegendDot(color: AppTheme.accent, label: '小车位置'),
-                  const SizedBox(width: 12),
-                  _LegendDot(color: AppTheme.statusRed, label: '告警点'),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // ── 进度卡片 ──
-              GlassCard(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    InfoRow(
-                      label: '巡检进度',
-                      value: '${(_carProgress * 100).round()}%',
+    final content = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        PageHeader(title: '地图与巡逻', subTitle: _statusText,
+          badgeText: _patrolStatus?.patrolActive == true ? '巡逻中' : (_stackReady ? '就绪' : '未启动'),
+          badgeActive: _stackReady),
+        const SizedBox(height: 16),
+        LayoutBuilder(builder: (ctx, outerCts) {
+          // 根据地图元数据计算显示宽高比，默认 1:1
+          final metaW = _mapMeta?.width ?? 1;
+          final metaH = _mapMeta?.height ?? 1;
+          final aspect = metaW > 0 && metaH > 0 ? metaW / metaH : 1.0;
+          final displayW = outerCts.maxWidth;
+          final displayH = (displayW / aspect).clamp(120.0, 500.0);
+          return GlassCard(height: displayH, padding: const EdgeInsets.all(0),
+            child: ClipRRect(borderRadius: BorderRadius.circular(10),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent))
+                  : GestureDetector(onTapUp: (d) => _onTapMap(d, displayW, displayH),
+                      child: Stack(children: [
+                        if (_mapImage != null) Positioned.fill(child: Image.memory(_mapImage!, fit: BoxFit.fill)),
+                        if (_mapImage == null) Positioned.fill(child: CustomPaint(size: Size.infinite, painter: _GridPainter())),
+                        ..._routePoints.asMap().entries.map((e) {
+                          final i = e.key; final p = e.value;
+                          if (_mapMeta == null) return const SizedBox();
+                          final l = (p.x - _mapMeta!.origin[0]) / _mapMeta!.resolution;
+                          final t = _mapMeta!.height - (p.y - _mapMeta!.origin[1]) / _mapMeta!.resolution;
+                          return Positioned(
+                            left: l * displayW / _mapMeta!.width - 10,
+                            top: t * displayH / _mapMeta!.height - 15,
+                            child: Column(mainAxisSize: MainAxisSize.min, children: [
+                              Container(width: 20, height: 20, decoration: BoxDecoration(shape: BoxShape.circle,
+                                color: i == 0 ? AppTheme.accent : AppTheme.cyan, border: Border.all(color: Colors.white, width: 2)),
+                                child: Center(child: Text('${i + 1}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)))),
+                              Text(i == 0 ? '起点' : '点${i + 1}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+                            ]),
+                          );
+                        }),
+                      ]),
                     ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: LinearProgressIndicator(
-                          value: _carProgress,
-                          minHeight: 8,
-                          backgroundColor: const Color(0xFF26364A),
-                          color: AppTheme.accent),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      cs.taskRunning
-                          ? '已到达 B2 区域，正在靠近配电柜 A。'
-                          : '任务尚未开始，点击下方按钮启动巡检。',
-                      style: AppTheme.bodyLabel,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              // ── 操作按钮：对齐 prototype 暂停 + 手动接管 ──
-              Row(
-                children: [
-                  Expanded(
-                    child: SmallButton(
-                      text: cs.taskPaused ? '恢复任务' : '暂停任务',
-                      onTap: () {
-                        if (cs.taskPaused) {
-                          cs.resumeTask();
-                        } else {
-                          cs.pauseTask();
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: SmallButton(
-                      text: '手动接管',
-                      onTap: () => _push(
-                          context,
-                          '手动接管',
-                          ManualControlPage(
-                              carState: cs, embedded: true)),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-      ],
-    );
-
+            ));
+        }),
+        const SizedBox(height: 12),
+        GlassCard(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Column(children: [
+            InfoRow(label: '路径点数', value: '${_routePoints.length}'),
+            const Divider(color: AppTheme.dividerLine, height: 18),
+            InfoRow(label: '巡逻状态', value: _patrolStatus?.status ?? _statusText),
+          ])),
+        const SizedBox(height: 16),
+        if (!_stackReady) ...[
+          GradientButton(text: '启动导航栈', onTap: _startStack),
+        ] else ...[
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            SmallButton(text: _patrolStatus?.patrolActive == true ? '停止巡逻' : '开始巡逻',
+                onTap: () => _patrolStatus?.patrolActive == true ? _stopPatrol() : _startPatrol()),
+            SmallButton(text: '设起点+路线', onTap: _routePoints.length >= 2 ? _setPoseAndRoute : null),
+            SmallButton(text: '清除路径点', onTap: () => setState(() => _routePoints = [])),
+            SmallButton(text: '关闭导航栈', onTap: _stopStack),
+          ]),
+        ],
+        const SizedBox(height: 8),
+        SmallButton(text: '手动接管', onTap: () => _push(context, '手动接管', ManualControlPage(carState: widget.carState, embedded: true))),
+      ]),
+    ]);
     return _wrap(context, content);
   }
 
-  void _push(BuildContext context, String title, Widget page) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => PageShell(title: title, child: page),
-    ));
+  void _push(BuildContext c, String t, Widget p) {
+    Navigator.of(c).push(MaterialPageRoute(builder: (_) => PageShell(title: t, child: p)));
   }
 
-
-  Widget _wrap(BuildContext context, Widget content) {
-    if (widget.embedded) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-            AppTheme.pagePadding, 16, AppTheme.pagePadding, AppTheme.tabBarInset),
-        child: content,
-      );
-    }
-    return PageShell(
-      child: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppTheme.pagePadding),
-          child: content,
-        ),
-      ),
-    );
-  }
+  Widget _wrap(BuildContext c, Widget w) => widget.embedded
+      ? SingleChildScrollView(padding: const EdgeInsets.fromLTRB(AppTheme.pagePadding, 16, AppTheme.pagePadding, AppTheme.tabBarInset), child: w)
+      : PageShell(child: SafeArea(child: SingleChildScrollView(padding: const EdgeInsets.all(AppTheme.pagePadding), child: w)));
 }
 
-/// 网格地图 + 路线线段 + 节点 + 小车指示器
-class _MapRouteView extends StatelessWidget {
-  final double carProgress;
-  const _MapRouteView({required this.carProgress});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final w = constraints.maxWidth;
-      final h = constraints.maxHeight;
-
-      // ── 路线路径定义（相对坐标，对齐 prototype）──
-      // Node A → Node B (水平线段) → Node C (垂直线段)
-      const ax = 60.0, ay = 82.0;   // 起点 A
-      const bx = 210.0, by = 82.0;  // 途经点 B (配电柜A)
-      const cx = 210.0, cy = 186.0; // 终点 C (仓储通道)
-      const nodeR = 14.0;
-
-      // ── 根据进度计算小车位置（沿 A→B→C 路线）──
-      final abLen = bx - ax;           // 水平段长度
-      final bcLen = cy - by;           // 垂直段长度
-      final totalLen = abLen + bcLen;
-      final traveled = carProgress * totalLen;
-
-      double carX, carY;
-      if (traveled <= abLen) {
-        // 在水平段上
-        carX = ax + traveled;
-        carY = ay;
-      } else {
-        // 在垂直段上
-        carX = bx;
-        carY = by + (traveled - abLen);
-      }
-
-      return CustomPaint(
-        size: Size(w, h),
-        painter: _RouteGridPainter(
-          ax: ax, ay: ay, bx: bx, by: by, cx: cx, cy: cy,
-          carX: carX, carY: carY, carR: nodeR,
-        ),
-      );
-    });
-  }
-}
-
-class _RouteGridPainter extends CustomPainter {
-  final double ax, ay, bx, by, cx, cy, carX, carY, carR;
-
-  _RouteGridPainter({
-    required this.ax, required this.ay,
-    required this.bx, required this.by,
-    required this.cx, required this.cy,
-    required this.carX, required this.carY,
-    required this.carR,
-  });
-
+class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    // ── 网格背景（对齐 prototype .map 网格 30x30）──
-    final gridPaint = Paint()
-      ..color = const Color.fromRGBO(48, 211, 255, 0.08)
-      ..strokeWidth = 1;
-    const step = 30.0;
-    for (double x = 0; x <= size.width; x += step) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
-    }
-    for (double y = 0; y <= size.height; y += step) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    // ── 路线线段（水平 A→B + 垂直 B→C，对齐 prototype route-x / route-y）──
-    final routePaint = Paint()
-      ..color = AppTheme.cyan
-      ..strokeWidth = 4
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(Offset(ax, ay), Offset(bx, by), routePaint); // 水平段
-    canvas.drawLine(Offset(bx, by), Offset(cx, cy), routePaint); // 垂直段
-
-    // ── 节点 A（起点，青色）──
-    _drawNode(canvas, ax, ay, AppTheme.cyan, 'A');
-    // ── 节点 B（配电柜A，青色）──
-    _drawNode(canvas, bx, by, AppTheme.cyan, 'B');
-    // ── 节点 C（告警点，红色）──
-    _drawNode(canvas, cx, cy, AppTheme.statusRed, 'C');
-
-    // ── 小车位置（橙色，带光晕）──
-    final glowPaint = Paint()
-      ..color = const Color.fromRGBO(255, 151, 72, 0.13)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-    canvas.drawCircle(Offset(carX, carY), carR + 6, glowPaint);
-    canvas.drawCircle(Offset(carX, carY), carR, Paint()..color = AppTheme.accent);
+    final p = Paint()..color = const Color(0x1430D3FF)..strokeWidth = 0.5;
+    for (double x = 0; x <= size.width; x += 30) canvas.drawLine(Offset(x, 0), Offset(x, size.height), p);
+    for (double y = 0; y <= size.height; y += 30) canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
   }
-
-  void _drawNode(Canvas canvas, double x, double y, Color color, String label) {
-    final r = carR / 2;
-    canvas.drawCircle(Offset(x, y), r, Paint()..color = color);
-    // 标签使用 TextPainter
-    final tp = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: const TextStyle(
-          color: Color(0xFF08202A),
-          fontSize: 9,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(x - tp.width / 2, y - tp.height / 2));
-  }
-
   @override
-  bool shouldRepaint(covariant _RouteGridPainter oldDelegate) =>
-      carX != oldDelegate.carX || carY != oldDelegate.carY;
-}
-
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
-  const _LegendDot({required this.color, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      Container(
-        width: 8,
-        height: 8,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      ),
-      const SizedBox(width: 5),
-      Text(label, style: AppTheme.subtitle),
-    ]);
-  }
+  bool shouldRepaint(covariant CustomPainter o) => false;
 }
