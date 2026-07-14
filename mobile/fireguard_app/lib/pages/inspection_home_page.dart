@@ -53,9 +53,7 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                 title: '巡检主页',
                 subTitle: cs.deviceStatusDisplay,
                 badgeText: online
-                    ? (cs.taskRunning
-                        ? (cs.taskPaused ? '已暂停' : '巡检中')
-                        : '就绪')
+                    ? (cs.navStackReady ? '巡检中' : '就绪')
                     : '离线',
                 badgeActive: online,
               ),
@@ -72,9 +70,7 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                     InfoRow(
                         label: '当前任务',
                         value: online
-                            ? (cs.taskRunning
-                                ? (cs.taskPaused ? '已暂停' : '配电房与仓储通道巡检')
-                                : '配电房与仓储通道巡检')
+                            ? '配电房与仓储通道巡检'
                             : '—'),
                   ],
                 ),
@@ -132,8 +128,8 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
                     const SizedBox(height: 6),
                     Text(
                       online
-                          ? (cs.taskRunning
-                              ? (cs.taskPaused ? '已暂停，点击恢复继续巡检' : '巡检进行中…')
+                          ? (cs.navStackReady
+                              ? '巡检进行中…'
                               : '点击下方按钮开始自动巡检')
                           : '请先在「设备连接」页连接小车',
                       style: const TextStyle(
@@ -147,11 +143,9 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
               const SizedBox(height: 20),
               GradientButton(
                 text: online
-                    ? (cs.taskRunning
-                        ? (cs.taskPaused ? '恢复自动巡检' : '巡检进行中…')
-                        : '开始自动巡检')
+                    ? (cs.navStackReady ? '巡检进行中…' : '开始自动巡检')
                     : '开始自动巡检',
-                onTap: online && !cs.taskRunning
+                onTap: online && !cs.navStackReady
                     ? () {
                         cs.startTask();
                         _push(context, '地图任务',
@@ -167,19 +161,16 @@ class _InspectionHomePageState extends State<InspectionHomePage> {
               GradientButton(
                 text: '切换到手动接管',
                 secondary: true,
-                onTap: () => _push(
-                    context,
-                    '手动接管',
-                    ManualControlPage(
-                        carState: cs, embedded: true)),
+                onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => ManualControlPage(carState: cs, embedded: true))),
               ),
               const SizedBox(height: 12),
               GradientButton(
-                text: '部件信息展示',
+                text: '小车模型展示',
                 secondary: true,
                 onTap: () => _push(
                     context,
-                    '部件信息展示',
+                    '小车模型展示',
                     Model3DPage(carState: cs)),
               ),
             ],

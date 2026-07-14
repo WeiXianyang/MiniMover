@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 /// 传感器数据
@@ -297,6 +298,44 @@ class ApiService {
       return r.statusCode == 200;
     } catch (_) {}
     return false;
+  }
+
+  // ═══ BGM 音乐播放 ═══
+  Future<bool> musicPlay() async {
+    try {
+      final r = await _client.post(Uri.parse('$baseUrl/api/music/play')).timeout(const Duration(seconds: 10));
+      return r.statusCode == 200;
+    } catch (_) {}
+    return false;
+  }
+
+  Future<bool> musicStop() async {
+    try {
+      final r = await _client.post(Uri.parse('$baseUrl/api/music/stop')).timeout(const Duration(seconds: 3));
+      return r.statusCode == 200;
+    } catch (_) {}
+    return false;
+  }
+
+  Future<Map<String, dynamic>?> musicStatus() async {
+    try {
+      final r = await _client.get(Uri.parse('$baseUrl/api/music/status')).timeout(const Duration(seconds: 3));
+      if (r.statusCode == 200) return jsonDecode(r.body) as Map<String, dynamic>;
+    } catch (_) {}
+    return null;
+  }
+
+  // ═══ 人脸识别（需要 Django 人脸服务 :8000 在运行） ═══
+  Future<Map<String, dynamic>?> faceRecognition(Uint8List imageBytes) async {
+    try {
+      final uri = Uri.parse('http://$_host:8000/api/face_recognition');
+      final req = http.MultipartRequest('POST', uri)
+        ..files.add(http.MultipartFile.fromBytes('image', imageBytes.toList(), filename: 'frame.jpg'));
+      final streamed = await req.send().timeout(const Duration(seconds: 10));
+      final r = await http.Response.fromStream(streamed);
+      if (r.statusCode == 200) return jsonDecode(r.body) as Map<String, dynamic>;
+    } catch (_) {}
+    return null;
   }
 
   void dispose() { disconnect(); _statusCtrl.close(); _connCtrl.close(); }

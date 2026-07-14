@@ -7,8 +7,7 @@ import '../widgets/common_widgets.dart';
 import '../widgets/page_shell.dart';
 import 'manual_control_page.dart';
 
-/// S03 - 地图与巡逻
-/// 对接小车 /api/nav/* 导航巡逻 API
+/// S03 - 地图与导航（单点导航，鸿蒙路线：不依赖 patrol 节点）
 class MapTaskPage extends StatefulWidget {
   final CarState carState;
   final bool embedded;
@@ -21,11 +20,12 @@ class _MapTaskPageState extends State<MapTaskPage> {
   final NavService _nav = NavService();
   NavMapMeta? _mapMeta;
   Uint8List? _mapImage;
-  PatrolStatus? _patrolStatus;
-  List<NavPoint> _routePoints = [];
-  bool _stackReady = false;
+  NavPoint? _target;
   bool _loading = true;
+  bool _busy = false;
   String _statusText = '';
+  final List<String> _logs = [];
+  bool _showLogs = false;
 
   @override
   void initState() {
@@ -37,7 +37,6 @@ class _MapTaskPageState extends State<MapTaskPage> {
 
   @override
   void dispose() {
-    _nav.stopPatrol();
     _nav.dispose();
     widget.carState.removeListener(_onCs);
     super.dispose();
@@ -45,89 +44,129 @@ class _MapTaskPageState extends State<MapTaskPage> {
 
   void _onCs() { if (mounted) setState(() {}); }
 
-  Future<void> _initNav() async {
-    setState(() => _statusText = '启动导航栈…');
-    final meta = await _nav.fetchMapMeta();
-    if (meta != null) {
-      setState(() { _mapMeta = meta; _statusText = '加载地图…'; });
-      final img = await _nav.fetchMapImage();
-      if (img != null) setState(() => _mapImage = Uint8List.fromList(img));
+  void _addLog(String msg) {
+    final t = DateTime.now().toIso8601String().substring(11, 19);
+    final line = '[$t] $msg';
+    debugPrint('[MapNav] $line');
+    setState(() { _logs.add(line); if (_logs.length > 200) _logs.removeAt(0); });
+  }
+
+  void _showMsg(String msg, {bool error = false}) {
+    _addLog(error ? 'ERROR: $msg' : msg);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg, style: const TextStyle(color: Colors.white)),
+          backgroundColor: error ? Colors.red.shade800 : null,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
-    final s = await _nav.stackStatus();
-    setState(() { _stackReady = s.patrolReady; _statusText = s.patrolReady ? '就绪' : s.hint; _loading = false; });
   }
 
-  Future<void> _startStack() async {
-    setState(() => _statusText = '启动中 (约15s)…');
-    final ok = await _nav.stackStart();
-    if (ok) { final s = await _nav.stackStatus(); setState(() { _stackReady = s.patrolReady; _statusText = s.patrolReady ? '就绪' : s.hint; }); }
-  }
-
-  Future<void> _stopStack() async {
-    await _nav.stackStop();
-    widget.carState.abortTask();
-    setState(() { _stackReady = false; _statusText = '已关闭'; _routePoints = []; });
+  Future<void> _initNav() async {
+    _addLog('加载地图 — ${widget.carState.host}:5000');
+    setState(() => _statusText = '加载地图…');
+    try {
+      final meta = await _nav.fetchMapMeta();
+      if (meta != null) {
+        _addLog('地图元数据: ${meta.map} ${meta.width}x${meta.height} res=${meta.resolution}');
+        setState(() { _mapMeta = meta; _statusText = '下载地图图片…'; });
+        final img = await _nav.fetchMapImage();
+        if (img != null) {
+          setState(() => _mapImage = Uint8List.fromList(img));
+          _addLog('地图图片: ${img.length} bytes');
+        } else {
+          _addLog('地图图片下载失败（使用网格占位）');
+        }
+      } else {
+        _addLog('地图元数据获取失败');
+      }
+    } catch (e) {
+      _addLog('初始化异常: $e');
+    }
+    setState(() { _statusText = '点击地图选择导航目标'; _loading = false; });
   }
 
   void _onTapMap(TapUpDetails d, double displayW, double displayH) {
-    if (_mapMeta == null || !_stackReady) return;
+    if (_mapMeta == null || _busy) return;
     final px = d.localPosition.dx * _mapMeta!.width / displayW;
     final py = d.localPosition.dy * _mapMeta!.height / displayH;
     final mx = px * _mapMeta!.resolution + _mapMeta!.origin[0];
     final my = (_mapMeta!.height - py) * _mapMeta!.resolution + _mapMeta!.origin[1];
-    setState(() { _routePoints = [..._routePoints, NavPoint(mx, my)]; });
+    setState(() { _target = NavPoint(mx, my); });
+    _addLog('选择目标: (${mx.toStringAsFixed(3)}, ${my.toStringAsFixed(3)}) ← 像素 (${px.toStringAsFixed(0)}, ${py.toStringAsFixed(0)})');
   }
 
-  Future<void> _setPoseAndRoute() async {
-    if (_routePoints.isEmpty) return;
-    await _nav.setInitialPose(_routePoints.first.x, _routePoints.first.y);
-    await _nav.setPatrolRoute(_routePoints);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已设置 ${_routePoints.length} 个路径点'), duration: const Duration(seconds: 1)),
-    );
-  }
-
-  Future<void> _startPatrol() async {
-    if (_routePoints.length < 2) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('至少需要 2 个路径点'), duration: Duration(seconds: 1)),
-      );
-      return;
-    }
-    await _setPoseAndRoute();
-    await _nav.startPatrol();
-    _pollStatus();
-  }
-
-  Future<void> _stopPatrol() async {
-    await _nav.stopPatrol();
-    widget.carState.abortTask();
-    setState(() => _patrolStatus = null);
-  }
-
-  void _pollStatus() async {
-    final s = await _nav.patrolStatus();
-    if (mounted) {
-      final wasActive = _patrolStatus?.patrolActive == true;
-      setState(() => _patrolStatus = s);
-      if (s?.patrolActive == true) {
-        Future.delayed(const Duration(seconds: 2), _pollStatus);
-      } else if (wasActive) {
-        widget.carState.completeTask();
+  Future<void> _setInitialPose() async {
+    if (_target == null) return;
+    setState(() => _busy = true);
+    _addLog('设置初始位姿 — POST /api/nav/initial_pose (${_target!.x.toStringAsFixed(3)}, ${_target!.y.toStringAsFixed(3)})');
+    try {
+      final ok = await _nav.setInitialPose(_target!.x, _target!.y);
+      if (ok) {
+        widget.carState.startTask();
+        _showMsg('初始位姿已设置 (${_target!.x.toStringAsFixed(2)}, ${_target!.y.toStringAsFixed(2)})');
+      } else {
+        _showMsg('设置初始位姿失败', error: true);
       }
+    } catch (e) {
+      _addLog('异常: $e');
+      _showMsg('设置失败: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _navigateToTarget() async {
+    if (_target == null) return;
+    setState(() => _busy = true);
+    _addLog('=== 单点导航 ===');
+    _addLog('POST /api/nav/navigate x=${_target!.x.toStringAsFixed(3)} y=${_target!.y.toStringAsFixed(3)}');
+    try {
+      final ok = await _nav.navigate(_target!.x, _target!.y);
+      if (ok) {
+        widget.carState.startTask();
+        _showMsg('导航已下发: (${_target!.x.toStringAsFixed(2)}, ${_target!.y.toStringAsFixed(2)})');
+        _addLog('导航命令已发送，小车开始移动');
+      } else {
+        _showMsg('导航命令发送失败', error: true);
+      }
+    } catch (e) {
+      _addLog('异常: $e');
+      _showMsg('导航失败: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _clearTarget() {
+    setState(() => _target = null);
+    _addLog('清除目标');
   }
 
   @override
   Widget build(BuildContext context) {
+    final hasTarget = _target != null;
     final content = Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        PageHeader(title: '地图与巡逻', subTitle: _statusText,
-          badgeText: _patrolStatus?.patrolActive == true ? '巡逻中' : (_stackReady ? '就绪' : '未启动'),
-          badgeActive: _stackReady),
+        PageHeader(
+          title: '地图与导航',
+          subTitle: _busy ? '通信中…' : _statusText,
+          badgeText: hasTarget ? '目标已选' : '待选择',
+          badgeActive: hasTarget,
+        ),
+        if (_busy)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.all(Radius.circular(999)),
+              child: LinearProgressIndicator(minHeight: 3, backgroundColor: Color(0xFF26364A), color: AppTheme.accent),
+            ),
+          ),
         const SizedBox(height: 16),
+        // ── 地图 ──
         LayoutBuilder(builder: (ctx, outerCts) {
-          // 根据地图元数据计算显示宽高比，默认 1:1
           final metaW = _mapMeta?.width ?? 1;
           final metaH = _mapMeta?.height ?? 1;
           final aspect = metaW > 0 && metaH > 0 ? metaW / metaH : 1.0;
@@ -141,47 +180,94 @@ class _MapTaskPageState extends State<MapTaskPage> {
                       child: Stack(children: [
                         if (_mapImage != null) Positioned.fill(child: Image.memory(_mapImage!, fit: BoxFit.fill)),
                         if (_mapImage == null) Positioned.fill(child: CustomPaint(size: Size.infinite, painter: _GridPainter())),
-                        ..._routePoints.asMap().entries.map((e) {
-                          final i = e.key; final p = e.value;
-                          if (_mapMeta == null) return const SizedBox();
-                          final l = (p.x - _mapMeta!.origin[0]) / _mapMeta!.resolution;
-                          final t = _mapMeta!.height - (p.y - _mapMeta!.origin[1]) / _mapMeta!.resolution;
-                          return Positioned(
-                            left: l * displayW / _mapMeta!.width - 10,
-                            top: t * displayH / _mapMeta!.height - 15,
-                            child: Column(mainAxisSize: MainAxisSize.min, children: [
-                              Container(width: 20, height: 20, decoration: BoxDecoration(shape: BoxShape.circle,
-                                color: i == 0 ? AppTheme.accent : AppTheme.cyan, border: Border.all(color: Colors.white, width: 2)),
-                                child: Center(child: Text('${i + 1}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)))),
-                              Text(i == 0 ? '起点' : '点${i + 1}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
-                            ]),
-                          );
-                        }),
+                        // ── 目标标记 ──
+                        if (_target != null && _mapMeta != null) ...[
+                          // 十字准星
+                          Builder(builder: (_) {
+                            final l = (_target!.x - _mapMeta!.origin[0]) / _mapMeta!.resolution;
+                            final t = _mapMeta!.height - (_target!.y - _mapMeta!.origin[1]) / _mapMeta!.resolution;
+                            final cx = l * displayW / _mapMeta!.width;
+                            final cy = t * displayH / _mapMeta!.height;
+                            return Positioned(
+                              left: cx - 15, top: cy - 15,
+                              child: IgnorePointer(
+                                child: Container(
+                                  width: 30, height: 30,
+                                  decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0x40FF4444)),
+                                  child: const Icon(Icons.location_on, color: Color(0xFFFF4444), size: 30),
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
                       ]),
                     ),
             ));
         }),
         const SizedBox(height: 12),
-        GlassCard(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        // ── 目标信息卡 ──
+        GlassCard(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Column(children: [
-            InfoRow(label: '路径点数', value: '${_routePoints.length}'),
-            const Divider(color: AppTheme.dividerLine, height: 18),
-            InfoRow(label: '巡逻状态', value: _patrolStatus?.status ?? _statusText),
-          ])),
-        const SizedBox(height: 16),
-        if (!_stackReady) ...[
-          GradientButton(text: '启动导航栈', onTap: _startStack),
-        ] else ...[
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            SmallButton(text: _patrolStatus?.patrolActive == true ? '停止巡逻' : '开始巡逻',
-                onTap: () => _patrolStatus?.patrolActive == true ? _stopPatrol() : _startPatrol()),
-            SmallButton(text: '设起点+路线', onTap: _routePoints.length >= 2 ? _setPoseAndRoute : null),
-            SmallButton(text: '清除路径点', onTap: () => setState(() => _routePoints = [])),
-            SmallButton(text: '关闭导航栈', onTap: _stopStack),
+            InfoRow(
+              label: '目标坐标',
+              value: hasTarget ? '(${_target!.x.toStringAsFixed(2)}, ${_target!.y.toStringAsFixed(2)})' : '—',
+            ),
+            if (hasTarget) ...[
+              const Divider(color: AppTheme.dividerLine, height: 18),
+              InfoRow(label: '操作', value: _busy ? '通信中…' : '选择下方按钮'),
+            ],
           ]),
-        ],
+        ),
+        const SizedBox(height: 16),
+        // ── 操作按钮 ──
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          SmallButton(
+            text: '设初始位姿',
+            busy: _busy,
+            onTap: (_busy || !hasTarget) ? null : _setInitialPose,
+          ),
+          SmallButton(
+            text: '导航到此',
+            busy: _busy,
+            onTap: (_busy || !hasTarget) ? null : _navigateToTarget,
+          ),
+          SmallButton(
+            text: '清除目标',
+            busy: _busy,
+            onTap: (_busy || !hasTarget) ? null : _clearTarget,
+          ),
+        ]),
         const SizedBox(height: 8),
-        SmallButton(text: '手动接管', onTap: () => _push(context, '手动接管', ManualControlPage(carState: widget.carState, embedded: true))),
+        SmallButton(
+          text: '手动接管',
+          busy: _busy,
+          onTap: _busy ? null : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ManualControlPage(carState: widget.carState, embedded: true))),
+        ),
+
+        // ── 调试日志 ──
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => setState(() => _showLogs = !_showLogs),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(_showLogs ? Icons.expand_less : Icons.expand_more, size: 16, color: AppTheme.textSecondary),
+            const SizedBox(width: 4),
+            Text('调试日志 (${_logs.length})', style: AppTheme.subtitle),
+          ]),
+        ),
+        if (_showLogs)
+          GlassCard(
+            padding: const EdgeInsets.all(10),
+            child: SizedBox(
+              height: 150,
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  _logs.reversed.take(50).join('\n'),
+                  style: const TextStyle(color: AppTheme.cyan, fontSize: 11, fontFamily: 'monospace', height: 1.5),
+                ),
+              ),
+            ),
+          ),
       ]),
     ]);
     return _wrap(context, content);

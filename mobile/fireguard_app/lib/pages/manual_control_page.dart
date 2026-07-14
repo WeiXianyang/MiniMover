@@ -4,7 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../theme/app_theme.dart';
 import '../services/car_state.dart';
 import '../services/nav_service.dart';
@@ -37,11 +36,11 @@ class _ManualControlPageState extends State<ManualControlPage> {
   double _viewJoystickX = 0;
   // 开关
   bool _emergencyStopped = false;
-  // 语音对讲
-  final stt.SpeechToText _speech = stt.SpeechToText();
-  bool _sttAvailable = false;
-  bool _voiceListening = false;
-  String _voiceStatus = '';
+  // BGM 播放
+  bool _bgmPlaying = false;
+  // 人脸识别
+  bool _faceRecognizing = false;
+  String _faceResult = '';
   // 地图弹窗
   final NavService _navService = NavService();
   bool _showMapOverlay = false;
@@ -59,15 +58,60 @@ class _ManualControlPageState extends State<ManualControlPage> {
     super.initState();
     _lockLandscape();
     _loadLayout();
-    _initStt();
     _fpsTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _fps = 28 + (DateTime.now().millisecond % 5));
     });
   }
 
-  Future<void> _initStt() async {
-    final available = await _speech.initialize();
-    if (mounted) setState(() => _sttAvailable = available);
+  // ═══ BGM 播放(长按播放，松开暂停) ═══
+  Future<void> _playBgm() async {
+    if (_bgmPlaying) return;
+    final ok = await widget.carState.api.musicPlay();
+    if (mounted && ok) {
+      setState(() => _bgmPlaying = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('BGM 播放中'), duration: Duration(seconds: 1)),
+      );
+    }
+  }
+
+  Future<void> _pauseBgm() async {
+    if (!_bgmPlaying) return;
+    await widget.carState.api.musicStop();
+    if (mounted) setState(() => _bgmPlaying = false);
+  }
+
+  // ═══ 人脸识别 ═══
+  Future<void> _doFaceRecognition() async {
+    if (_cachedFrame == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('视频流未连接，无法识别'), duration: Duration(seconds: 1)),
+      );
+      return;
+    }
+    setState(() { _faceRecognizing = true; _faceResult = ''; });
+    final result = await widget.carState.api.faceRecognition(_cachedFrame!);
+    if (mounted) {
+      setState(() => _faceRecognizing = false);
+      if (result != null && result['identity'] != null) {
+        final name = result['identity'] as String;
+        final user = result['user'] as Map<String, dynamic>?;
+        final score = user?['score']?.toString() ?? '?';
+        _faceResult = '$name ($score分)';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('识别结果: $_faceResult', style: const TextStyle(fontSize: 16)),
+            backgroundColor: AppTheme.statusGreen,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        _faceResult = result?['msg'] as String? ?? '未识别到人脸';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_faceResult), duration: const Duration(seconds: 2)),
+        );
+      }
+    }
   }
 
   Future<void> _loadLayout() async {
@@ -87,7 +131,6 @@ class _ManualControlPageState extends State<ManualControlPage> {
   @override
   void dispose() {
     _fpsTimer?.cancel();
-    _speech.stop();
     _restoreOrientation();
     super.dispose();
   }
@@ -134,7 +177,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
     final now = DateTime.now();
     if (now.difference(_lastSend) < _throttle) return;
     _lastSend = now;
-    widget.carState.setSpeed((dy.abs() > dx.abs() ? dy.abs() : dx.abs() * _speed * 100).round().clamp(10, 100));
+    widget.carState.setSpeed(((dy.abs() > dx.abs() ? dy.abs() : dx.abs()) * _speed * 100).round().clamp(10, 100));
     if (dy.abs() > dx.abs()) { if (dy < -0.3) widget.carState.moveForward(); else if (dy > 0.3) widget.carState.moveBackward(); else widget.carState.stop(); }
     else { if (dx < -0.3) widget.carState.shiftLeft(); else if (dx > 0.3) widget.carState.shiftRight(); else widget.carState.stop(); }
   }
@@ -175,55 +218,59 @@ class _ManualControlPageState extends State<ManualControlPage> {
     });
   }
 
-  // ═══════════════════════════════════════════
-  // 语音对讲（长按传话）
-  // ═══════════════════════════════════════════
-  String _recognizedText = '';
-
-  void _startVoiceTalk() {
-    if (!_sttAvailable) {
-      setState(() => _voiceStatus = '语音识别不可用');
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted) setState(() => _voiceStatus = '');
-      });
-      return;
-    }
-    _recognizedText = '';
-    setState(() { _voiceListening = true; _voiceStatus = '聆听中…'; });
-    _speech.listen(
-      localeId: 'zh_CN',
-      listenFor: const Duration(seconds: 30),
-      onResult: (result) {
-        _recognizedText = result.recognizedWords;
-        if (mounted) setState(() => _voiceStatus = '聆听中… ${_recognizedText.isNotEmpty ? _recognizedText : ''}');
-      },
+  // ═══ TTS 文字播报（点击按钮弹窗输入） ═══
+  void _showTtsDialog() {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF172233),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppTheme.cardBorder),
+        ),
+        title: const Text('语音播报', style: AppTheme.pageTitle),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 3,
+          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
+          decoration: InputDecoration(
+            hintText: '输入要播报的文字…',
+            hintStyle: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+            filled: true,
+            fillColor: const Color(0xFF0C1520),
+            contentPadding: const EdgeInsets.all(14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppTheme.cardBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppTheme.cardBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppTheme.accent),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () {
+              final text = ctrl.text.trim();
+              if (text.isNotEmpty) widget.carState.ttsSay(text);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('播报', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
     );
-  }
-
-  Future<void> _stopVoiceTalk() async {
-    if (!_voiceListening) return;
-    _speech.stop();
-    final text = _recognizedText.trim();
-    setState(() { _voiceListening = false; _voiceStatus = text.isNotEmpty ? '传话中…' : ''; });
-
-    if (text.isEmpty) {
-      if (mounted) setState(() => _voiceStatus = '');
-      return;
-    }
-
-    // 发送文字到小车 TTS 播放
-    await widget.carState.ttsSay(text);
-
-    // 等 TTS 播完（约 2s + 文字长度估算）
-    final speakSecs = (2 + text.length * 0.15).clamp(3.0, 10.0);
-    await Future.delayed(Duration(milliseconds: (speakSecs * 1000).round()));
-
-    if (mounted) setState(() => _voiceStatus = '');
-  }
-
-  void _cancelVoiceTalk() {
-    _speech.stop();
-    setState(() { _voiceListening = false; _voiceStatus = ''; });
   }
 
   // ═══════════════════════════════════════════
@@ -362,7 +409,7 @@ class _ManualControlPageState extends State<ManualControlPage> {
               children: [
                 _buildVideoBackground(parent),
                 Container(color: const Color.fromRGBO(0, 0, 0, 0.0)),
-                // 顶部栏
+                // 顶部状态栏
                 if (_layout.topBar.visible)
                   _pos(_layout.topBar, parent, _buildTopBar()),
                 // 左摇杆
@@ -383,27 +430,30 @@ class _ManualControlPageState extends State<ManualControlPage> {
                 // 拍照快照
                 if (_showSnapshot && _cachedFrame != null)
                   _buildSnapshotOverlay(),
-                // 语音对讲状态指示
-                if (_voiceStatus.isNotEmpty)
+                // BGM / 人脸识别状态指示
+                if (_bgmPlaying || _faceRecognizing || _faceResult.isNotEmpty)
                   Positioned(
-                    top: 60,
-                    left: 0,
-                    right: 0,
+                    top: 60, left: 0, right: 0,
                     child: Center(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                         decoration: BoxDecoration(
                           color: const Color.fromRGBO(0, 0, 0, 0.75),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: _voiceListening ? AppTheme.statusRed : AppTheme.statusGreen, width: 1.5),
+                          border: Border.all(color: _bgmPlaying ? AppTheme.statusGreen : AppTheme.accent, width: 1.5),
                         ),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          if (_voiceListening)
-                            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.statusRed))
+                          if (_faceRecognizing)
+                            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent))
+                          else if (_bgmPlaying)
+                            const Icon(Icons.music_note, size: 16, color: AppTheme.statusGreen)
                           else
-                            const Icon(Icons.volume_up, size: 16, color: AppTheme.statusGreen),
+                            const Icon(Icons.face, size: 16, color: AppTheme.accent),
                           const SizedBox(width: 8),
-                          Text(_voiceStatus, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _voiceListening ? AppTheme.statusRed : AppTheme.statusGreen)),
+                          Text(
+                            _faceRecognizing ? '识别中…' : (_bgmPlaying ? 'BGM 播放中' : _faceResult),
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: _bgmPlaying ? AppTheme.statusGreen : AppTheme.accent),
+                          ),
                         ]),
                       ),
                     ),
@@ -737,12 +787,12 @@ class _ManualControlPageState extends State<ManualControlPage> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("灯光仅 TCP 6000 通道可用"), duration: Duration(seconds: 1)));
         }),
         _sideBtnItem(_layout.btnMic, parent,
-            AppIcons.mic(size: 18, color: _voiceListening ? AppTheme.statusRed : AppTheme.textPrimary),
-            _voiceListening ? AppTheme.statusRed : AppTheme.textPrimary,
-            () => widget.carState.ttsSay('前方请注意'),
-            onLongPressStart: (_) => _startVoiceTalk(),
-            onLongPressEnd: (_) => _stopVoiceTalk(),
-            onLongPressCancel: _cancelVoiceTalk,
+            AppIcons.mic(size: 18, color: _bgmPlaying ? AppTheme.statusGreen : AppTheme.textPrimary),
+            _bgmPlaying ? AppTheme.statusGreen : AppTheme.textPrimary,
+            _showTtsDialog,
+            onLongPressStart: (_) => _playBgm(),
+            onLongPressEnd: (_) => _pauseBgm(),
+            onLongPressCancel: _pauseBgm,
           ),
         _sideBtnItem(
             _layout.btnRecord, parent,
@@ -757,6 +807,11 @@ class _ManualControlPageState extends State<ManualControlPage> {
         _sideBtnItem(_layout.btnMap, parent,
             AppIcons.map(size: 18, color: AppTheme.textPrimary),
             AppTheme.textPrimary, _openMapOverlay),
+        _sideBtnItem(_layout.btnRadar, parent,
+            Icon(Icons.face, size: 18,
+                color: _faceRecognizing ? AppTheme.accent : AppTheme.textPrimary),
+            _faceRecognizing ? AppTheme.accent : AppTheme.textPrimary,
+            () => _doFaceRecognition()),
         const SizedBox(),
       ],
     );
@@ -775,29 +830,47 @@ class _ManualControlPageState extends State<ManualControlPage> {
 
     final useLongPressDetail = onLongPressStart != null;
 
+    // 当同时有 onTap 和 onLongPressStart 时，不用 GestureDetector 内置的 onTap
+    // （会和 long press recognizer 冲突导致 tap 不触发），
+    // 改为用 onTapDown/onTapUp + flag 手动判断短按 vs 长按
     return Positioned(
       left: offset.dx,
       top: offset.dy,
       child: Opacity(
         opacity: cfg.opacity,
-        child: GestureDetector(
-          onTap: onTap,
-          onLongPress: useLongPressDetail ? null : onLongPress,
-          onLongPressStart: onLongPressStart,
-          onLongPressEnd: onLongPressEnd,
-          onLongPressUp: onLongPressUp,
-          onLongPressCancel: onLongPressCancel,
-          child: Container(
-            width: sz.width,
-            height: sz.height,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(sz.width * 0.28),
-              color: const Color.fromRGBO(0, 0, 0, 0.4),
-              border:
-                  Border.all(color: const Color.fromRGBO(255, 255, 255, 0.10)),
-            ),
-            child: Center(child: icon),
-          ),
+        child: StatefulBuilder(
+          builder: (ctx, setLocal) {
+            bool inLongPress = false;
+            return GestureDetector(
+              onTap: useLongPressDetail ? null : onTap,
+              onTapDown: useLongPressDetail ? (_) => inLongPress = false : null,
+              onTapUp: useLongPressDetail ? (_) { if (!inLongPress) onTap(); } : null,
+              onLongPress: useLongPressDetail ? null : onLongPress,
+              onLongPressStart: useLongPressDetail
+                  ? (d) { inLongPress = true; onLongPressStart(d); }
+                  : null,
+              onLongPressEnd: useLongPressDetail && onLongPressEnd != null
+                  ? (d) { onLongPressEnd(d); inLongPress = false; }
+                  : null,
+              onLongPressUp: onLongPressUp != null
+                  ? () { onLongPressUp(); }
+                  : null,
+              onLongPressCancel: useLongPressDetail
+                  ? () { onLongPressCancel?.call(); inLongPress = false; }
+                  : null,
+              child: Container(
+                width: sz.width,
+                height: sz.height,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(sz.width * 0.28),
+                  color: const Color.fromRGBO(0, 0, 0, 0.4),
+                  border:
+                      Border.all(color: const Color.fromRGBO(255, 255, 255, 0.10)),
+                ),
+                child: Center(child: icon),
+              ),
+            );
+          },
         ),
       ),
     );

@@ -86,22 +86,37 @@ class GradientButton extends StatelessWidget {
 class SmallButton extends StatelessWidget {
   final String text;
   final VoidCallback? onTap;
+  final bool busy;
 
-  const SmallButton({super.key, required this.text, this.onTap});
+  const SmallButton({super.key, required this.text, this.onTap, this.busy = false});
 
   @override
   Widget build(BuildContext context) {
+    final disabled = onTap == null;
     return GestureDetector(
-      onTap: onTap,
-      child: Container(
+      onTap: busy ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         width: double.infinity,
         height: AppTheme.smallBtnHeight,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(9),
-          color: AppTheme.btnSecondaryBg,
+          color: disabled ? AppTheme.btnSecondaryBg.withAlpha(100) : AppTheme.btnSecondaryBg,
         ),
         alignment: Alignment.center,
-        child: Text(text, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppTheme.textPrimary)),
+        child: busy
+            ? const SizedBox(
+                width: 18, height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent),
+              )
+            : Text(
+                text,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  color: disabled ? AppTheme.textSecondary.withAlpha(140) : AppTheme.textPrimary,
+                ),
+              ),
       ),
     );
   }

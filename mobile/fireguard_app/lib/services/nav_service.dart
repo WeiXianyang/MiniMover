@@ -6,18 +6,27 @@ class NavStackStatus {
   final String container;
   final bool containerRunning;
   final bool patrolReady;
+  final bool starting;
+  final bool stopping;
   final String rosDomainId;
   final String hint;
+  final String stackMessage;
+  final String logTail;
   const NavStackStatus({
     this.container = '', this.containerRunning = false, this.patrolReady = false,
-    this.rosDomainId = '', this.hint = '',
+    this.starting = false, this.stopping = false,
+    this.rosDomainId = '', this.hint = '', this.stackMessage = '', this.logTail = '',
   });
   factory NavStackStatus.fromJson(Map<String, dynamic> j) => NavStackStatus(
     container: (j['container'] as String?) ?? '',
     containerRunning: j['container_running'] == true,
     patrolReady: j['patrol_ready'] == true,
+    starting: j['starting'] == true,
+    stopping: j['stopping'] == true,
     rosDomainId: (j['ros_domain_id'] as String?) ?? '',
     hint: (j['hint'] as String?) ?? '',
+    stackMessage: (j['stack_message'] as String?) ?? '',
+    logTail: (j['log_tail'] as String?) ?? '',
   );
 }
 
@@ -139,6 +148,14 @@ class NavService {
       if (r.statusCode == 200) return r.bodyBytes;
     } catch (_) {}
     return null;
+  }
+
+  // ═══ 单点导航（鸿蒙路线：无需 patrol 节点） ═══
+  Future<bool> navigate(double x, double y, {double theta = 0}) async {
+    try {
+      await _post('/api/nav/navigate', {'x': x, 'y': y, 'theta': theta});
+      return true;
+    } catch (_) { return false; }
   }
 
   // ═══ 坐标换算 ═══

@@ -56,6 +56,11 @@ class CarState extends ChangeNotifier {
   bool get taskRunning => _taskRunning; bool get taskPaused => _taskPaused; double get taskProgress => _taskProgress;
   String get currentTaskDisplay => connected ? (taskRunning ? (taskPaused ? '已暂停' : '巡检中') : '待命') : '—';
 
+  // ── 导航栈状态（由地图页/配送页同步） ──
+  bool _navStackReady = false;
+  bool get navStackReady => _navStackReady;
+  void setNavStackReady(bool v) { _navStackReady = v; notifyListeners(); }
+
   // ── 告警 ──
   bool _hasAlarm = false; String _alarmLocation = ''; double _alarmConfidence = 0.0; String _alarmLevel = '';
   bool get hasAlarm => _hasAlarm; String get alarmLocation => _alarmLocation;
