@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import pymysql
@@ -124,7 +124,7 @@ class Database:
         with self._connect() as conn:
             with conn.cursor() as cur:
                 now = datetime.now().astimezone()
-                start = date_from or now.replace(minute=0, second=0, microsecond=0)
+                start = date_from or (now - timedelta(hours=24))
                 # MySQL GROUP BY HOUR + 补齐空缺小时
                 cur.execute(
                     """

@@ -120,7 +120,7 @@ export default function Overview() {
 
       <StatsCards alarms={alarms} pulse={pulse} />
 
-      <FilterBar filters={filters} onChange={setFilters} onSearch={handleSearch} />
+      <FilterBar filters={filters} onChange={setFilters} onSearch={handleSearch} vehicleIds={vehicles.map(v => v.car_id)} />
 
       {error && (
         <div className="panel p-4 mb-5 border-danger/40 text-danger text-[13px]">
