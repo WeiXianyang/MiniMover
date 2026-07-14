@@ -8,9 +8,13 @@ from sensors.icar_sensor_driver import iCarSensorDriver
 from Rosmaster_Lib import Rosmaster
 from audio.icar_audio import record_start, record_status, record_stop, record_get
 from audio.icar_audio import play_wav, stop_playback, say as tts_say, get_devices as audio_devices
+from navigation import nav_bp, register_legacy_routes, register_patrol_page
 
 app = Flask(__name__)
 CORS(app)
+app.register_blueprint(nav_bp, url_prefix='/api/nav')
+register_legacy_routes(app)
+register_patrol_page(app)
 sensor = iCarSensorDriver()
 bot = Rosmaster(debug=False)
 bot.create_receive_threading()
@@ -72,17 +76,8 @@ def get_sensors():
 def health():
     return jsonify({'code':0,'msg':'FireGuard API Running'})
 
-@app.route('/api/camera')
-def camera_info():
-    """返回视频流地址信息"""
-    ip = get_ip()
-    return jsonify({'code': 0, 'data': {
-        'mjpeg': f'http://{ip}:5000/video_feed',
-        'ros_stream': f'http://{ip}:8080/stream?topic=/camera/color/image_raw',
-        'snapshot': f'http://{ip}:8080/snapshot?topic=/camera/color/image_raw',
-    }})
-
 # ===== 音频接口 =====
+# /api/camera 与 /video_feed 见下方「视频流（可选）」
 
 # 上一次录音的 ID (用于 stop 后前端知道下载哪个文件)
 _last_record_id = ""
@@ -167,88 +162,7 @@ def audio_stop():
     stop_playback()
     return jsonify({'code': 0, 'msg': '已停止'})
 
-# ===== 地图导航 =====
-
-MAP_FILE = '/root/yahboomcar_ros2_ws/yahboomcar_ws/src/yahboomcar_nav/maps/icar.pgm'
-MAP_YAML = '/root/yahboomcar_ros2_ws/yahboomcar_ws/src/yahboomcar_nav/maps/icar.yaml'
-CID = subprocess.getoutput('sudo docker ps -q | head -1')
-
-@app.route('/api/map')
-def map_info():
-    """返回地图信息"""
-    CONTAINER_ID = subprocess.getoutput('sudo docker ps -q | head -1')
-    info = {'width': 0, 'height': 0, 'resolution': 0.05, 'origin': [-10, -10, 0]}
-    # 尝试读取 YAML
-    try:
-        yaml_text = subprocess.check_output(
-            ['docker', 'exec', CONTAINER_ID, 'cat', MAP_YAML],
-            timeout=3).decode()
-        import re
-        res = re.search(r'resolution:\s*([\d.]+)', yaml_text)
-        org = re.search(r'origin:\s*\[([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\]', yaml_text)
-        img = re.search(r'image:\s*(.+)', yaml_text)
-        if res: info['resolution'] = float(res.group(1))
-        if org: info['origin'] = [float(org.group(1)), float(org.group(2)), float(org.group(3))]
-    except:
-        pass
-    # 读取 PGM 获取尺寸
-    try:
-        pgm = subprocess.check_output(
-            ['docker', 'exec', CONTAINER_ID, 'head', '-5', MAP_FILE],
-            timeout=3).decode()
-        lines = pgm.strip().split('\n')
-        if len(lines) >= 3:
-            w, h = map(int, lines[2].split())
-            info['width'], info['height'] = w, h
-    except:
-        pass
-    return jsonify({'code': 0, 'data': info})
-
-@app.route('/api/map_image')
-def map_image():
-    """返回地图图片 (PNG)"""
-    CONTAINER_ID = subprocess.getoutput('sudo docker ps -q | head -1')
-    try:
-        import cv2, numpy as np
-        pgm_bytes = subprocess.check_output(
-            ['docker', 'exec', CONTAINER_ID, 'cat', MAP_FILE],
-            timeout=5)
-        img = cv2.imdecode(np.frombuffer(pgm_bytes, np.uint8), cv2.IMREAD_GRAYSCALE)
-        if img is None:
-            # 直接读取 PGM 格式
-            import struct
-            header = pgm_bytes.split(b'\n', 4)
-            data_start = pgm_bytes.find(b'\n', pgm_bytes.find(b'\n', pgm_bytes.find(b'\n')+1)+1) + 1
-            raw = pgm_bytes[data_start:]
-            dims = header[2].split()
-            w, h = int(dims[0]), int(dims[1])
-            img = np.frombuffer(raw[:w*h], dtype=np.uint8).reshape((h, w))
-        # 彩色化：黑色=障碍物，白色=可通行，灰色=未知
-        colored = np.zeros((img.shape[0], img.shape[1], 3), dtype=np.uint8)
-        colored[img > 200] = [255, 255, 255]  # 白色-空闲
-        colored[(img >= 50) & (img <= 200)] = [200, 200, 200]  # 灰色-未知
-        colored[img < 50] = [30, 30, 30]  # 黑色-障碍物
-        _, jpg = cv2.imencode('.jpg', colored, [cv2.IMWRITE_JPEG_QUALITY, 90])
-        return Response(jpg.tobytes(), mimetype='image/jpeg')
-    except Exception as e:
-        return str(e), 500
-
-@app.route('/api/navigate', methods=['POST'])
-def navigate():
-    """发送导航目标点 (map 坐标系)
-    POST: {"x": 1.0, "y": 2.0, "theta": 0.0}
-    """
-    data = request.json
-    x, y, theta = data.get('x', 0), data.get('y', 0), data.get('theta', 0)
-    CONTAINER_ID = subprocess.getoutput('sudo docker ps -q | head -1')
-    if not CONTAINER_ID:
-        return jsonify({'code': -1, 'msg': '容器未运行'})
-    cmd = f'''source /root/yahboomcar_ros2_ws/yahboomcar_ws/install/setup.bash && \
-ros2 action send_goal /navigate_to_pose nav2_msgs/action/NavigateToPose "{{pose: {{pose: {{position: {{x: {x}, y: {y}}}, orientation: {{z: {theta}}}}}}}"'''
-    subprocess.Popen(['docker', 'exec', CONTAINER_ID, 'bash', '-c', cmd],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return jsonify({'code': 0, 'msg': f'导航到 ({x:.2f}, {y:.2f})'})
-
+# ===== 地图导航页面（单点导航；巡逻页见 /nav/patrol，API 见 /api/nav/*）=====
 @app.route('/nav')
 def nav_page():
     """地图导航页面"""
@@ -335,25 +249,81 @@ function cancelGoal(){
 </body>
 </html>'''
 
-# ---- 视频流代理：逐帧从 ROS snapshot 抓取，urllib 替代 curl 子进程 ----
-# 保持逐帧抓取的稳健性（单帧超时不影响后续帧），但不用 subprocess 开 curl
+# ---- 视频流（可选）：巡逻/导航不需要相机；默认不强制占用 fireguard_cam ----
 import urllib.request as _urllib_request
 
 _SNAPSHOT_URL = 'http://localhost:8080/snapshot?topic=/camera/color/image_raw'
+# MINIMOVER_DISABLE_CAMERA=1（start_nav_api.sh 默认）时完全不拉相机流
+_DISABLE_CAMERA = os.environ.get('MINIMOVER_DISABLE_CAMERA', '0').strip() in ('1', 'true', 'True', 'yes')
+
+
+def _placeholder_jpeg(text='No Camera'):
+    """生成不依赖相机的占位图，避免 /video_feed 空转占连接。"""
+    import cv2
+    import numpy as np
+    img = np.zeros((240, 320, 3), dtype=np.uint8)
+    img[:] = (30, 30, 40)
+    cv2.putText(img, text, (40, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
+    cv2.putText(img, 'NAV mode OK without cam', (18, 160),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 180, 255), 1)
+    _, jpg = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 80])
+    return jpg.tobytes()
+
+
+_PLACEHOLDER_JPEG = None
+
+
+def _get_placeholder():
+    global _PLACEHOLDER_JPEG
+    if _PLACEHOLDER_JPEG is None:
+        try:
+            _PLACEHOLDER_JPEG = _placeholder_jpeg()
+        except Exception:
+            # 极简 JPEG 头+占位，避免 cv2 不可用时崩溃
+            _PLACEHOLDER_JPEG = (
+                b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00'
+                b'\xff\xd9'
+            )
+    return _PLACEHOLDER_JPEG
+
+
+@app.route('/api/camera')
+def camera_info():
+    """返回视频流地址；disabled 时标明无需相机。"""
+    ip = get_ip()
+    return jsonify({'code': 0, 'data': {
+        'enabled': not _DISABLE_CAMERA,
+        'mjpeg': f'http://{ip}:5000/video_feed',
+        'ros_stream': f'http://{ip}:8080/stream?topic=/camera/color/image_raw',
+        'snapshot': f'http://{ip}:8080/snapshot?topic=/camera/color/image_raw',
+        'hint': '相机已禁用（导航模式）' if _DISABLE_CAMERA else '需要 fireguard_cam + web_video_server',
+    }})
+
 
 @app.route('/video_feed')
 def video_feed():
+    if _DISABLE_CAMERA:
+        def gen_off():
+            jpg = _get_placeholder()
+            while True:
+                yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpg + b'\r\n')
+                time.sleep(2)
+        return Response(gen_off(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
     def gen():
         while True:
             try:
-                with _urllib_request.urlopen(_SNAPSHOT_URL, timeout=3) as resp:
+                with _urllib_request.urlopen(_SNAPSHOT_URL, timeout=2) as resp:
                     jpeg = resp.read()
                 if len(jpeg) > 1000:
                     yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + jpeg + b'\r\n')
                 else:
-                    time.sleep(0.2)
+                    time.sleep(0.3)
             except Exception:
-                time.sleep(0.5)
+                # 相机未就绪时给占位图，不再死循环空转
+                yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n'
+                       + _get_placeholder() + b'\r\n')
+                time.sleep(1.5)
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 # ===== 检测状态接口：读取火灾检测遥测文件 =====
@@ -468,10 +438,11 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 .detect-panel .warn{color:#f59e0b}
 </style></head><body>
 <h1>FIRECUARD</h1>
-<a class="nav-link" href="/nav">🗺️ 地图导航</a>
+<a class="nav-link" href="/nav/patrol">🗺️ 地图巡逻</a>
+<a class="nav-link" href="/nav">📍 单点导航</a>
 <div class="ip-bar" id="ipBar">连接中...</div>
 <div class="sensors" id="sensorBar"></div>
-<div class="video-wrap"><img id="videoFeed" src="" alt="video"></div>
+<div class="video-wrap" id="videoWrap"><img id="videoFeed" src="" alt="video"><div id="camHint" style="font-size:12px;color:#888;padding:6px"></div></div>
 
 <div class="detect-panel" id="detectPanel">
  <div class="detect-title">🔥 检测状态 <span id="detectBadge" style="font-size:11px;float:right"></span></div>
@@ -628,8 +599,18 @@ function f(){
   }).catch(function(){});
  }; r.send();
 }
-// 视频流仅设置一次，不加 ?t= 缓存破坏（MJPEG 是长连接流，反复重连会卡）
-document.getElementById("videoFeed").src=API+"/video_feed";
+// 导航模式可不启用相机；仅在 /api/camera.enabled 时拉流
+fetch(API+"/api/camera").then(function(r){return r.json()}).then(function(j){
+  var d=(j&&j.data)||{};
+  var hint=document.getElementById("camHint");
+  if(d.enabled===false){
+    hint.textContent="导航模式：未启用相机（不影响巡逻/遥控）";
+    document.getElementById("videoFeed").style.display="none";
+  }else{
+    document.getElementById("videoFeed").src=API+"/video_feed";
+    hint.textContent="";
+  }
+}).catch(function(){document.getElementById("videoFeed").src=API+"/video_feed";});
 function m(c){
  var s=document.getElementById("sp").value;
  var r=new XMLHttpRequest();
