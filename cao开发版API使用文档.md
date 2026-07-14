@@ -187,7 +187,7 @@ curl -X POST http://<小车IP>:5000/api/navigate \
 
 | 路由 | 功能 |
 |---|---|
-| `/` | 控制面板（传感器 + 视频 + 方向控制 + 速度调节 + 检测告警面板 + 录音/TTS） |
+| `/` | 控制面板（传感器 + 视频 + 方向控制 + 速度调节 + 检测告警面板 + 录音/TTS + **音乐播放**） |
 | `/nav` | 地图导航页面（点击地图选点 → 自动导航） |（还未实现导航） |
 
 ### 2.7 视频流访问
@@ -260,6 +260,12 @@ curl -X POST http://<小车IP>:5000/api/audio/say \
   -H "Content-Type: application/json" -d '{"text":"你好小车","lang":"zh"}'
 ```
 
+**上传自定义 WAV 播放：**
+```bash
+curl -X POST http://<小车IP>:5000/api/audio/play \\
+  -F "file=@/path/to/song.wav"
+```
+
 **前端 JavaScript 调用（语音识别流程）：**
 ```javascript
 // 开始录音
@@ -304,6 +310,57 @@ play_wav(wav_bytes)                   # 播放 WAV 字节
 # TTS
 wav = say('你好', lang='zh')          # 生成 WAV
 play_wav(wav)                         # 直接播放
+```
+
+---
+
+### 2.10 音乐播放（BGM）
+
+| 接口 | 方法 | 功能 | 说明 |
+|---|---|---|---|
+| `/api/music/status` | GET | 查询 BGM 状态 | 返回文件是否存在、是否正在播放、文件大小 |
+| `/api/music/play` | POST | 播放 BGM | 自动识别格式，MP3 实时转码为 WAV 后播放 |
+| `/api/music/stop` | POST | 停止播放 | |
+| `/api/music/bgm.wav` | GET | 下载 bgm.wav | 返回文件本身用于前端播放 |
+
+**调用示例：**
+```bash
+# 查询状态
+curl http://<小车IP>:5000/api/music/status
+# {"code":0,"data":{"exists":true,"file":"bgm.wav","playing":false,"size":1920813}}
+
+# 播放 BGM
+curl -X POST http://<小车IP>:5000/api/music/play
+# {"code":0,"msg":"BGM 播放中"}
+
+# 停止
+curl -X POST http://<小车IP>:5000/api/music/stop
+# {"code":0,"msg":"BGM 已停止"}
+```
+
+**上传音乐文件到小车：**
+```bash
+# 将本地 bgm.wav 传到小车 ~/MiniMover/ 目录
+scp /path/to/bgm.wav jetson@<小车IP>:~/MiniMover/
+```
+
+**注意事项：**
+- 文件名为 `bgm.wav`，放在 `~/MiniMover/` 目录下
+- 支持 WAV / MP3 格式，非 WAV 格式自动通过 `ffmpeg` 实时转码
+- 扬声器通过 PulseAudio 输出（USB 声卡 C-Media）
+
+**前端 JavaScript 调用：**
+```javascript
+// 查询状态
+fetch(API+'/api/music/status').then(r=>r.json()).then(j=>{
+  if(j.data.exists) console.log('BGM 已就绪', j.data.size+' bytes');
+});
+
+// 播放
+fetch(API+'/api/music/play', {method:'POST'});
+
+// 停止
+fetch(API+'/api/music/stop', {method:'POST'});
 ```
 
 ---
