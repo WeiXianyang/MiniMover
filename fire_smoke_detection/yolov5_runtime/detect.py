@@ -24,6 +24,7 @@ if str(MODULE_ROOT) not in sys.path:
 
 from fire_monitor.ai_reviewer import AIReviewer
 from fire_monitor.alarm_service import LoggingAlarmService, configure_monitor_logger
+from fire_monitor.cloud_service import CloudAlarmService, CompositeAlarmService
 from fire_monitor.config import FireMonitorConfig
 from fire_monitor.debug_telemetry import DebugTelemetry, NullTelemetry
 from fire_monitor.evidence_store import EvidenceStore
@@ -50,10 +51,14 @@ def detect(save_img=False):
                          alarm={"state": "idle"}, event={"state": "idle", "event_id": ""})
         telemetry.event("started", f"Detector process started; source: {source}")
     reviewer = AIReviewer(monitor_config, telemetry=telemetry)
+    cloud_alarm = CloudAlarmService(monitor_config.runtime_dir, monitor_logger)
     fire_manager = FireEventManager(
         monitor_config, reviewer,
         EvidenceStore(monitor_config.evidence_dir, monitor_config.max_evidence_images),
-        LoggingAlarmService(monitor_config.runtime_dir, monitor_logger),
+        CompositeAlarmService(
+            LoggingAlarmService(monitor_config.runtime_dir, monitor_logger),
+            cloud_alarm,
+        ),
         minimum_confidence=opt.conf_thres, logger=monitor_logger, telemetry=telemetry)
     half = device.type != 'cpu'  # half precision only supported on CUDA
 
@@ -196,6 +201,7 @@ def detect(save_img=False):
         raise
     finally:
         fire_manager.close()
+        cloud_alarm.close()
         if failure is None:
             telemetry.update(process={"state": "stopped", "error": ""})
             telemetry.event("stopped", "Detector process stopped")

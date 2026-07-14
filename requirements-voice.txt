@@ -1,0 +1,9 @@
+﻿# Optional dependencies for the first local FunASR voice-control prototype.
+# Keep these separate from the base MiniMover requirements until hardware
+# validation confirms the correct aarch64 wheels and model footprint.
+funasr
+modelscope
+sounddevice
+numpy<2
+silero-vad
+scipy
