@@ -3,7 +3,7 @@
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from concurrent.futures import ThreadPoolExecutor
-import threading, time, math, requests, os, subprocess, sys
+import threading, time, math, requests, os, sys
 
 import logging as _logging
 _logging.basicConfig(
@@ -35,11 +35,6 @@ _status_cache = {}
 _position_cache = {}
 _collision_alerts = {}
 _lock = threading.Lock()
-_voice_process = None
-_voice_car_id = None
-_voice_lock = threading.RLock()
-_voice_log_path = os.path.join(os.path.dirname(__file__), "tmp", "voice_service.log")
-os.makedirs(os.path.dirname(_voice_log_path), exist_ok=True)
 
 
 # ========== 工具函数 ==========
@@ -332,19 +327,8 @@ def register_batch():
 @app.route('/api/cars/<car_id>', methods=['DELETE'])
 def disconnect_car(car_id):
     """Remove a car from this coordinator without stopping its own services."""
-    global _voice_process, _voice_car_id
     if car_id not in CARS:
         return jsonify({'code': -1, 'msg': f'car {car_id} not found'}), 404
-    with _voice_lock:
-        if _voice_car_id == car_id and _voice_process is not None and _voice_process.poll() is None:
-            _voice_process.terminate()
-            try:
-                _voice_process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                _voice_process.kill()
-                _voice_process.wait(timeout=3)
-            _voice_process = None
-            _voice_car_id = None
     CARS.pop(car_id, None)
     with _lock:
         _status_cache.pop(car_id, None)
@@ -648,75 +632,44 @@ def index():
 
 
 
-# ========== 语音控制服务管理 ==========
+# ========== 云端告警代理 ==========
 
-def _voice_status():
-    with _voice_lock:
-        running = _voice_process is not None and _voice_process.poll() is None
-        return {'running': running, 'pid': _voice_process.pid if running else None, 'car_id': _voice_car_id if running else None, 'log': _voice_log_path}
+CLOUD_API_BASE = 'http://8.140.28.233:8000'
+CLOUD_ALARM_CACHE = []
+_cloud_alarm_lock = threading.Lock()
+_cloud_last_fetch = 0
 
-
-@app.route('/api/voice/status')
-def voice_status():
-    return jsonify({'code': 0, 'data': _voice_status()})
-
-
-@app.route('/api/voice/start', methods=['POST'])
-def voice_start():
-    global _voice_process, _voice_car_id
-    data = request.get_json(silent=True) or {}
-    car_id = data.get('car_id', 'car_A')
-    if car_id not in CARS:
-        return jsonify({'code': -1, 'msg': f'car {car_id} not found'}), 404
-    info = CARS[car_id]
-    whisper_url = os.environ.get('MINIMOVER_WHISPER_URL', '').strip()
-    api_key = os.environ.get('MINIMOVER_API_KEY', '').strip()
-    if not whisper_url or not api_key:
-        return jsonify({
-            'code': -1,
-            'msg': '缺少语音识别配置：请设置 MINIMOVER_WHISPER_URL 和 MINIMOVER_API_KEY',
-            'data': {'required': ['MINIMOVER_WHISPER_URL', 'MINIMOVER_API_KEY']},
-        }), 503
-    with _voice_lock:
-        if _voice_process is not None and _voice_process.poll() is None:
-            return jsonify({'code': -1, 'msg': 'voice service is already running', 'data': _voice_status()}), 409
-        env = os.environ.copy()
-        env['MINIMOVER_CAR_URL'] = f"http://{info['ip']}:{info['port']}"
-        env['MINIMOVER_ASR_BACKEND'] = 'remote_whisper'
-        env['MINIMOVER_CAR_SPEAKER'] = '1'
-        env['MINIMOVER_WHISPER_URL'] = whisper_url
-        env['MINIMOVER_API_KEY'] = api_key
-        log_file = open(_voice_log_path, 'a', encoding='utf-8')
-        try:
-            _voice_process = subprocess.Popen(
-                [sys.executable, '-m', 'voice_assistant.voice_service', '--asr', 'remote_whisper'],
-                cwd=os.path.dirname(os.path.abspath(__file__)), env=env,
-                stdout=log_file, stderr=subprocess.STDOUT)
-            _voice_car_id = car_id
-        except Exception:
-            log_file.close()
-            raise
-    return jsonify({'code': 0, 'msg': f'voice service started for {car_id}', 'data': _voice_status()})
+def _fetch_cloud_alarms():
+    global _cloud_last_fetch
+    now = time.monotonic()
+    if now - _cloud_last_fetch < 15:
+        return
+    _cloud_last_fetch = now
+    try:
+        url = f'{CLOUD_API_BASE}/api/v1/fire-alarms?page=1&size=10'
+        r = requests.get(url, timeout=5)
+        data = r.json()
+        if data.get('code') == 0:
+            with _cloud_alarm_lock:
+                CLOUD_ALARM_CACHE[:] = data['data'].get('items', [])
+    except Exception:
+        pass
 
 
-@app.route('/api/voice/stop', methods=['POST'])
-def voice_stop():
-    global _voice_process, _voice_car_id
-    with _voice_lock:
-        process = _voice_process
-        if process is None or process.poll() is not None:
-            _voice_process = None
-            _voice_car_id = None
-            return jsonify({'code': 0, 'msg': 'voice service is not running', 'data': _voice_status()})
-        process.terminate()
-        try:
-            process.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=3)
-        _voice_process = None
-        _voice_car_id = None
-    return jsonify({'code': 0, 'msg': 'voice service stopped', 'data': _voice_status()})
+@app.route('/api/cloud-alarms')
+def cloud_alarms():
+    _fetch_cloud_alarms()
+    with _cloud_alarm_lock:
+        return jsonify({'code': 0, 'data': {'items': list(CLOUD_ALARM_CACHE)}})
+
+
+@app.route('/api/cloud-alarms/<int:alarm_id>')
+def cloud_alarm_detail(alarm_id):
+    try:
+        r = requests.get(f'{CLOUD_API_BASE}/api/v1/fire-alarms/{alarm_id}', timeout=5)
+        return jsonify(r.json())
+    except Exception as e:
+        return jsonify({'code': -1, 'msg': str(e)}), 502
 
 # ========== 内嵌 HTML 面板 (避免额外模板文件) ==========
 
@@ -846,15 +799,14 @@ h2{{font-size:15px;color:#8b949e;margin:12px 0 6px}}
 </div>
 
 <div class="control-panel">
-  <h2>车载语音控制</h2>
-  <div class="ctrl-row">
-    <label>Car:</label>
-    <select id="voiceCar"><option value="car_A">car_A</option><option value="car_B">car_B</option></select>
-    <button onclick="startVoice()">启动语音</button>
-    <button onclick="stopVoice()" class="stop">停止语音</button>
-    <span id="voiceStatus" style="font-size:12px;color:#8b949e">未启动</span>
+  <h2>云端告警</h2>
+  <div style="font-size:12px;color:#8b949e;margin-bottom:6px">最近 10 条来自云端服务器 http://8.140.28.233:8000 的火灾/烟雾告警。</div>
+  <div id="cloudAlarmList" style="max-height:300px;overflow-y:auto;font-size:12px">
+    <div style="color:#8b949e;padding:8px">加载中...</div>
   </div>
-  <div style="font-size:12px;color:#8b949e">小车麦克风 → Whisper → 控车；反馈通过小车扬声器播放</div>
+  <div class="ctrl-row">
+    <button onclick="refreshCloudAlarms()">刷新</button>
+  </div>
 </div>
 
 <script>
@@ -937,25 +889,33 @@ function disconnectCar(car){{
     }});
 }}
 
-function updateVoiceStatus(){{
-  fetch(API+'/api/voice/status').then(function(r){{return r.json()}}).then(function(data){{
-    var d=data.data||{{}}, el=document.getElementById('voiceStatus');
-    el.textContent=d.running?'运行中 PID='+d.pid:'未启动';
-    el.style.color=d.running?'#3fb950':'#8b949e';
+function refreshCloudAlarms(){{
+  var list=document.getElementById('cloudAlarmList');
+  list.innerHTML='<div style="color:#8b949e;padding:8px">加载中...</div>';
+  fetch(API+'/api/cloud-alarms').then(function(r){{return r.json()}}).then(function(data){{
+    var items=data.data&&data.data.items||[];
+    if(!items.length){{
+      list.innerHTML='<div style="color:#8b949e;padding:8px">暂无云端告警数据。</div>';
+      return;
+    }}
+    var html='';
+    var typeMap={{confirmed_fire:'<span style="color:#f85149">🔥 火灾</span>',suspected_smoke:'<span style="color:#d29922">💨 烟雾</span>',ai_unavailable:'<span style="color:#8b949e">⚠ AI失效</span>'}};
+    for(var i=0;i<items.length;i++){{
+      var a=items[i];
+      var ts=a.occurred_at||'';
+      if(ts.length>19) ts=ts.substr(0,19).replace('T',' ');
+      html+='<div style="padding:6px 8px;border-bottom:1px solid #21262d;display:flex;gap:8px;align-items:center">'+
+        '<span style="white-space:nowrap">'+ts.substr(5,11)+'</span>'+
+        '<span>'+(typeMap[a.alarm_type]||a.alarm_type)+'</span>'+
+        '<span style="color:#8b949e;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(a.reason||'')+'</span>'+
+        '<span style="color:#58a6ff;font-size:11px">'+(a.car_id||'')+'</span>'+
+        '<a href="'+API+'/api/cloud-alarms/'+a.id+'" target="_blank" style="color:#8b949e;font-size:11px;text-decoration:none">详情</a>'+
+      '</div>';
+    }}
+    list.innerHTML=html;
+  }}).catch(function(e){{
+    list.innerHTML='<div style="color:#f85149;padding:8px">加载云端告警失败: '+e+'</div>';
   }});
-}}
-function startVoice(){{
-  var car=document.getElementById('voiceCar').value;
-  fetch(API+'/api/voice/start',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{car_id:car}})}})
-    .then(function(r){{return r.json()}}).then(function(d){{
-      var el=document.getElementById('voiceStatus');
-      el.textContent=d.msg||'启动完成';
-      el.style.color=d.code===0?'#3fb950':'#f85149';
-      if(d.code===0) updateVoiceStatus();
-    }});
-}}
-function stopVoice(){{
-  fetch(API+'/api/voice/stop',{{method:'POST'}}).then(function(r){{return r.json()}}).then(function(d){{document.getElementById('voiceStatus').textContent=d.msg||'已停止';updateVoiceStatus();}});
 }}
 
 function renderCars(data){{
@@ -1123,6 +1083,7 @@ function registerCar(){{
 
 setInterval(update,3000);update();
 setInterval(updateDemo,1000);updateDemo();
+refreshCloudAlarms();
 </script>
 </body>
 </html>'''
