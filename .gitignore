@@ -238,3 +238,10 @@ __marimo__/
 /traffic_light/test_images/
 /traffic_light/test_plate.jpg
 /traffic_light/output_yolo/
+
+# Local credentials, session data, and generated monitor artifacts
+/.tts.env
+/_last_pid.txt
+/launch_log.txt
+/.reasonix/attachments/
+/traffic_light/runtime/
