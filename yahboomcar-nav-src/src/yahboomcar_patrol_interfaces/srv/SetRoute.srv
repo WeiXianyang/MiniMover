@@ -1,0 +1,5 @@
+nav_msgs/Path route
+---
+bool success
+string message
+int32 point_count
