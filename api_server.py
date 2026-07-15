@@ -34,39 +34,59 @@ def get_status():
         'ip': ip
     }})
 
-# 底盘访问锁 + 自动停止定时器管理（防止状态读取与运动命令并发抢串口）
-_stop_timer = None
-_stop_timer_lock = threading.Lock()
+# 底盘访问锁 + 看门狗线程（杜绝 Timer 漏触发导致一直转）
+_bot_lock = threading.Lock()
+_stop_deadline = 0.0
+_stop_deadline_lock = threading.Lock()
+
+def _watchdog():
+    """后台看门狗：到期后强制停止，每 0.2s 检查一次"""
+    while True:
+        with _stop_deadline_lock:
+            deadline = _stop_deadline
+        if deadline > 0 and time.monotonic() >= deadline:
+            with _bot_lock:
+                bot.set_car_motion(0, 0, 0)
+            with _stop_deadline_lock:
+                _stop_deadline = 0.0
+        time.sleep(0.2)
+
+threading.Thread(target=_watchdog, daemon=True).start()
+
 
 @app.route('/api/move', methods=['POST'])
 def move():
-    global _stop_timer
-    data = request.json; cmd = data.get('cmd','stop')
-    s = min(data.get('speed',50),100); t = data.get('duration',0.5)
-    speed = s/100.0; vx=vy=vz=0
-    if cmd=='forward': vx=speed
-    elif cmd=='backward': vx=-speed
-    elif cmd=='left': vz=speed*3
-    elif cmd=='right': vz=-speed*3
-    elif cmd=='rotate_left': vz=speed*3
-    elif cmd=='rotate_right': vz=-speed*3
-    elif cmd=='left_shift': vy=speed
-    elif cmd=='right_shift': vy=-speed
-    with _stop_timer_lock:
-        if _stop_timer:
-            _stop_timer.cancel()
-            _stop_timer = None
+    data = request.json
+    cmd = data.get('cmd', 'stop')
+    s = min(data.get('speed', 50), 100)
+    t = data.get('duration', 0.5)
+    speed = s / 100.0
+    vx = vy = vz = 0.0
+
+    if cmd == 'forward':
+        vx = speed
+    elif cmd == 'backward':
+        vx = -speed
+    elif cmd in ('left', 'rotate_left'):
+        vz = speed * 3
+    elif cmd in ('right', 'rotate_right'):
+        vz = -speed * 3
+    elif cmd == 'left_shift':
+        vy = speed
+    elif cmd == 'right_shift':
+        vy = -speed
+
     with _bot_lock:
-        bot.set_car_motion(vx,vy,vz)
-    if cmd!='stop' and t>0:
-        def _delayed_stop():
-            with _bot_lock:
-                bot.set_car_motion(0,0,0)
-        timer = threading.Timer(t, _delayed_stop)
-        with _stop_timer_lock:
-            _stop_timer = timer
-        timer.start()
-    return jsonify({'code':0,'msg':f'{cmd} @ {s}%'})
+        bot.set_car_motion(vx, vy, vz)
+
+    if cmd == 'stop' or t <= 0:
+        with _stop_deadline_lock:
+            _stop_deadline = 0.0
+    else:
+        with _stop_deadline_lock:
+            _stop_deadline = time.monotonic() + t
+
+    return jsonify({'code': 0, 'msg': f'{cmd} @ {s}%'})
 
 @app.route('/api/sensors')
 def get_sensors():
