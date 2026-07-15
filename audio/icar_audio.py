@@ -135,7 +135,7 @@ class _Player:
         tmp.close()
         with self._lock:
             self._proc = subprocess.Popen(
-                ["paplay", "--device=" + USB_SINK, tmp.name],
+                ["paplay", "--volume=65536", "--device=" + USB_SINK, tmp.name],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self._status = "playing"
         def _cleanup():
@@ -148,7 +148,7 @@ class _Player:
         self.stop()
         with self._lock:
             self._proc = subprocess.Popen(
-                ["paplay", "--device=" + USB_SINK, filepath],
+                ["paplay", "--volume=65536", "--device=" + USB_SINK, filepath],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self._status = "playing"
 
