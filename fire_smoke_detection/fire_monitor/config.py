@@ -68,7 +68,7 @@ class FireMonitorConfig:
     def from_env(cls, root: Path) -> "FireMonitorConfig":
         root = Path(root).resolve()
         load_dotenv(root / ".env")
-        base_url = os.environ.get("FIRE_AI_BASE_URL", "https://zz.cxwms.com/v1").rstrip("/")
+        base_url = os.environ.get("FIRE_AI_BASE_URL", "https://z.cxwms.com/v1").rstrip("/")
         endpoint = "/" + os.environ.get("FIRE_AI_ENDPOINT", "/chat/completions").strip().lstrip("/")
         return cls(
             root=root,

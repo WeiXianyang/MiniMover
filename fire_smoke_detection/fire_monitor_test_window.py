@@ -16,17 +16,41 @@ from PIL import Image, ImageTk
 ROOT = Path(__file__).resolve().parent
 DETECTOR = ROOT / "detector.py"
 DEFAULT_DEBUG_DIR = ROOT / "runtime" / "debug"
+GPU_DEVICE = "0"
+CAR_SOURCE_OPTIONS = {
+    "car_A（192.168.137.23）": "car_A",
+    "car_B（192.168.43.8）": "car_B",
+}
+CAR_ALIASES = frozenset(CAR_SOURCE_OPTIONS.values())
 
 
-def build_detector_command(source_kind: str, source_value: str, debug_dir: Path, device: str) -> list[str]:
+def require_cuda(torch_module=None) -> str:
+    """Return the CUDA device name or refuse to run without a real GPU."""
+    if torch_module is None:
+        try:
+            import torch as torch_module
+        except ImportError as exc:
+            raise RuntimeError("未安装 PyTorch，无法使用 CUDA GPU") from exc
+    if not torch_module.cuda.is_available():
+        raise RuntimeError("CUDA GPU 不可用；检测不会回退到 CPU，请检查 NVIDIA 驱动和 CUDA 版 PyTorch")
+    return str(torch_module.cuda.get_device_name(0))
+
+
+def build_detector_command(source_kind: str, source_value: str, debug_dir: Path, device: str = GPU_DEVICE) -> list[str]:
     source = source_value.strip()
     if source_kind == "video":
         source = str(Path(source).expanduser().resolve())
-    elif not source.isdigit():
-        raise ValueError("摄像头编号必须是非负整数")
-    return [sys.executable, str(DETECTOR), "--source", source, "--device", device.strip() or "cpu",
+    elif source_kind == "camera":
+        if not source.isdigit():
+            raise ValueError("摄像头编号必须是非负整数")
+    elif source_kind == "car":
+        if source not in CAR_ALIASES:
+            raise ValueError(f"未知的小车摄像头: {source}")
+    else:
+        raise ValueError(f"未知的视频源类型: {source_kind}")
+    _ = device  # Compatibility only: GPU 0 is mandatory.
+    return [sys.executable, str(DETECTOR), "--source", source, "--device", GPU_DEVICE,
             "--conf-thres", "0.7", "--no-view", "--monitor-debug-dir", str(Path(debug_dir).resolve())]
-
 
 def read_debug_snapshot(debug_dir: Path, event_offset: int):
     status = {}
@@ -103,10 +127,11 @@ class MonitorTestWindow(tk.Tk):
         self.event_offset = 0
         self.preview_refs = {}
         self.debug_dir = DEFAULT_DEBUG_DIR
-        self.source_kind = tk.StringVar(value="camera")
+        self.source_kind = tk.StringVar(value="car")
+        self.car = tk.StringVar(value=next(iter(CAR_SOURCE_OPTIONS)))
         self.camera = tk.StringVar(value="0")
         self.video = tk.StringVar()
-        self.device = tk.StringVar(value="cpu")
+        self.device = tk.StringVar(value="GPU 0（CUDA 强制）")
         self.summary = tk.StringVar(value="尚未启动")
         self._build()
         self.protocol("WM_DELETE_WINDOW", self._close)
@@ -115,17 +140,28 @@ class MonitorTestWindow(tk.Tk):
     def _build(self):
         controls = ttk.Frame(self, padding=10)
         controls.pack(fill="x")
-        ttk.Radiobutton(controls, text="真实摄像头", variable=self.source_kind, value="camera").grid(row=0, column=0, padx=4)
-        ttk.Label(controls, text="编号").grid(row=0, column=1)
-        ttk.Entry(controls, textvariable=self.camera, width=6).grid(row=0, column=2, padx=4)
-        ttk.Radiobutton(controls, text="本地视频", variable=self.source_kind, value="video").grid(row=0, column=3, padx=(14, 4))
-        ttk.Entry(controls, textvariable=self.video, width=45).grid(row=0, column=4, padx=4, sticky="ew")
-        ttk.Button(controls, text="选择视频", command=self._choose_video).grid(row=0, column=5, padx=4)
-        ttk.Label(controls, text="设备").grid(row=0, column=6, padx=(14, 2))
-        ttk.Entry(controls, textvariable=self.device, width=7).grid(row=0, column=7)
-        ttk.Button(controls, text="启动", command=self.start_detector).grid(row=0, column=8, padx=(14, 4))
-        ttk.Button(controls, text="停止", command=self.stop_detector).grid(row=0, column=9, padx=4)
-        controls.columnconfigure(4, weight=1)
+        ttk.Radiobutton(controls, text="小车摄像头", variable=self.source_kind, value="car").grid(row=0, column=0, padx=4, sticky="w")
+        ttk.Combobox(
+            controls,
+            textvariable=self.car,
+            values=tuple(CAR_SOURCE_OPTIONS),
+            width=28,
+            state="readonly",
+        ).grid(row=0, column=1, columnspan=2, padx=4, sticky="w")
+        ttk.Radiobutton(controls, text="电脑摄像头", variable=self.source_kind, value="camera").grid(row=0, column=3, padx=(14, 4))
+        ttk.Label(controls, text="编号").grid(row=0, column=4)
+        ttk.Entry(controls, textvariable=self.camera, width=6).grid(row=0, column=5, padx=4, sticky="w")
+
+        ttk.Radiobutton(controls, text="本地视频", variable=self.source_kind, value="video").grid(row=1, column=0, padx=4, pady=(8, 0), sticky="w")
+        ttk.Entry(controls, textvariable=self.video, width=58).grid(row=1, column=1, columnspan=5, padx=4, pady=(8, 0), sticky="ew")
+        ttk.Button(controls, text="选择视频", command=self._choose_video).grid(row=1, column=6, padx=4, pady=(8, 0))
+
+        ttk.Label(controls, text="推理设备").grid(row=2, column=0, padx=4, pady=(8, 0), sticky="w")
+        ttk.Label(controls, textvariable=self.device, foreground="#087f23").grid(row=2, column=1, columnspan=3, padx=4, pady=(8, 0), sticky="w")
+        ttk.Button(controls, text="启动检测", command=self.start_detector).grid(row=2, column=5, padx=(14, 4), pady=(8, 0), sticky="e")
+        ttk.Button(controls, text="停止并释放", command=self.stop_detector).grid(row=2, column=6, padx=4, pady=(8, 0))
+        controls.columnconfigure(2, weight=1)
+        controls.columnconfigure(5, weight=1)
 
         ttk.Label(self, textvariable=self.summary, padding=(12, 4), font=("Microsoft YaHei UI", 10, "bold")).pack(fill="x")
         previews = ttk.Panedwindow(self, orient="horizontal")
@@ -160,13 +196,20 @@ class MonitorTestWindow(tk.Tk):
         if self.process and self.process.poll() is None:
             messagebox.showinfo("提示", "检测进程已经在运行")
             return
-        source = self.camera.get() if self.source_kind.get() == "camera" else self.video.get()
-        if self.source_kind.get() == "video" and not Path(source).is_file():
+        source_kind = self.source_kind.get()
+        if source_kind == "car":
+            source = CAR_SOURCE_OPTIONS.get(self.car.get(), "")
+        elif source_kind == "camera":
+            source = self.camera.get()
+        else:
+            source = self.video.get()
+        if source_kind == "video" and not Path(source).is_file():
             messagebox.showerror("无法启动", "请选择存在的视频文件")
             return
         try:
-            command = build_detector_command(self.source_kind.get(), source, self.debug_dir, self.device.get())
-        except ValueError as exc:
+            gpu_name = require_cuda()
+            command = build_detector_command(source_kind, source, self.debug_dir, GPU_DEVICE)
+        except (RuntimeError, ValueError) as exc:
             messagebox.showerror("无法启动", str(exc))
             return
         shutil.rmtree(self.debug_dir, ignore_errors=True)
@@ -177,8 +220,10 @@ class MonitorTestWindow(tk.Tk):
         self.process_log = log_path.open("w", encoding="utf-8")
         self.process = subprocess.Popen(command, cwd=str(ROOT), creationflags=flags,
                                         stdout=self.process_log, stderr=subprocess.STDOUT)
-        self.summary.set("正在启动真实检测链路……")
-        self._append_log("窗口", "已启动检测子进程")
+        self.summary.set(f"正在启动真实检测链路……  GPU 0: {gpu_name}")
+        self._append_log("GPU", f"强制使用 GPU 0: {gpu_name}")
+        self._append_log("窗口", f"已启动检测子进程；视频源: {source}")
+
 
     def stop_detector(self):
         process = self.process
