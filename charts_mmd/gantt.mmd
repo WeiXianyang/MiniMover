@@ -4,34 +4,55 @@ gantt
     axisFormat %m/%d
     tickInterval 1day
 
-    section 魏贤炀  64 commits
-    项目初始化 ROS导入 小车环境搭建    :done,    wx0, 2026-07-06, 2d
-    YOLOv5烟火检测 车牌识别 AI复核     :done,    wx1, 2026-07-07, 3d
-    语音助手 ASR-LLM-TTS Agent控制    :done,    wx2, 2026-07-09, 3d
-    视觉LLM接入 检测Demo 视频录制       :done,    wx3, 2026-07-11, 2d
-    进度协调 风险管理 答辩准备         :active,  wx4, 2026-07-13, 2d
+    section 魏贤炀
+    需求调研 文献调研 算法对比 项目初始化        :done,    wx0, 2026-07-06, 1d
+    竞品分析 与老师沟通 AGENTS.md 导入源码        :done,    wx1, 2026-07-07, 1d
+    架构规划 多模态联动方案 分工协调              :done,    wx2, 2026-07-08, 1d
+    烟火检测模型训练 指导车端与鸿蒙开发            :done,    wx3, 2026-07-09, 2d
+    模型训练收尾 审核中期答辩PPT                  :done,    wx4, 2026-07-10, 1d
+    中期答辩 烟火模块迁移 信号灯车牌识别演示方案    :done,    wx5, 2026-07-11, 1d
+    烟火AI复核告警 信号灯识别 YOLO集成 RAG PR审查  :done,    wx6, 2026-07-12, 1d
+    语音助手全栈 CosyVoice TTS 唤醒词 PR合并      :done,    wx7, 2026-07-13, 1d
+    交付文档 全部项目图表 最终交付物审核 演示视频   :active,  wx8, 2026-07-14, 1d
 
-    section 曹晋豪  20 commits
-    REST API服务 车端ROS2配置部署     :done,    cj1, 2026-07-06, 3d
-    传感器驱动 启动脚本 摄像头对接     :done,    cj2, 2026-07-08, 2d
-    多车协调器编队 地图导航 音频模块   :done,    cj3, 2026-07-10, 3d
-    系统联调 SLAM导航 容器适配         :active,  cj4, 2026-07-13, 2d
+    section 曹晋豪
+    Ubuntu虚拟机搭建 远程操控小车                 :done,    cj0, 2026-07-06, 1d
+    扫描地图 雷达避障 改写底层控制代码              :done,    cj1, 2026-07-07, 1d
+    测试导航与识别功能 改写api_server后端          :done,    cj2, 2026-07-08, 1d
+    Web控制小车 视频流获取 后端接口完善            :done,    cj3, 2026-07-09, 1d
+    准备中期答辩资料                              :done,    cj4, 2026-07-10, 1d
+    中期答辩                                      :done,    cj5, 2026-07-11, 1d
+    修复换车问题 多车总控台 启动停止脚本            :done,    cj6, 2026-07-12, 1d
+    多线程后端 麦克风扬声器接口                    :done,    cj7, 2026-07-13, 1d
+    云端告警代理面板 BGM音乐播放 bug修复           :active,  cj8, 2026-07-14, 1d
 
-    section 张佳炅  4 commits 中期计划SLAM/ROS2
-    车端ROS2基础配置 环境建模准备       :done,    zj0, 2026-07-06, 2d
-    人脸识别注册 Django 百度API       :done,    zj1, 2026-07-07, 3d
-    1比N识别 摄像头视频流连接测试      :done,    zj2, 2026-07-10, 2d
-    答辩演示准备 文档完善              :active,  zj3, 2026-07-12, 3d
+    section 张佳炅
+    虚拟机配置 热点连接小车 配置小车环境            :done,    zj0, 2026-07-06, 1d
+    传感器学习 六层走廊完整建图                    :done,    zj1, 2026-07-07, 1d
+    自动避障跟随 雷达警卫 两点自动导航              :done,    zj2, 2026-07-08, 2d
+    准备中期答辩                                  :done,    zj3, 2026-07-10, 1d
+    中期答辩                                      :done,    zj4, 2026-07-11, 1d
+    修改容器 多点路线 人脸识别登录注册              :done,    zj5, 2026-07-12, 1d
+    多点巡逻 导航接口测试 1-N人脸对比 视频源测试    :done,    zj6, 2026-07-13, 1d
+    导航接口bug修复 人脸识别部署 视频录制剪辑       :active,  zj7, 2026-07-14, 1d
 
-    section 朱宇帆  26 commits
-    需求拆解 项目文档初始化            :done,    zy0, 2026-07-06, 2d
-    云平台后端 CloudAlarmService     :done,    zy1, 2026-07-07, 3d
-    云平台前端 Vite React Tailwind   :done,    zy2, 2026-07-09, 3d
-    Docker CI/CD 鸿蒙APP改造          :done,    zy3, 2026-07-11, 2d
-    模块设计图 PPT维护                :active,  zy4, 2026-07-13, 2d
+    section 朱宇帆
+    Linux虚拟机 连接操控小车                       :done,    zy0, 2026-07-06, 1d
+    小车基础操作 地图绘制 需求架构设计              :done,    zy1, 2026-07-07, 2d
+    CI/CD流水线 软件说明书 测试雏形                 :done,    zy2, 2026-07-09, 1d
+    演示PPT 云平台初步设计 鸿蒙APP环境搭建          :done,    zy3, 2026-07-10, 1d
+    中期答辩                                      :done,    zy4, 2026-07-11, 1d
+    鸿蒙APP开发改造 云平台程序开发                  :done,    zy5, 2026-07-12, 1d
+    鸿蒙APP车端对接 云平台部署测试                  :done,    zy6, 2026-07-13, 1d
+    整理开发结果 答辩PPT 鸿蒙APP对接                :active,  zy7, 2026-07-14, 1d
 
-    section 李沐宸  21 commits  dev分支
-    Flutter APP初始化 UI设计 页面重构  :done,    lm1, 2026-07-06, 3d
-    手动遥控界面 车队编队 TCP通信      :done,    lm2, 2026-07-08, 3d
-    3D模型 图标系统 动态交互开发       :done,    lm3, 2026-07-11, 2d
-    Android构建 原型同步 文档完善       :active,  lm4, 2026-07-13, 2d
+    section 李沐宸
+    小车虚拟环境配置 连接小车移动转向               :done,    lm0, 2026-07-06, 1d
+    部署GitHub仓库 雷达建图 初步分工                :done,    lm1, 2026-07-07, 1d
+    Figma UI设计 APP开发环境搭建                   :done,    lm2, 2026-07-08, 1d
+    Android APP前端UI绘制 页面跳转逻辑              :done,    lm3, 2026-07-09, 1d
+    UI交互优化 协调优化答辩PPT                      :done,    lm4, 2026-07-10, 1d
+    中期答辩 确定后续安排 多车协同开发               :done,    lm5, 2026-07-11, 1d
+    手动遥控页面 设置页面 APP连接小车 UI优化         :done,    lm6, 2026-07-12, 1d
+    3D小车建模 图标系统 雷达UI 页面原型规范         :done,    lm7, 2026-07-13, 1d
+    导航配送多车UI对接后端 人脸语音音乐组件 录制视频 :active,  lm8, 2026-07-14, 1d

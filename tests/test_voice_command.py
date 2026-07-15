@@ -16,6 +16,7 @@ class CommandParserTests(unittest.TestCase):
         self.assertEqual(parse_command("\u5411\u53f3\u8f6c\u4e00\u4e0b"), {"cmd": "right"})
         self.assertEqual(parse_command("\u5411\u540e\u8f6c"), {"cmd": "backward"})
         self.assertEqual(parse_command("\u539f\u5730\u8f6c\u5708"), {"cmd": "spin"})
+        self.assertEqual(parse_command("\u7ed9\u6211\u8df3\u4e2a\u821e"), {"cmd": "dance"})
 
     def test_rejects_unsupported_text(self):
         self.assertIsNone(parse_command("\u8bf7\u544a\u8bc9\u6211\u73b0\u5728\u51e0\u70b9"))
@@ -84,6 +85,12 @@ class VoiceServiceTests(unittest.TestCase):
         service.handle_final({"type": "final_text", "text": "请向右转"})
         car.execute.assert_called_once_with({"cmd": "right"}, 20, 0.5)
 
+    def test_dance_command_starts_motion_sequence(self):
+        car = Mock()
+        service = VoiceService(car, Mock())
+        service.handle_final({"type": "final_text", "text": "\u6765\u8df3\u4e2a\u821e"})
+        car.execute_dance.assert_called_once_with()
+        car.execute.assert_not_called()
 
 class CarClientTests(unittest.TestCase):
     @patch("voice_assistant.car_client.request.urlopen")

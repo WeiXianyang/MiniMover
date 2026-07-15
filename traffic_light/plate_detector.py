@@ -24,6 +24,8 @@ for path in (REPOSITORY_ROOT, HYPERLPR_ROOT):
 
 from video_source import resolve_source
 
+from traffic_light.debug_telemetry import DebugTelemetry, NullTelemetry
+
 _OPENCV_FIND_CONTOURS_ORIGINAL = None
 
 
@@ -40,6 +42,29 @@ def parse_args(arguments: list[str] | None = None) -> argparse.Namespace:
         type=float,
         default=0.7,
         help="minimum HyperLPR confidence to display (default: 0.7)",
+    )
+    parser.add_argument(
+        "--monitor-debug-dir",
+        type=str,
+        default="",
+        help="debug telemetry output directory for the monitor window",
+    )
+    parser.add_argument(
+        "--no-view",
+        action="store_true",
+        help="suppress the OpenCV preview window (useful under a monitor window)",
+    )
+    parser.add_argument(
+        "--skip-frames",
+        type=int,
+        default=5,
+        help="run detection every N frames to reduce CPU load (default: 5, 1=every frame)",
+    )
+    parser.add_argument(
+        "--detect-width",
+        type=int,
+        default=640,
+        help="resize frame width before detection to reduce CPU load (default: 640)",
     )
     return parser.parse_args(arguments)
 
@@ -101,14 +126,19 @@ def install_keras_compatibility() -> None:
         optimizers.adam = optimizers.Adam
 
 
-def require_tensorflow_gpu() -> None:
-    """Refuse to run unless TensorFlow exposes a CUDA GPU."""
+def require_tensorflow_gpu() -> bool:
+    """Check if TensorFlow has a CUDA GPU; return True if available.
+    On Windows TensorFlow >= 2.11 does not support native GPU — we fall back to CPU.
+    """
     try:
         import tensorflow as tf
     except ImportError as error:
-        raise RuntimeError("HyperLPR requires TensorFlow with CUDA support") from error
-    if not tf.config.list_physical_devices("GPU"):
-        raise RuntimeError("HyperLPR requires at least one TensorFlow CUDA GPU")
+        raise RuntimeError("HyperLPR requires TensorFlow") from error
+    gpu_devices = tf.config.list_physical_devices("GPU")
+    if not gpu_devices:
+        print("WARNING: No TensorFlow CUDA GPU found — running on CPU (slower)", file=sys.stderr)
+        return False
+    return True
 
 
 def load_recognizer():
@@ -159,12 +189,29 @@ def main(arguments: list[str] | None = None) -> int:
         print(f"[ERROR] Cannot initialize HyperLPR: {error}", file=sys.stderr)
         return 1
 
+    telemetry = DebugTelemetry(Path(args.monitor_debug_dir)) if args.monitor_debug_dir else NullTelemetry()
+    if telemetry.enabled:
+        telemetry.reset()
+        telemetry.update(source=source, process={"state": "running"},
+                         detector={"type": "HyperLPR", "state": "running", "hit_count": 0})
+        telemetry.event("started", f"Plate detector started; source: {source}")
+
     print("=" * 50)
     print("  License Plate Detector - 车牌号识别")
     print(f"  Source: {source}")
     print("  Press 'q' to quit | 's' to save screenshot")
     print("=" * 50)
 
+    import time as _time
+    last_debug_frame = 0.0
+    last_detection_text = ""
+    total_hits = 0
+    latest_plates = ""
+    frame_count = 0
+    failure = None
+    skip = max(1, args.skip_frames)
+    detect_width = max(320, args.detect_width)
+    print(f"Detection every {skip} frame(s), resize to width={detect_width}")
     try:
         frame = first_frame
         while True:
@@ -172,27 +219,73 @@ def main(arguments: list[str] | None = None) -> int:
                 print("[ERROR] Cannot read a frame from the video source.", file=sys.stderr)
                 return 1
 
-            with hyperlpr_working_directory():
-                result, candidates = pipeline.SimpleRecognizePlateByE2E(frame.copy())
-            accepted = [candidate for candidate in candidates if candidate[2] >= args.confidence]
-            if accepted:
-                text = " | ".join(f"{plate} ({confidence:.2f})" for _, plate, confidence in accepted)
-                cv2.putText(result, text, (10, result.shape[0] - 20), cv2.FONT_HERSHEY_SIMPLEX,
-                            0.7, (0, 255, 0), 2, cv2.LINE_AA)
+            frame_count += 1
+            if frame_count % skip == 0:
+                # Detection frame: resize and run HyperLPR
+                h, w = frame.shape[:2]
+                scale = detect_width / w
+                if scale < 0.95:
+                    small = cv2.resize(frame, (detect_width, int(h * scale)))
+                else:
+                    small = frame
+                with hyperlpr_working_directory():
+                    result, candidates = pipeline.SimpleRecognizePlateByE2E(small.copy())
+                accepted = [candidate for candidate in candidates if candidate[2] >= args.confidence]
+                if accepted:
+                    last_detection_text = " | ".join(f"{plate} ({confidence:.2f})" for _, plate, confidence in accepted)
+                    if telemetry.enabled:
+                        total_hits += 1
+                        if last_detection_text != latest_plates:
+                            latest_plates = last_detection_text
+                            telemetry.update(detector={"hit_count": total_hits, "latest_plates": latest_plates})
+                            telemetry.event("plate_detected", latest_plates, count=len(accepted))
+            else:
+                # Skip frame: just show the original frame with cached result
+                result = frame.copy()
 
-            cv2.imshow("License Plate Detection", result)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q"):
-                return 0
-            if key == ord("s"):
-                cv2.imwrite("plate_screenshot.jpg", result)
-                print("Screenshot saved: plate_screenshot.jpg")
+            if last_detection_text:
+                cv2.putText(result, last_detection_text, (10, result.shape[0] - 20),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+
+            now_monotonic = _time.monotonic()
+            if telemetry.enabled and now_monotonic - last_debug_frame >= 0.2:
+                telemetry.write_image("latest_frame.jpg", result)
+                telemetry.update(detector={"hit_count": total_hits})
+                last_debug_frame = now_monotonic
+
+            if not args.no_view:
+                cv2.imshow("License Plate Detection", result)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    if telemetry.enabled:
+                        telemetry.update(process={"state": "stopped"})
+                        telemetry.event("stopped", "User pressed 'q'")
+                    return 0
+                if key == ord("s"):
+                    cv2.imwrite("plate_screenshot.jpg", result)
+                    print("Screenshot saved: plate_screenshot.jpg")
+            else:
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q"):
+                    if telemetry.enabled:
+                        telemetry.update(process={"state": "stopped"})
+                        telemetry.event("stopped", "User pressed 'q'")
+                    return 0
 
             success, frame = capture.read()
             if not success:
                 print("[ERROR] Cannot read a frame from the video source.", file=sys.stderr)
                 return 1
+    except Exception as exc:
+        failure = f"{type(exc).__name__}: {exc}"
+        if telemetry.enabled:
+            telemetry.update(process={"state": "failed", "error": failure})
+            telemetry.event("detector_failed", failure)
+        print(f"[ERROR] {failure}", file=sys.stderr)
+        return 1
     finally:
+        if telemetry.enabled and failure is None:
+            telemetry.update(process={"state": "stopped"})
         capture.release()
         cv2.destroyAllWindows()
 

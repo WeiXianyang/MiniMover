@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import random
 import threading
 import time
 
@@ -80,6 +81,27 @@ class VoiceService:
             return
         self.last_command = command["cmd"]
         self.last_command_at = now
+        # ---- dance: special handling (TTS + motion in parallel) ----
+        if command["cmd"] == "dance":
+            _DANCE_LINES = [
+                "来啦来啦，看我扭一扭！咚咚锵咚咚锵~",
+                "音乐响起来，屁股扭起来，左三圈右三圈~",
+                "今天心情好，给你跳个舞！虽然我只有轮子，但我有灵魂！",
+                "旋转跳跃我闭着眼，尘嚣看不见你沉醉了没~",
+                "我是小可爱，也是小霸王，扭起来谁都挡不住！",
+                "蹦瞎卡拉卡！蹦瞎卡拉卡！",
+            ]
+            say = random.choice(_DANCE_LINES)
+            LOGGER.info("dance: %s", say)
+            if self.tts_backend:
+                threading.Thread(target=self.tts_backend.speak, args=(say,), daemon=True).start()
+            try:
+                self.car_client.execute_dance()
+                LOGGER.info("dance sequence started from %r", text)
+            except Exception:
+                LOGGER.exception("dance command failed for %r", text)
+            return
+        # ---- normal motion command ----
         try:
             result = self.car_client.execute(command, self.speed, self.duration)
             LOGGER.info("executed %s from %r: %s", command["cmd"], text, result)

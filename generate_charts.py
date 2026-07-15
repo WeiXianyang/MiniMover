@@ -3,7 +3,7 @@
 """
 FireGuard 项目图表生成器
 ========================
-基于 GitHub 仓库 133 条提交记录，生成行业标准的：
+基于 GitHub 仓库 156 条提交记录（5人团队），生成行业标准的：
   1. 甘特图 (Gantt Chart)  — 按成员分组的任务时间线
   2. 里程碑图 (Milestone Chart) — 关键节点与交付物
   3. 燃尽图 (Burndown Chart) — 理想 vs 实际进度
@@ -49,7 +49,7 @@ COLORS = {
     "tertiary":  "#34a853",
     "quaternary":"#fbbc04",
     "member_魏贤炀": "#1a73e8",   # 蓝
-    "member_张家炅": "#ea4335",   # 红
+    "member_张佳炅": "#ea4335",   # 红
     "member_曹晋豪": "#34a853",   # 绿
     "member_朱宇帆": "#fbbc04",   # 黄
     "member_李沐宸": "#9334e6",   # 紫
@@ -90,43 +90,50 @@ def date_label(d):
 # ═══════════════════════════════════════════════════════════
 
 TASKS = [
-    # ── 魏贤炀 (A) ──
-    {"member": "魏贤炀", "grade": "A", "task": "项目初始化",                       "s": 6,  "e": 6,  "color": COLORS["member_魏贤炀"]},
-    {"member": "魏贤炀", "grade": "A", "task": "小车底盘代码导入 + AGENTS.md",      "s": 7,  "e": 7,  "color": COLORS["member_魏贤炀"]},
-    {"member": "魏贤炀", "grade": "A", "task": "烟火检测模块迁移 (YOLOv5)",        "s": 11, "e": 11, "color": COLORS["member_魏贤炀"]},
-    {"member": "魏贤炀", "grade": "A", "task": "三检测器答辩演示 (烟火+红绿灯+车牌)","s": 11, "e": 11, "color": COLORS["member_魏贤炀"]},
-    {"member": "魏贤炀", "grade": "A", "task": "AI二次复核 (状态机+证据+告警)",      "s": 12, "e": 12, "color": COLORS["member_魏贤炀"]},
-    {"member": "魏贤炀", "grade": "A", "task": "语音助手 (ASR+唤醒词+LLM+TTS)",     "s": 12, "e": 13, "color": COLORS["member_魏贤炀"]},
-    {"member": "魏贤炀", "grade": "A", "task": "RAG知识库 + 中期答辩演讲稿",        "s": 12, "e": 12, "color": COLORS["member_魏贤炀"]},
-    {"member": "魏贤炀", "grade": "A", "task": "TTS优化 (CosyVoice) + 部署修复",    "s": 13, "e": 13, "color": COLORS["member_魏贤炀"]},
-    {"member": "魏贤炀", "grade": "A", "task": "PR审查合并 (×5) + 需求分析报告",    "s": 13, "e": 14, "color": COLORS["member_魏贤炀"]},
+    # ── 魏贤炀 (A) 62 commits ──
+    {"member": "魏贤炀", "grade": "A", "task": "需求调研 文献调研 算法对比 项目初始化",        "s": 6,  "e": 6,  "color": COLORS["member_魏贤炀"]},
+    {"member": "魏贤炀", "grade": "A", "task": "竞品分析 与老师沟通 AGENTS.md 导入源码",       "s": 7,  "e": 7,  "color": COLORS["member_魏贤炀"]},
+    {"member": "魏贤炀", "grade": "A", "task": "端边云架构规划 多模态联动方案 分工协调",         "s": 8,  "e": 8,  "color": COLORS["member_魏贤炀"]},
+    {"member": "魏贤炀", "grade": "A", "task": "烟火检测模型训练 指导车端与鸿蒙开发",            "s": 9,  "e": 10, "color": COLORS["member_魏贤炀"]},
+    {"member": "魏贤炀", "grade": "A", "task": "中期答辩 烟火模块迁移 信号灯车牌识别演示方案",    "s": 11, "e": 11, "color": COLORS["member_魏贤炀"]},
+    {"member": "魏贤炀", "grade": "A", "task": "烟火AI复核告警 信号灯识别 YOLO集成 RAG PR审查#1#2","s": 12, "e": 12, "color": COLORS["member_魏贤炀"]},
+    {"member": "魏贤炀", "grade": "A", "task": "语音助手全栈 CosyVoice TTS 唤醒词 PR审查#3#5",  "s": 13, "e": 13, "color": COLORS["member_魏贤炀"]},
+    {"member": "魏贤炀", "grade": "A", "task": "交付文档 全部项目图表 最终交付物审核 演示视频",    "s": 14, "e": 14, "color": COLORS["member_魏贤炀"]},
 
-    # ── 张家炅 (A) ──
-    {"member": "张家炅", "grade": "A", "task": "SLAM建图 + Nav2导航配置",          "s": 7,  "e": 9,  "color": COLORS["member_张家炅"]},
-    {"member": "张家炅", "grade": "A", "task": "人脸识别 (注册+1:N+百度API)",       "s": 12, "e": 13, "color": COLORS["member_张家炅"]},
-    {"member": "张家炅", "grade": "A", "task": "视频源连接测试 + 巡检闭环联调",      "s": 13, "e": 14, "color": COLORS["member_张家炅"]},
+    # ── 曹晋豪 (A) 24 commits ──
+    {"member": "曹晋豪", "grade": "A", "task": "Ubuntu虚拟机搭建 远程操控小车",              "s": 6,  "e": 6,  "color": COLORS["member_曹晋豪"]},
+    {"member": "曹晋豪", "grade": "A", "task": "扫描地图 雷达避障 改写底层控制代码",            "s": 7,  "e": 7,  "color": COLORS["member_曹晋豪"]},
+    {"member": "曹晋豪", "grade": "A", "task": "测试导航与识别功能 改写api_server后端",        "s": 8,  "e": 8,  "color": COLORS["member_曹晋豪"]},
+    {"member": "曹晋豪", "grade": "A", "task": "Web控制小车 视频流获取 后端接口完善",          "s": 9,  "e": 9,  "color": COLORS["member_曹晋豪"]},
+    {"member": "曹晋豪", "grade": "A", "task": "修复换车问题 多车总控台 启动停止脚本",           "s": 12, "e": 12, "color": COLORS["member_曹晋豪"]},
+    {"member": "曹晋豪", "grade": "A", "task": "多线程后端 麦克风扬声器接口",                  "s": 13, "e": 13, "color": COLORS["member_曹晋豪"]},
+    {"member": "曹晋豪", "grade": "A", "task": "云端告警代理面板 BGM音乐播放 bug修复",         "s": 14, "e": 14, "color": COLORS["member_曹晋豪"]},
 
-    # ── 曹晋豪 (A) ──
-    {"member": "曹晋豪", "grade": "A", "task": "小车使用指南 + SLAM导航章节",        "s": 7,  "e": 7,  "color": COLORS["member_曹晋豪"]},
-    {"member": "曹晋豪", "grade": "A", "task": "REST API服务器 (Flask)",           "s": 9,  "e": 9,  "color": COLORS["member_曹晋豪"]},
-    {"member": "曹晋豪", "grade": "A", "task": "传感器驱动 (9种传感器串口)",          "s": 9,  "e": 9,  "color": COLORS["member_曹晋豪"]},
-    {"member": "曹晋豪", "grade": "A", "task": "地图导航 (选点导航+地图API)",        "s": 11, "e": 11, "color": COLORS["member_曹晋豪"]},
-    {"member": "曹晋豪", "grade": "A", "task": "多车协调器 (注册+轮询+编队+碰撞)",    "s": 12, "e": 13, "color": COLORS["member_曹晋豪"]},
-    {"member": "曹晋豪", "grade": "A", "task": "启动脚本 + 音频API + 运动冻结修复",   "s": 12, "e": 13, "color": COLORS["member_曹晋豪"]},
+    # ── 张佳炅 (A) 4 commits ──
+    {"member": "张佳炅", "grade": "A", "task": "虚拟机配置 热点连接小车 配置小车环境",           "s": 6,  "e": 6,  "color": COLORS["member_张佳炅"]},
+    {"member": "张佳炅", "grade": "A", "task": "传感器学习 六层走廊完整建图",                  "s": 7,  "e": 7,  "color": COLORS["member_张佳炅"]},
+    {"member": "张佳炅", "grade": "A", "task": "自动避障跟随 雷达警卫 两点自动导航",            "s": 8,  "e": 9,  "color": COLORS["member_张佳炅"]},
+    {"member": "张佳炅", "grade": "A", "task": "人脸识别登录注册 + 1:N对比",                 "s": 12, "e": 13, "color": COLORS["member_张佳炅"]},
+    {"member": "张佳炅", "grade": "A", "task": "多点巡逻 导航接口测试 视频源连接测试",           "s": 13, "e": 13, "color": COLORS["member_张佳炅"]},
+    {"member": "张佳炅", "grade": "A", "task": "导航接口bug修复 人脸识别部署 视频录制剪辑",       "s": 14, "e": 14, "color": COLORS["member_张佳炅"]},
 
-    # ── 朱宇帆 (B) ──
-    {"member": "朱宇帆", "grade": "B", "task": "Docker CI/CD 流水线 (GitHub Actions)","s": 9,  "e": 9,  "color": COLORS["member_朱宇帆"]},
-    {"member": "朱宇帆", "grade": "B", "task": "鸿蒙APP (ArkTS 30+文件 + hvigor 6.x)","s": 9,  "e": 13, "color": COLORS["member_朱宇帆"]},
-    {"member": "朱宇帆", "grade": "B", "task": "云平台后端 (Flask+MySQL+告警API)",    "s": 13, "e": 13, "color": COLORS["member_朱宇帆"]},
-    {"member": "朱宇帆", "grade": "B", "task": "云平台前端 (React+Vite+Tailwind)",   "s": 13, "e": 13, "color": COLORS["member_朱宇帆"]},
-    {"member": "朱宇帆", "grade": "B", "task": "API文档 + 需求文档 + 模块关系图",      "s": 13, "e": 14, "color": COLORS["member_朱宇帆"]},
+    # ── 朱宇帆 (B) 29 commits ──
+    {"member": "朱宇帆", "grade": "B", "task": "Linux虚拟机 连接操控小车",                   "s": 6,  "e": 6,  "color": COLORS["member_朱宇帆"]},
+    {"member": "朱宇帆", "grade": "B", "task": "小车基础操作 地图绘制 需求架构设计",            "s": 7,  "e": 8,  "color": COLORS["member_朱宇帆"]},
+    {"member": "朱宇帆", "grade": "B", "task": "CI/CD流水线 软件说明书 测试雏形",              "s": 9,  "e": 9,  "color": COLORS["member_朱宇帆"]},
+    {"member": "朱宇帆", "grade": "B", "task": "云平台初步设计 鸿蒙APP环境搭建",               "s": 10, "e": 10, "color": COLORS["member_朱宇帆"]},
+    {"member": "朱宇帆", "grade": "B", "task": "鸿蒙APP开发改造 云平台程序开发",               "s": 12, "e": 12, "color": COLORS["member_朱宇帆"]},
+    {"member": "朱宇帆", "grade": "B", "task": "鸿蒙APP车端对接 云平台前后端部署测试",           "s": 13, "e": 13, "color": COLORS["member_朱宇帆"]},
+    {"member": "朱宇帆", "grade": "B", "task": "整理开发结果 答辩PPT 鸿蒙APP对接",             "s": 14, "e": 14, "color": COLORS["member_朱宇帆"]},
 
-    # ── 李沐宸 (B) ──
-    {"member": "李沐宸", "grade": "B", "task": "Web前端重构 (HTML5+组件化)",         "s": 8,  "e": 9,  "color": COLORS["member_李沐宸"]},
-    {"member": "李沐宸", "grade": "B", "task": "车队编队+手动控制+雷达+状态管理",       "s": 12, "e": 12, "color": COLORS["member_李沐宸"]},
-    {"member": "李沐宸", "grade": "B", "task": "Web移动端适配 + TCP→HTTP迁移",       "s": 12, "e": 13, "color": COLORS["member_李沐宸"]},
-    {"member": "李沐宸", "grade": "B", "task": "3D模型展示+图标系统+UI对齐",          "s": 13, "e": 13, "color": COLORS["member_李沐宸"]},
-    {"member": "李沐宸", "grade": "B", "task": "页面原型规范 + 交互流程校正",          "s": 13, "e": 14, "color": COLORS["member_李沐宸"]},
+    # ── 李沐宸 (B) 37 commits ──
+    {"member": "李沐宸", "grade": "B", "task": "小车虚拟环境配置 连接小车移动转向",              "s": 6,  "e": 6,  "color": COLORS["member_李沐宸"]},
+    {"member": "李沐宸", "grade": "B", "task": "部署GitHub仓库 雷达建图 初步分工",             "s": 7,  "e": 7,  "color": COLORS["member_李沐宸"]},
+    {"member": "李沐宸", "grade": "B", "task": "Figma UI设计 APP开发环境搭建",               "s": 8,  "e": 8,  "color": COLORS["member_李沐宸"]},
+    {"member": "李沐宸", "grade": "B", "task": "Android APP前端UI绘制 页面跳转逻辑",          "s": 9,  "e": 9,  "color": COLORS["member_李沐宸"]},
+    {"member": "李沐宸", "grade": "B", "task": "手动遥控页面 设置页面 APP连接小车 UI优化",        "s": 12, "e": 12, "color": COLORS["member_李沐宸"]},
+    {"member": "李沐宸", "grade": "B", "task": "3D小车建模 图标系统 雷达UI 页面原型规范",        "s": 13, "e": 13, "color": COLORS["member_李沐宸"]},
+    {"member": "李沐宸", "grade": "B", "task": "导航配送多车UI对接后端 人脸语音音乐组件 录制视频",  "s": 14, "e": 14, "color": COLORS["member_李沐宸"]},
 ]
 
 MILESTONES = [
@@ -265,7 +272,7 @@ def draw_gantt():
 
     # 标题
     ax.set_title(
-        "FireGuard 项目甘特图 — 基于 133 条 GitHub 提交记录",
+        "FireGuard 项目甘特图 (2026.07.06 — 07.14)",
         fontsize=15, fontweight="bold", color=COLORS["text"], pad=18,
     )
 
@@ -317,7 +324,7 @@ def draw_milestone():
 
     status_colors = {"done": COLORS["done"], "ongoing": COLORS["ongoing"], "pending": COLORS["pending"]}
     status_text  = {"done": "● 已完成", "ongoing": "◎ 进行中", "pending": "○ 待完成"}
-    commit_counts = [9, 7, 24, 41, 52, None]
+    commit_counts = [None, None, None, None, None, None]
 
     # 画垂直时间轴线
     x_min = date_to_num(make_date(5)) - 0.5
@@ -362,12 +369,7 @@ def draw_milestone():
                 status_text[ms["status"]],
                 ha="left", va="top", fontsize=9, color=color, zorder=5)
 
-        # commits数
-        if commit_counts[i]:
-            ax.text(date_to_num(make_date(5)) + 0.4, y,
-                    f'{commit_counts[i]} commits',
-                    ha="left", va="center", fontsize=9,
-                    fontweight="bold", color=COLORS["text_light"], zorder=5)
+        # commits数（不显示）
 
         # 描述框
         desc_text = ms["desc"]
@@ -405,7 +407,7 @@ def draw_milestone():
         ax.text(pos + 0.3, legend_y, label, fontsize=8.5, va="center", color=COLORS["text"])
 
     ax.set_title(
-        "FireGuard 项目里程碑 — 6 个关键节点 × 133 条提交 × 8 天开发",
+        "FireGuard 项目里程碑 (2026.07.06 — 07.14)",
         fontsize=15, fontweight="bold", color=COLORS["text"], pad=16,
     )
 
@@ -471,7 +473,7 @@ def draw_burndown():
     dt_710 = make_date(10)
     ax.axvspan(make_date(10), make_date(11), color=COLORS["grid"],
                alpha=0.25, zorder=1)
-    ax.annotate("7.10\n企业授课\n(0 commits)",
+    ax.annotate("7.10\n企业授课",
                 xy=(make_date(10) + timedelta(hours=12), 72), fontsize=8.5,
                 color=COLORS["secondary"], ha="center",
                 fontweight="bold",
@@ -490,7 +492,7 @@ def draw_burndown():
                 zorder=6)
 
     # 最终日标注
-    ax.annotate("🎯 7.14 最终答辩",
+    ax.annotate("> 7.14 最终答辩",
                 xy=(make_date(14), 11), xytext=(-30, 20),
                 textcoords="offset points", fontsize=9.5,
                 color=COLORS["secondary"], fontweight="bold",
@@ -531,7 +533,7 @@ def draw_burndown():
 
     # 标题
     ax.set_title(
-        "FireGuard 项目燃尽图 — 理想进度 vs 实际进度 (基于 133 条 Git 提交)",
+        "FireGuard 项目燃尽图 — 理想进度 vs 实际进度",
         fontsize=14, fontweight="bold", color=COLORS["text"], pad=14,
     )
 
@@ -539,9 +541,7 @@ def draw_burndown():
     textstr = (
         f"起始工作量: 100%\n"
         f"当前剩余: 15%\n"
-        f"总提交: 133 commits\n"
-        f"团队: 5人\n"
-        f"冲刺峰值: 52 commits/日 (7.13)"
+        f"团队: 5人"
     )
     props = dict(boxstyle="round,pad=0.5", facecolor="#f8f9fa",
                  edgecolor=COLORS["grid"], alpha=0.9)
@@ -566,13 +566,13 @@ def draw_contribution_pie():
 
     # ── 左: 提交数饼图 ──
     members_commits = [
-        ("魏贤炀", 59, COLORS["member_魏贤炀"]),
-        ("朱宇帆", 26, COLORS["member_朱宇帆"]),
-        ("曹晋豪", 20, COLORS["member_曹晋豪"]),
-        ("李沐宸", 18, COLORS["member_李沐宸"]),
-        ("张家炅", 4,  COLORS["member_张家炅"]),
+        ("魏贤炀", 62, COLORS["member_魏贤炀"]),
+        ("李沐宸", 37, COLORS["member_李沐宸"]),
+        ("朱宇帆", 29, COLORS["member_朱宇帆"]),
+        ("曹晋豪", 24, COLORS["member_曹晋豪"]),
+        ("张佳炅", 4,  COLORS["member_张佳炅"]),
     ]
-    labels_c = [f"{m}\n{c} commits" for m, c, _ in members_commits]
+    labels_c = [m for m, _, _ in members_commits]
     sizes_c = [c for _, c, _ in members_commits]
     colors_c = [clr for _, _, clr in members_commits]
     explode_c = (0.05, 0, 0, 0, 0)
@@ -586,12 +586,12 @@ def draw_contribution_pie():
     for at in autotexts:
         at.set_fontsize(9)
         at.set_fontweight("bold")
-    ax1.set_title("Git Commits 占比 (总计133)", fontsize=12,
+    ax1.set_title("成员贡献分布", fontsize=12,
                   fontweight="bold", color=COLORS["text"])
 
     # ── 右: 贡献分布饼图 ──
     grade_labels = [
-        f"核心模块独立负责\n魏贤炀·张家炅·曹晋豪",
+        f"核心模块独立负责\n魏贤炀·张佳炅·曹晋豪",
         f"全栈协作开发\n朱宇帆·李沐宸",
     ]
     grade_sizes = [60, 40]
@@ -626,7 +626,7 @@ def draw_contribution_pie():
 if __name__ == "__main__":
     print("=" * 60)
     print("  FireGuard 项目图表生成器")
-    print("  基于 GitHub 133 条提交记录")
+    print("  基于 GitHub 156 条提交记录")
     print("=" * 60)
     print()
 

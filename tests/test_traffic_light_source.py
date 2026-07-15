@@ -12,7 +12,7 @@ class TrafficLightSourceTests(unittest.TestCase):
     def test_source_alias_is_resolved_before_capture_opens(self):
         self.assertEqual(
             detector.resolve_source("car_B"),
-            "http://192.168.137.254:8080/stream?topic=/camera/color/image_raw",
+            "http://192.168.43.8:6500/video_feed",
         )
 
     def test_default_detection_thresholds_are_stricter_for_live_video(self):

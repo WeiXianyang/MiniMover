@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>MiniMover Voice Monitor</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px 'Segoe UI',system-ui,sans-serif;background:#0d1117;color:#c9d1d9;padding:16px}
+h1{font-size:20px;margin-bottom:12px;color:#58a6ff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px}
+.card h3{font-size:13px;color:#8b949e;margin-bottom:8px;text-transform:uppercase}
+.big{font-size:36px;font-weight:700;font-family:'Cascadia Code',Consolas,monospace}
+.state-row{display:flex;align-items:center;gap:8px;margin:4px 0}
+.dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.dot.idle{background:#30363d}
+.dot.vad{background:#d29922}
+.dot.speech{background:#3fb950}
+.dot.wake{background:#f78166;animation:pulse .5s infinite alternate}
+@keyframes pulse{to{opacity:.3}}
+
+#level-bar{width:100%;height:20px;background:#21262d;border-radius:4px;overflow:hidden;margin:8px 0}
+#level-fill{height:100%;background:linear-gradient(90deg,#3fb950,#d29922,#f85149);border-radius:4px;transition:width 120ms}
+#wave{width:100%;height:60px;background:#0d1117;border-radius:4px}
+
+.log{max-height:260px;overflow-y:auto;font-family:'Cascadia Code',Consolas,monospace;font-size:12px}
+.log .line{padding:2px 4px;border-bottom:1px solid #21262d;white-space:pre-wrap;word-break:break-all}
+.log .line.speech{background:#1b3820}
+.log .line.wake{background:#3d1f14;color:#f78166;font-weight:700}
+.log .line.asr{color:#7ee787}
+.log .line.partial{color:#a5d6ff}
+
+#conn{color:#8b949e}
+#conn.ok{color:#3fb950}
+#conn.err{color:#f85149}
+
+table{width:100%;font-size:12px;border-collapse:collapse}
+td{padding:2px 6px}
+td:first-child{color:#8b949e}
+td:last-child{font-family:'Cascadia Code',Consolas,monospace;text-align:right}
+</style>
+</head>
+<body>
+
+<h1>🔊 MiniMover Voice Monitor</h1>
+<div id="conn">connecting...</div>
+
+<div class="grid" style="margin-top:8px">
+  <!-- Audio meter -->
+  <div class="card">
+    <h3>Audio Level</h3>
+    <div class="big" id="level-val">0.0000</div>
+    <div id="level-bar"><div id="level-fill" style="width:0%"></div></div>
+    <canvas id="wave"></canvas>
+    <table>
+      <tr><td>SNR</td><td id="snr">0 dB</td></tr>
+      <tr><td>Noise floor</td><td id="noise">0.004</td></tr>
+    </table>
+  </div>
+
+  <!-- State -->
+  <div class="card">
+    <h3>Pipeline State</h3>
+    <div class="state-row"><span class="dot idle" id="s-idle"></span> idle</div>
+    <div class="state-row"><span class="dot vad"  id="s-vad"></span> VAD hit</div>
+    <div class="state-row"><span class="dot speech" id="s-speech"></span> speech</div>
+    <div class="state-row"><span class="dot wake"  id="s-wake"></span> WAKE 🎯</div>
+    <table style="margin-top:8px">
+      <tr><td>Utt.</td><td id="uid">0</td></tr>
+      <tr><td>Duration</td><td id="dur">-</td></tr>
+      <tr><td>Silence blocks</td><td id="sil">0</td></tr>
+    </table>
+  </div>
+
+  <!-- ASR -->
+  <div class="card">
+    <h3>ASR Result</h3>
+    <div class="big" id="asr-final" style="color:#7ee787;font-size:22px;min-height:44px">—</div>
+    <div id="asr-partial" style="color:#a5d6ff;min-height:20px;margin-top:4px"></div>
+    <table style="margin-top:8px">
+      <tr><td>Wake word</td><td id="ww">—</td></tr>
+      <tr><td>Wake hits</td><td id="ww-count">0</td></tr>
+    </table>
+  </div>
+
+  <!-- Log -->
+  <div class="card">
+    <h3>Event Log <span style="font-weight:400;font-size:11px;color:#484f58">(newest first)</span></h3>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script>
+const HOST = location.hostname || '127.0.0.1';
+const PORT = location.port || 8765;
+const $ = id => document.getElementById(id);
+
+let wakeCount = 0;
+const waveCtx = new (window.AudioContext || window.webkitAudioContext)({sampleRate:16000});
+
+function setDot(id, on) {
+  const el = $(id);
+  el.className = 'dot ' + (on ? id.split('-')[1] : 'idle');
+}
+
+function addLog(msg, cls) {
+  const log = $('log');
+  const div = document.createElement('div');
+  div.className = 'line ' + (cls||'');
+  div.textContent = new Date().toLocaleTimeString() + '  ' + msg;
+  log.prepend(div);
+  if (log.children.length > 80) log.lastChild.remove();
+}
+
+function connect() {
+  const url = `ws://${HOST}:${PORT}/ws/monitor`;
+  const ws = new WebSocket(url);
+  let waveData = new Float32Array(1600);
+
+  ws.onopen = () => {
+    $('conn').textContent = '✅ connected to ' + url;
+    $('conn').className = 'ok';
+    addLog('connected', '');
+  };
+
+  ws.onclose = () => {
+    $('conn').textContent = '❌ disconnected — retry in 2s...';
+    $('conn').className = 'err';
+    setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => {
+    $('conn').textContent = '❌ error';
+    $('conn').className = 'err';
+  };
+
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    switch (m.type) {
+      case 'monitor_ready':
+        addLog('monitor ready', '');
+        break;
+
+      case 'vad_status': {
+        const pct = Math.min(100, Math.round(m.level * 3000));
+        $('level-val').textContent = m.level.toFixed(5);
+        $('level-fill').style.width = pct + '%';
+        $('snr').textContent = m.snr_db + ' dB';
+        $('noise').textContent = m.noise_floor.toFixed(5);
+        $('sil').textContent = m.silence_blocks;
+        $('uid').textContent = m.uid;
+
+        setDot('s-idle', m.state === 'silence');
+        setDot('s-vad', m.state === 'vad_hit');
+        setDot('s-speech', m.state === 'speech');
+
+        // Waveform canvas
+        const canvas = $('wave');
+        const w = canvas.offsetWidth, h = canvas.offsetHeight;
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, w, h);
+        ctx.strokeStyle = m.state === 'speech' ? '#3fb950' : m.state === 'vad_hit' ? '#d29922' : '#30363d';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        // Fake waveform from level
+        const mid = h/2;
+        const amp = Math.min(mid-2, m.level * 400);
+        for (let x = 0; x < w; x+=4) {
+          const y = mid + amp * Math.sin(x*0.3 + Date.now()*0.01);
+          x===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+        break;
+      }
+
+      case 'speech_start':
+        addLog('🔴 SPEECH_START  uid=' + m.uid, 'speech');
+        $('asr-final').textContent = '—';
+        $('asr-partial').textContent = '';
+        break;
+
+      case 'speech_end':
+        addLog('⏹ SPEECH_END  uid=' + m.uid + '  dur=' + m.duration_ms + 'ms', 'speech');
+        break;
+
+      case 'partial_text':
+        $('asr-partial').textContent = m.text;
+        addLog('📝 ' + m.text, 'partial');
+        break;
+
+      case 'final_text':
+        $('asr-final').textContent = m.text;
+        $('asr-partial').textContent = '';
+        addLog('✅ FINAL: ' + m.text, 'asr');
+        break;
+
+      case 'wake_detected':
+        wakeCount++;
+        setDot('s-wake', true);
+        setTimeout(()=>setDot('s-wake',false), 1500);
+        $('ww-count').textContent = wakeCount;
+        $('ww').textContent = m.text;
+        addLog('🎯 WAKE!  text=' + m.text, 'wake');
+        break;
+    }
+  };
+}
+
+connect();
+</script>
+</body>
+</html>

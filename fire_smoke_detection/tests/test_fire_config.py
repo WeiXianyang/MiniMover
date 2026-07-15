@@ -15,7 +15,7 @@ class FireMonitorConfigTests(unittest.TestCase):
     def test_defaults_match_approved_design(self):
         with patch.dict(os.environ, {}, clear=True):
             config = FireMonitorConfig.from_env(ROOT)
-        self.assertEqual(config.ai_base_url, "https://zz.cxwms.com/v1")
+        self.assertEqual(config.ai_base_url, "https://z.cxwms.com/v1")
         self.assertEqual(config.ai_endpoint, "/chat/completions")
         self.assertEqual(config.ai_model, "gpt-5.4-mini")
         self.assertEqual(config.trigger_window_seconds, 2.0)

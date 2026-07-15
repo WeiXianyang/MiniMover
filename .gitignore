@@ -253,3 +253,9 @@ yahboomcar-nav-src/**/*.0421
 yahboomcar-nav-src/**/*.20250409
 yahboomcar-nav-src/**/*.outdoor
 yahboomcar-nav-src/**/*.room
+# Local credentials, session data, and generated monitor artifacts
+/.tts.env
+/_last_pid.txt
+/launch_log.txt
+/.reasonix/attachments/
+/traffic_light/runtime/

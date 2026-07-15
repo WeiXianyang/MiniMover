@@ -12,6 +12,7 @@ from fire_monitor_test_window import (
     build_detector_command,
     format_ai_error,
     read_debug_snapshot,
+    require_cuda,
     stop_process_tree,
 )
 
@@ -47,6 +48,27 @@ class MonitorTestWindowTests(unittest.TestCase):
         video = build_detector_command("video", "C:/clips/fire demo.mp4", debug, "0")
         self.assertEqual(video[video.index("--source") + 1], str(Path("C:/clips/fire demo.mp4").resolve()))
         self.assertEqual(video[video.index("--device") + 1], "0")
+
+    def test_builds_car_camera_command_and_always_forces_gpu_zero(self):
+        debug = ROOT / "runtime" / "debug"
+        command = build_detector_command("car", "car_B", debug, "cpu")
+
+        self.assertEqual(command[command.index("--source") + 1], "car_B")
+        self.assertEqual(command[command.index("--device") + 1], "0")
+
+    def test_rejects_unknown_car_camera(self):
+        with self.assertRaisesRegex(ValueError, "car_C"):
+            build_detector_command("car", "car_C", ROOT / "runtime" / "debug", "0")
+
+    def test_cuda_is_required_and_reports_gpu_name(self):
+        torch_module = Mock()
+        torch_module.cuda.is_available.return_value = True
+        torch_module.cuda.get_device_name.return_value = "NVIDIA Test GPU"
+
+        self.assertEqual(require_cuda(torch_module), "NVIDIA Test GPU")
+        torch_module.cuda.is_available.return_value = False
+        with self.assertRaisesRegex(RuntimeError, "CUDA GPU"):
+            require_cuda(torch_module)
 
     def test_reads_status_and_only_new_events(self):
         with tempfile.TemporaryDirectory() as directory:

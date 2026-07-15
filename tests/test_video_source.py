@@ -12,7 +12,7 @@ class VideoSourceTests(unittest.TestCase):
         )
         self.assertEqual(
             resolve_source("car_B"),
-            "http://192.168.137.254:8080/stream?topic=/camera/color/image_raw",
+            "http://192.168.43.8:6500/video_feed",
         )
 
     def test_proxy_aliases_resolve_through_coordination_center(self):
