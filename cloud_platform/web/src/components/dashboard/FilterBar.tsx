@@ -5,9 +5,10 @@ interface FilterBarProps {
   filters: FilterParams;
   onChange: (filters: FilterParams) => void;
   onSearch: () => void;
+  vehicleIds: string[];
 }
 
-export default function FilterBar({ filters, onChange, onSearch }: FilterBarProps) {
+export default function FilterBar({ filters, onChange, onSearch, vehicleIds }: FilterBarProps) {
   const update = (key: keyof FilterParams, value: string) => {
     onChange({ ...filters, [key]: value });
   };
@@ -59,9 +60,9 @@ export default function FilterBar({ filters, onChange, onSearch }: FilterBarProp
         className="flex-1 min-w-[140px] bg-panel-2 border border-line rounded-lg px-3 py-2 text-[13px] text-text outline-none focus:border-accent"
       >
         <option value="">全部车辆</option>
-        <option value="car-01">car-01</option>
-        <option value="car-02">car-02</option>
-        <option value="car-03">car-03</option>
+        {vehicleIds.map(id => (
+          <option key={id} value={id}>{id}</option>
+        ))}
       </select>
 
       {/* Search */}

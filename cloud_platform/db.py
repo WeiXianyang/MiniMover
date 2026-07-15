@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import pymysql
@@ -114,6 +114,56 @@ class Database:
                 )
                 rows = cur.fetchall()
         return {"total": total, "page": page, "size": size, "items": _serialize_rows(rows)}
+
+    def get_hourly_stats(
+        self,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+    ) -> list[dict[str, Any]]:
+        """返回最近 24 小时按小时聚合的告警数量（0-23 点全覆盖）。"""
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                now = datetime.now().astimezone()
+                start = date_from or (now - timedelta(hours=24))
+                # MySQL GROUP BY HOUR + 补齐空缺小时
+                cur.execute(
+                    """
+                    SELECT HOUR(occurred_at) AS hour_bucket, COUNT(*) AS cnt
+                    FROM fire_alarm
+                    WHERE occurred_at >= %s AND occurred_at <= %s
+                    GROUP BY HOUR(occurred_at)
+                    ORDER BY hour_bucket
+                    """,
+                    [start, date_to or now],
+                )
+                db_rows = cur.fetchall()
+        # 构建 0-23 完整数组
+        lookup = {r["hour_bucket"]: r["cnt"] for r in db_rows}
+        result = []
+        for h in range(24):
+            result.append({"hour": f"{h:02d}:00", "count": lookup.get(h, 0)})
+        return result
+
+    def get_vehicle_status(self) -> list[dict[str, Any]]:
+        """返回各车辆最近一次告警的 received_at，按 car_id 分组。"""
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT car_id, MAX(received_at) AS last_seen
+                    FROM fire_alarm
+                    GROUP BY car_id
+                    ORDER BY last_seen DESC
+                    """
+                )
+                rows = cur.fetchall()
+        out = []
+        for row in rows:
+            ts = row["last_seen"]
+            if isinstance(ts, datetime):
+                row["last_seen"] = ts.isoformat()
+            out.append(row)
+        return out
 
     def get_alarm(self, row_id: int) -> Optional[dict[str, Any]]:
         with self._connect() as conn:

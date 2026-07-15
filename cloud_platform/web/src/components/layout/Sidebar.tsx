@@ -1,11 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Activity, Database, Radio, Car, Flame } from 'lucide-react';
+import { Activity, Flame } from 'lucide-react';
 
 const navItems = [
   { to: '/', label: '告警总览', icon: Activity, end: true },
-  { to: '/', label: '告警详情', icon: Database, end: true, disabled: true },
-  { to: '#', label: '实时监控', icon: Radio, end: false, disabled: true },
-  { to: '#', label: '车辆状态', icon: Car, end: false, disabled: true },
 ];
 
 export default function Sidebar() {
@@ -17,7 +14,7 @@ export default function Sidebar() {
       {/* Brand */}
       <div className="px-5 pt-6 pb-4 flex items-center gap-3">
         <div className="w-[42px] h-[42px] rounded-lg bg-panel-2 border border-accent/30 flex items-center justify-center">
-          <Radio className="w-5 h-5 text-accent" />
+          <Flame className="w-5 h-5 text-accent" />
         </div>
         <div>
           <h1 className="text-sm font-semibold text-text tracking-wide">FireGuard Cloud</h1>
@@ -30,18 +27,9 @@ export default function Sidebar() {
         {navItems.map((item) => {
           const Icon = item.icon;
           const active =
-            !item.disabled &&
-            (item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to));
+            item.to === '/' ? location.pathname === '/' : location.pathname.startsWith(item.to);
 
-          return item.disabled ? (
-            <div
-              key={item.label}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-muted-2 text-[13px] cursor-default opacity-50"
-            >
-              <Icon className="w-[17px] h-[17px]" />
-              <span>{item.label}</span>
-            </div>
-          ) : (
+          return (
             <NavLink
               key={item.label}
               to={item.to}

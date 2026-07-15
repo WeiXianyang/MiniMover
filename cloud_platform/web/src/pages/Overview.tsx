@@ -7,12 +7,16 @@ import DetailPreview from '../components/dashboard/DetailPreview';
 import TrendChart from '../components/dashboard/TrendChart';
 import EventStream from '../components/dashboard/EventStream';
 import VehicleStatus from '../components/dashboard/VehicleStatus';
-import { fetchAlarms } from '../api';
-import type { Alarm, FilterParams } from '../types';
+import { fetchAlarms, fetchHourlyStats, fetchVehicleStatus } from '../api';
+import type { Alarm, FilterParams, HourlyStat, VehicleStatusItem } from '../types';
 
 export default function Overview() {
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [total, setTotal] = useState(0);
+  const [hourlyStats, setHourlyStats] = useState<HourlyStat[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleStatusItem[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [vehiclesLoading, setVehiclesLoading] = useState(true);
   const [selectedAlarm, setSelectedAlarm] = useState<Alarm | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +44,45 @@ export default function Overview() {
   useEffect(() => {
     load(filters);
   }, [filters, load]);
+
+  // 拉取 24 小时趋势图数据
+  useEffect(() => {
+    let cancelled = false;
+    async function loadStats() {
+      setStatsLoading(true);
+      try {
+        const data = await fetchHourlyStats();
+        if (!cancelled) setHourlyStats(data);
+      } catch {
+        // 已在 api 层降级
+        const data = await fetchHourlyStats();
+        if (!cancelled) setHourlyStats(data);
+      } finally {
+        if (!cancelled) setStatsLoading(false);
+      }
+    }
+    loadStats();
+    return () => { cancelled = true; };
+  }, []);
+
+  // 拉取车辆状态数据
+  useEffect(() => {
+    let cancelled = false;
+    async function loadVehicles() {
+      setVehiclesLoading(true);
+      try {
+        const data = await fetchVehicleStatus();
+        if (!cancelled) setVehicles(data);
+      } catch {
+        const data = await fetchVehicleStatus();
+        if (!cancelled) setVehicles(data);
+      } finally {
+        if (!cancelled) setVehiclesLoading(false);
+      }
+    }
+    loadVehicles();
+    return () => { cancelled = true; };
+  }, []);
 
   const intervalRef = useRef<number | null>(null);
   useEffect(() => {
@@ -77,7 +120,7 @@ export default function Overview() {
 
       <StatsCards alarms={alarms} pulse={pulse} />
 
-      <FilterBar filters={filters} onChange={setFilters} onSearch={handleSearch} />
+      <FilterBar filters={filters} onChange={setFilters} onSearch={handleSearch} vehicleIds={vehicles.map(v => v.car_id)} />
 
       {error && (
         <div className="panel p-4 mb-5 border-danger/40 text-danger text-[13px]">
@@ -105,9 +148,9 @@ export default function Overview() {
       )}
 
       <div className="grid grid-cols-3 gap-5 max-xl:grid-cols-1">
-        <TrendChart />
+        <TrendChart data={hourlyStats} loading={statsLoading} />
         <EventStream alarms={alarms} />
-        <VehicleStatus />
+        <VehicleStatus vehicles={vehicles} loading={vehiclesLoading} />
       </div>
     </div>
   );

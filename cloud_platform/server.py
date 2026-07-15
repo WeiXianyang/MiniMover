@@ -1,14 +1,15 @@
 """FireGuard 云端接收 API (Flask + PyMySQL)。
 
 职责:
-  1. POST /api/v1/evidence     接收证据图片, 落到 Nginx 静态目录, 返回 URL。
-  2. POST /api/v1/fire-alarms   幂等写入烟火告警到 MySQL。
-  3. GET  /api/v1/fire-alarms   分页查询 (供前端)。
-  4. GET  /api/v1/fire-alarms/<id>  单条详情。
-  5. GET  /healthz              健康检查 (含 DB ping)。
+  1. POST /api/v1/evidence                 接收证据图片, 落到 Nginx 静态目录。
+  2. POST /api/v1/fire-alarms              幂等写入烟火告警到 MySQL。
+  3. GET  /api/v1/fire-alarms              分页查询 (供前端)。
+  4. GET  /api/v1/fire-alarms/hourly-stats  最近 24h 按小时聚合统计。
+  5. GET  /api/v1/vehicles/status           各车辆最近上报时间。
+  6. GET  /api/v1/fire-alarms/<id>          单条详情 (含 raw_payload)。
+  7. GET  /healthz                          健康检查 (含 DB ping)。
 
-鉴权: 除 /healthz 外, 写接口要求请求头 Authorization: Bearer <API_TOKEN>。
-查询接口默认也校验 token, 便于后续前端统一带 token。
+鉴权: 除 /healthz 外所有接口均校验 Authorization: Bearer <API_TOKEN>。
 """
 from __future__ import annotations
 
@@ -170,6 +171,29 @@ def list_alarms():
         return _bad_request("page/size must be integers")
     result = DB.list_alarms(alarm_type, car_id, date_from, date_to, page, size)
     return jsonify({"code": 0, "msg": "ok", "data": result})
+
+
+@app.get("/api/v1/fire-alarms/hourly-stats")
+def hourly_stats():
+    """返回最近 24 小时按小时聚合的告警数量。"""
+    if not _require_token():
+        return _unauthorized()
+    try:
+        date_from = _parse_dt(request.args.get("from"))
+        date_to = _parse_dt(request.args.get("to"))
+    except ValueError as exc:
+        return _bad_request(str(exc))
+    stats = DB.get_hourly_stats(date_from, date_to)
+    return jsonify({"code": 0, "msg": "ok", "data": stats})
+
+
+@app.get("/api/v1/vehicles/status")
+def vehicle_status():
+    """返回各车辆最近一次告警上报时间。"""
+    if not _require_token():
+        return _unauthorized()
+    vehicles = DB.get_vehicle_status()
+    return jsonify({"code": 0, "msg": "ok", "data": vehicles})
 
 
 @app.get("/api/v1/fire-alarms/<int:row_id>")

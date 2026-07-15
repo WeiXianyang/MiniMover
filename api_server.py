@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
-import threading, time, os, sys, subprocess
+import threading, time, os, sys, subprocess, socket
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sensors.icar_sensor_driver import iCarSensorDriver
@@ -40,31 +40,54 @@ def get_status():
 _stop_deadline = 0.0
 _stop_deadline_lock = threading.Lock()
 
-def _watchdog():
-    """后台看门狗：到期后强制停止，每 0.2s 检查一次"""
+def _stop_if_deadline_elapsed():
+    """Stop only when the watchdog deadline is still expired after locking."""
     global _stop_deadline
-    while True:
+    with _stop_deadline_lock:
+        deadline_elapsed = _stop_deadline > 0 and time.monotonic() >= _stop_deadline
+    if not deadline_elapsed:
+        return False
+
+    # Keep the same lock order as _execute_move. Re-checking after acquiring both
+    # locks prevents an old deadline from stopping a newly issued movement command.
+    with _bot_lock:
         with _stop_deadline_lock:
-            deadline = _stop_deadline
-        if deadline > 0 and time.monotonic() >= deadline:
-            with _bot_lock:
-                bot.set_car_motion(0, 0, 0)
-            with _stop_deadline_lock:
-                _stop_deadline = 0.0
+            if _stop_deadline <= 0 or time.monotonic() < _stop_deadline:
+                return False
+            bot.set_car_motion(0, 0, 0)
+            _stop_deadline = 0.0
+            return True
+
+
+def _watchdog():
+    """??????????????? 0.2s ????"""
+    while True:
+        _stop_if_deadline_elapsed()
         time.sleep(0.2)
+
 
 threading.Thread(target=_watchdog, daemon=True).start()
 
-@app.route('/api/move', methods=['POST'])
-def move():
-    global _stop_deadline
-    data = request.json
-    cmd = data.get('cmd', 'stop')
-    s = min(data.get('speed', 50), 100)
-    t = data.get('duration', 0.5)
-    speed = s / 100.0
-    vx = vy = vz = 0.0
+_VALID_MOVE_COMMANDS = frozenset({
+    'forward', 'backward', 'left', 'right', 'rotate_left', 'rotate_right',
+    'left_shift', 'right_shift', 'stop',
+})
 
+
+def _execute_move(cmd, speed_pct, duration):
+    """Apply one validated movement command for both HTTP and TCP control."""
+    global _stop_deadline
+
+    if not isinstance(cmd, str) or cmd not in _VALID_MOVE_COMMANDS:
+        raise ValueError(f'unsupported movement command: {cmd!r}')
+    try:
+        speed_percent = max(0, min(int(float(speed_pct)), 100))
+        duration_seconds = max(0.0, float(duration))
+    except (TypeError, ValueError) as error:
+        raise ValueError('speed and duration must be numeric') from error
+
+    speed = speed_percent / 100.0
+    vx = vy = vz = 0.0
     if cmd == 'forward':
         vx = speed
     elif cmd == 'backward':
@@ -78,17 +101,29 @@ def move():
     elif cmd == 'right_shift':
         vy = -speed
 
+    # Match the watchdog's lock order so a timed-out older command cannot
+    # stop this new command between its chassis write and deadline update.
     with _bot_lock:
         bot.set_car_motion(vx, vy, vz)
-
-    if cmd == 'stop' or t <= 0:
         with _stop_deadline_lock:
-            _stop_deadline = 0.0
-    else:
-        with _stop_deadline_lock:
-            _stop_deadline = time.monotonic() + t
+            _stop_deadline = (
+                0.0 if cmd == 'stop' or duration_seconds <= 0
+                else time.monotonic() + duration_seconds
+            )
+    return speed_percent
 
-    return jsonify({'code': 0, 'msg': f'{cmd} @ {s}%'})
+
+@app.route('/api/move', methods=['POST'])
+def move():
+    data = request.get_json(silent=True) or {}
+    try:
+        cmd = data.get('cmd', 'stop')
+        speed_percent = _execute_move(
+            cmd, data.get('speed', 50), data.get('duration', 0.5)
+        )
+    except ValueError as error:
+        return jsonify({'code': -1, 'msg': str(error)}), 400
+    return jsonify({'code': 0, 'msg': f'{cmd} @ {speed_percent}%'})
 
 @app.route('/api/sensors')
 def get_sensors():
@@ -799,11 +834,64 @@ setInterval(f,3000);f();
 </script></body></html>'''
 
 if __name__ == '__main__':
+    _control_running = True
+
+    def _start_control_server(port=5001):
+        """Serve newline-delimited low-latency movement commands on TCP."""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(1.0)
+        sock.bind(('0.0.0.0', port))
+        sock.listen(1)
+        print(f"[tcp-ctrl] listening on :{port}")
+        try:
+            while _control_running:
+                try:
+                    conn, addr = sock.accept()
+                except socket.timeout:
+                    continue
+                except OSError as error:
+                    if _control_running:
+                        print(f"[tcp-ctrl] accept error: {error}")
+                    continue
+                print(f"[tcp-ctrl] connected: {addr}")
+                with conn:
+                    conn.settimeout(1.0)
+                    buffer = b''
+                    while _control_running:
+                        try:
+                            data = conn.recv(4096)
+                        except socket.timeout:
+                            continue
+                        if not data:
+                            break
+                        buffer += data
+                        while b'\n' in buffer:
+                            line, buffer = buffer.split(b'\n', 1)
+                            if not line.strip():
+                                continue
+                            try:
+                                parts = line.decode('utf-8').split()
+                                command = parts[0]
+                                speed = parts[1] if len(parts) > 1 else 50
+                                duration = parts[2] if len(parts) > 2 else 0.5
+                                _execute_move(command, speed, duration)
+                            except (UnicodeDecodeError, ValueError, IndexError) as error:
+                                print(f"[tcp-ctrl] parse error: {error} (line={line!r})")
+                print("[tcp-ctrl] disconnected")
+        finally:
+            sock.close()
+            print("[tcp-ctrl] stopped")
+
+    threading.Thread(target=_start_control_server, args=(5001,), daemon=True).start()
     sensor.start()
-    app.run(
-        host='0.0.0.0',
-        port=5000,
-        debug=False,
-        use_reloader=False,
-        threaded=True,
-    )
+    try:
+        app.run(
+            host='0.0.0.0',
+            port=5000,
+            debug=False,
+            use_reloader=False,
+            threaded=True,
+        )
+    finally:
+        _control_running = False

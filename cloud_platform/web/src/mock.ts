@@ -142,24 +142,3 @@ export const MOCK_ALARMS: Alarm[] = [
     received_at: '2026-07-11T10:25:33.000000+08:00',
   },
 ];
-
-export const MOCK_HOURLY_DATA = [
-  { hour: '00:00', count: 2 },
-  { hour: '02:00', count: 1 },
-  { hour: '04:00', count: 0 },
-  { hour: '06:00', count: 3 },
-  { hour: '08:00', count: 5 },
-  { hour: '10:00', count: 8 },
-  { hour: '12:00', count: 6 },
-  { hour: '14:00', count: 11 },
-  { hour: '16:00', count: 7 },
-  { hour: '18:00', count: 4 },
-  { hour: '20:00', count: 3 },
-  { hour: '22:00', count: 2 },
-];
-
-export const MOCK_VEHICLES = [
-  { car_id: 'car-01', status: 'online', lastSeen: '5s 前' },
-  { car_id: 'car-02', status: 'online', lastSeen: '18s 前' },
-  { car_id: 'car-03', status: 'timeout', lastSeen: '6m 前' },
-];

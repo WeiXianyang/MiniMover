@@ -1,4 +1,4 @@
-import type { Alarm, AlarmListResponse, ApiResponse, FilterParams } from './types';
+import type { Alarm, AlarmListResponse, ApiResponse, FilterParams, HourlyStat, VehicleStatusItem } from './types';
 import { MOCK_ALARMS } from './mock';
 
 const API_BASE = '/api/v1';
@@ -79,6 +79,32 @@ export async function healthCheck(): Promise<{ code: number; msg: string; db: st
   }
 }
 
+export async function fetchHourlyStats(from?: string, to?: string): Promise<HourlyStat[]> {
+  if (useMock) return getMockHourlyStats();
+
+  try {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const qs = params.toString();
+    return await request<HourlyStat[]>(`/fire-alarms/hourly-stats${qs ? `?${qs}` : ''}`);
+  } catch {
+    useMock = true;
+    return getMockHourlyStats();
+  }
+}
+
+export async function fetchVehicleStatus(): Promise<VehicleStatusItem[]> {
+  if (useMock) return getMockVehicles();
+
+  try {
+    return await request<VehicleStatusItem[]>('/vehicles/status');
+  } catch {
+    useMock = true;
+    return getMockVehicles();
+  }
+}
+
 export function isUsingMock(): boolean {
   return useMock;
 }
@@ -125,4 +151,24 @@ function getMockAlarmList(params: FilterParams): AlarmListResponse {
   items = items.slice(start, start + size);
 
   return { total, page, size, items };
+}
+
+function getMockHourlyStats(): HourlyStat[] {
+  const counts = new Array(24).fill(0);
+  for (const a of MOCK_ALARMS) {
+    const h = new Date(a.occurred_at).getHours();
+    if (h >= 0 && h < 24) counts[h] += 1;
+  }
+  return counts.map((c, i) => ({ hour: `${String(i).padStart(2, '0')}:00`, count: c }));
+}
+
+function getMockVehicles(): VehicleStatusItem[] {
+  const map = new Map<string, string>();
+  for (const a of MOCK_ALARMS) {
+    const existing = map.get(a.car_id);
+    if (!existing || a.received_at > existing) {
+      map.set(a.car_id, a.received_at);
+    }
+  }
+  return Array.from(map.entries()).map(([car_id, last_seen]) => ({ car_id, last_seen }));
 }
