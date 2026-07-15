@@ -75,7 +75,7 @@ def ask_llm(persona, name, history_tail):
     for h in history_tail:
         role = "user" if h["speaker"] != name else "assistant"
         messages.append({"role": role, "content": h["text"]})
-    
+
     # 最后一条是对方说的话，所以当前用户要回复
     messages.append({"role": "user", "content": f"请回复小{'北' if name == '小南' else '南'}刚才的话。你叫{name}，用自然的口语简短回复。"})
 
