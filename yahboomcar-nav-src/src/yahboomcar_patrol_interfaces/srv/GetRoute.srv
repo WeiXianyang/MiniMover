@@ -1,0 +1,7 @@
+---
+bool success
+string message
+nav_msgs/Path route
+int32 point_count
+bool patrol_active
+bool loop

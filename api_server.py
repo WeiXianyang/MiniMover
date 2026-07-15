@@ -9,46 +9,18 @@ from Rosmaster_Lib import Rosmaster
 from audio.icar_audio import record_start, record_status, record_stop, record_get
 from audio.icar_audio import play_wav, stop_playback, say as tts_say, get_devices as audio_devices
 from navigation import nav_bp, register_legacy_routes, register_patrol_page
+from face import register_face_routes
 
 app = Flask(__name__)
 CORS(app)
 app.register_blueprint(nav_bp, url_prefix='/api/nav')
 register_legacy_routes(app)
 register_patrol_page(app)
+register_face_routes(app)
 sensor = iCarSensorDriver()
 bot = Rosmaster(debug=False)
 bot.create_receive_threading()
 _bot_lock = threading.Lock()
-# 串口写锁 + 自动停止定时器（HTTP 和 TCP 控制共用）
-_move_lock = threading.Lock()
-_stop_timer = None
-
-def _execute_move(cmd, speed_pct, duration):
-    """底盘运动执行函数（HTTP 和 TCP 控制共用），线程安全"""
-    global _stop_timer
-    s = min(int(speed_pct), 100)
-    speed = s / 100.0
-    vx = vy = vz = 0
-    if cmd == 'forward':          vx = speed
-    elif cmd == 'backward':       vx = -speed
-    elif cmd == 'left':           vz = speed * 3
-    elif cmd == 'right':          vz = -speed * 3
-    elif cmd == 'rotate_left':    vz = speed * 3
-    elif cmd == 'rotate_right':   vz = -speed * 3
-    elif cmd == 'left_shift':     vy = speed
-    elif cmd == 'right_shift':    vy = -speed
-    # 取消上一次停止定时器
-    if _stop_timer:
-        _stop_timer.cancel()
-        _stop_timer = None
-    with _move_lock:
-        bot.set_car_motion(vx, vy, vz)
-    if cmd != 'stop' and duration > 0:
-        def _delayed_stop():
-            with _move_lock:
-                bot.set_car_motion(0, 0, 0)
-        _stop_timer = threading.Timer(duration, _delayed_stop)
-        _stop_timer.start()
 
 def get_ip():
     return os.popen('hostname -I').read().split()[0]
@@ -64,14 +36,94 @@ def get_status():
         'ip': ip
     }})
 
+# 底盘访问锁 + 看门狗线程（杜绝 Timer 漏触发导致一直转）
+_stop_deadline = 0.0
+_stop_deadline_lock = threading.Lock()
+
+def _stop_if_deadline_elapsed():
+    """Stop only when the watchdog deadline is still expired after locking."""
+    global _stop_deadline
+    with _stop_deadline_lock:
+        deadline_elapsed = _stop_deadline > 0 and time.monotonic() >= _stop_deadline
+    if not deadline_elapsed:
+        return False
+
+    # Keep the same lock order as _execute_move. Re-checking after acquiring both
+    # locks prevents an old deadline from stopping a newly issued movement command.
+    with _bot_lock:
+        with _stop_deadline_lock:
+            if _stop_deadline <= 0 or time.monotonic() < _stop_deadline:
+                return False
+            bot.set_car_motion(0, 0, 0)
+            _stop_deadline = 0.0
+            return True
+
+
+def _watchdog():
+    """??????????????? 0.2s ????"""
+    while True:
+        _stop_if_deadline_elapsed()
+        time.sleep(0.2)
+
+
+threading.Thread(target=_watchdog, daemon=True).start()
+
+_VALID_MOVE_COMMANDS = frozenset({
+    'forward', 'backward', 'left', 'right', 'rotate_left', 'rotate_right',
+    'left_shift', 'right_shift', 'stop',
+})
+
+
+def _execute_move(cmd, speed_pct, duration):
+    """Apply one validated movement command for both HTTP and TCP control."""
+    global _stop_deadline
+
+    if not isinstance(cmd, str) or cmd not in _VALID_MOVE_COMMANDS:
+        raise ValueError(f'unsupported movement command: {cmd!r}')
+    try:
+        speed_percent = max(0, min(int(float(speed_pct)), 100))
+        duration_seconds = max(0.0, float(duration))
+    except (TypeError, ValueError) as error:
+        raise ValueError('speed and duration must be numeric') from error
+
+    speed = speed_percent / 100.0
+    vx = vy = vz = 0.0
+    if cmd == 'forward':
+        vx = speed
+    elif cmd == 'backward':
+        vx = -speed
+    elif cmd in ('left', 'rotate_left'):
+        vz = speed * 3
+    elif cmd in ('right', 'rotate_right'):
+        vz = -speed * 3
+    elif cmd == 'left_shift':
+        vy = speed
+    elif cmd == 'right_shift':
+        vy = -speed
+
+    # Match the watchdog's lock order so a timed-out older command cannot
+    # stop this new command between its chassis write and deadline update.
+    with _bot_lock:
+        bot.set_car_motion(vx, vy, vz)
+        with _stop_deadline_lock:
+            _stop_deadline = (
+                0.0 if cmd == 'stop' or duration_seconds <= 0
+                else time.monotonic() + duration_seconds
+            )
+    return speed_percent
+
+
 @app.route('/api/move', methods=['POST'])
 def move():
-    data = request.json
-    cmd = data.get('cmd', 'stop')
-    s = data.get('speed', 50)
-    t = data.get('duration', 0.5)
-    _execute_move(cmd, s, t)
-    return jsonify({'code': 0, 'msg': f'{cmd} @ {s}%'})
+    data = request.get_json(silent=True) or {}
+    try:
+        cmd = data.get('cmd', 'stop')
+        speed_percent = _execute_move(
+            cmd, data.get('speed', 50), data.get('duration', 0.5)
+        )
+    except ValueError as error:
+        return jsonify({'code': -1, 'msg': str(error)}), 400
+    return jsonify({'code': 0, 'msg': f'{cmd} @ {speed_percent}%'})
 
 @app.route('/api/sensors')
 def get_sensors():
@@ -166,6 +218,72 @@ def audio_stop():
     """停止当前音频播放"""
     stop_playback()
     return jsonify({'code': 0, 'msg': '已停止'})
+
+# ===== 音乐播放（BGM）=====
+_BGM_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'bgm.wav')
+_music_playing = False
+
+@app.route('/api/music/status')
+def music_status():
+    """查询 BGM 状态：文件是否存在、是否正在播放"""
+    exists = os.path.isfile(_BGM_FILE)
+    return jsonify({'code': 0, 'data': {
+        'exists': exists,
+        'playing': _music_playing,
+        'file': 'bgm.wav' if exists else None,
+        'size': os.path.getsize(_BGM_FILE) if exists else 0,
+    }})
+
+@app.route('/api/music/play', methods=['POST'])
+def music_play():
+    """播放 BGM（bgm.wav），若非 WAV 格式则自动用 ffmpeg 转码"""
+    global _music_playing
+    if not os.path.isfile(_BGM_FILE):
+        return jsonify({'code': -1, 'msg': 'bgm.wav 不存在，请先上传到小车 ~/MiniMover/'}), 404
+    try:
+        # 检查文件头：WAV 以 RIFF 开头，MP3 以 ID3 或 0xFF 开头
+        with open(_BGM_FILE, 'rb') as f:
+            header = f.read(4)
+        is_wav = header[:4] == b'RIFF'
+        if is_wav:
+            # 直接读取播放
+            with open(_BGM_FILE, 'rb') as f:
+                wav_data = f.read()
+        else:
+            # 非 WAV 格式（如 MP3），通过 ffmpeg 实时转码
+            import subprocess as _sp
+            proc = _sp.run(
+                ['ffmpeg', '-i', _BGM_FILE, '-f', 'wav', '-acodec', 'pcm_s16le',
+                 '-ar', '44100', '-ac', '2', '-y', '-loglevel', 'error', 'pipe:1'],
+                capture_output=True, timeout=30)
+            if proc.returncode != 0 or len(proc.stdout) < 44:
+                raise RuntimeError(f'ffmpeg 转码失败: {proc.stderr.decode(errors="replace")[:200]}')
+            wav_data = proc.stdout
+        play_wav(wav_data)
+        _music_playing = True
+        return jsonify({'code': 0, 'msg': 'BGM 播放中'})
+    except Exception as e:
+        _music_playing = False
+        return jsonify({'code': -1, 'msg': f'播放失败: {e}'}), 500
+
+@app.route('/api/music/stop', methods=['POST'])
+def music_stop():
+    """停止 BGM 播放"""
+    global _music_playing
+    stop_playback()
+    _music_playing = False
+    return jsonify({'code': 0, 'msg': 'BGM 已停止'})
+
+@app.route('/api/music/bgm.wav')
+def music_download():
+    """下载 bgm.wav 文件"""
+    if not os.path.isfile(_BGM_FILE):
+        return jsonify({'code': -1, 'msg': 'bgm.wav 不存在'}), 404
+    return Response(
+        open(_BGM_FILE, 'rb').read(),
+        mimetype='audio/wav',
+        headers={'Content-Disposition': 'attachment; filename="bgm.wav"'}
+    )
 
 # ===== 地图导航页面（单点导航；巡逻页见 /nav/patrol，API 见 /api/nav/*）=====
 @app.route('/nav')
@@ -430,6 +548,19 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .audio-status{font-size:12px;color:#aaa;margin:2px 0}
 
+/* 音乐播放器 */
+.music-panel{background:#16213e;border-radius:10px;padding:8px 12px;margin:8px auto;text-align:left;font-size:13px}
+.music-panel .music-title{color:#e94560;font-weight:bold;margin-bottom:6px;font-size:14px}
+.music-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.music-bar button{padding:8px 16px;border:none;border-radius:8px;cursor:pointer;font-size:13px;min-width:60px}
+.music-bar button:active{transform:scale(.92)}
+.music-bar .play-btn{background:#22c55e;color:#fff}
+.music-bar .stop-btn{background:#e94560;color:#fff}
+.music-bar .upload-btn{background:#0f3460;color:#eee}
+.music-status{font-size:12px;color:#aaa;margin-top:4px}
+.music-progress{height:4px;background:#0f3460;border-radius:2px;margin:6px 0;overflow:hidden}
+.music-progress .bar{height:100%;width:0%;background:#22c55e;border-radius:2px;transition:width .3s}
+
 /* 检测告警面板 */
 .detect-panel{background:#16213e;border-radius:10px;padding:8px 12px;margin:6px auto;text-align:left;font-size:13px}
 .detect-panel .detect-title{color:#38bdf8;font-weight:bold;margin-bottom:4px;font-size:14px}
@@ -445,6 +576,7 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 <h1>FIRECUARD</h1>
 <a class="nav-link" href="/nav/patrol">🗺️ 地图巡逻</a>
 <a class="nav-link" href="/nav">📍 单点导航</a>
+<a class="nav-link" href="/face">👤 人脸识别</a>
 <div class="ip-bar" id="ipBar">连接中...</div>
 <div class="sensors" id="sensorBar"></div>
 <div class="video-wrap" id="videoWrap"><img id="videoFeed" src="" alt="video"><div id="camHint" style="font-size:12px;color:#888;padding:6px"></div></div>
@@ -486,6 +618,21 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 </div>
 <div class="audio-status" id="audioStatus"></div>
 <audio id="audioPlayer" controls style="display:none"></audio>
+
+<!-- 音乐播放器 -->
+<div class="music-panel">
+ <div class="music-title">🎵 音乐播放</div>
+ <div class="music-bar">
+  <button class="play-btn" id="musicPlayBtn" onclick="musicPlay()">▶ 播放 BGM</button>
+  <button class="stop-btn" id="musicStopBtn" onclick="musicStop()">⏹ 停止</button>
+  <label>
+   <button class="upload-btn" onclick="document.getElementById('musicFileInput').click()">📁 上传音乐</button>
+   <input type="file" id="musicFileInput" accept=".wav" style="display:none" onchange="uploadMusic(this)">
+  </label>
+ </div>
+ <div class="music-progress" id="musicProgress"><div class="bar" id="musicBar"></div></div>
+ <div class="music-status" id="musicStatus">就绪</div>
+</div>
 
 <script>
 var API=window.location.origin;
@@ -589,6 +736,66 @@ function updateDetectionUI(d){
   el.className='detect-val '+(la.alarm_type==='confirmed_fire'?'alarm-fire':la.alarm_type==='suspected_smoke'?'alarm-smoke':'alarm-ai');
  }else{row.style.display='none'}
 }
+// ===== 音乐播放控制 =====
+function musicPlay(){
+ var btn=document.getElementById('musicPlayBtn');
+ btn.textContent='⏳ 播放中...';
+ btn.disabled=true;
+ var r=new XMLHttpRequest();
+ r.open('POST',API+'/api/music/play',true);
+ r.onload=function(){
+  var j=JSON.parse(r.responseText);
+  document.getElementById('musicStatus').textContent=j.msg;
+  if(j.code==0){
+   document.getElementById('musicBar').style.width='100%';
+   document.getElementById('musicStopBtn').style.display='inline-block';
+  }
+  btn.textContent='▶ 播放 BGM';
+  btn.disabled=false;
+ };
+ r.onerror=function(){
+  document.getElementById('musicStatus').textContent='请求失败，检查小车网络';
+  btn.textContent='▶ 播放 BGM';
+  btn.disabled=false;
+ };
+ r.send();
+}
+function musicStop(){
+ var r=new XMLHttpRequest();
+ r.open('POST',API+'/api/music/stop',true);
+ r.onload=function(){
+  var j=JSON.parse(r.responseText);
+  document.getElementById('musicStatus').textContent=j.msg;
+  document.getElementById('musicBar').style.width='0%';
+  document.getElementById('musicStopBtn').style.display='none';
+ };
+ r.send();
+}
+function uploadMusic(input){
+ var file=input.files[0];
+ if(!file)return;
+ if(!file.name.endsWith('.wav')){
+  document.getElementById('musicStatus').textContent='仅支持 .wav 文件';
+  return;
+ }
+ var fd=new FormData();
+ fd.append('file',file);
+ var r=new XMLHttpRequest();
+ r.open('POST',API+'/api/audio/play',true);
+ r.onload=function(){
+  var j=JSON.parse(r.responseText);
+  document.getElementById('musicStatus').textContent=j.code==0?'🎵 正在播放上传的音乐':'播放失败: '+j.msg;
+ };
+ r.send(fd);
+}
+// 初始化音乐状态
+fetch(API+'/api/music/status').then(function(r){return r.json()}).then(function(j){
+ var d=j.data||{};
+ document.getElementById('musicStatus').textContent=d.exists
+  ? '已加载 bgm.wav ('+(d.size/1024).toFixed(0)+'KB)'
+  : '未找到 bgm.wav，请先上传到小车';
+ document.getElementById('musicStopBtn').style.display='none';
+}).catch(function(){});
 function f(){
  var r=new XMLHttpRequest();
  r.open("GET",API+"/api/status",true);
@@ -630,52 +837,53 @@ if __name__ == '__main__':
     _control_running = True
 
     def _start_control_server(port=5001):
-        """低延迟 TCP 控制服务，旁路 HTTP 栈，与旧版 :6000 同原理"""
+        """Serve newline-delimited low-latency movement commands on TCP."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.settimeout(1.0)
         sock.bind(('0.0.0.0', port))
         sock.listen(1)
         print(f"[tcp-ctrl] listening on :{port}")
-        while _control_running:
-            try:
-                conn, addr = sock.accept()
+        try:
+            while _control_running:
+                try:
+                    conn, addr = sock.accept()
+                except socket.timeout:
+                    continue
+                except OSError as error:
+                    if _control_running:
+                        print(f"[tcp-ctrl] accept error: {error}")
+                    continue
                 print(f"[tcp-ctrl] connected: {addr}")
-                buf = b''
-                while True:
-                    try:
-                        data = conn.recv(4096)
-                    except socket.timeout:
-                        continue
-                    if not data:
-                        break
-                    buf += data
-                    while b'\n' in buf:
-                        line, buf = buf.split(b'\n', 1)
-                        line = line.strip()
-                        if not line:
-                            continue
+                with conn:
+                    conn.settimeout(1.0)
+                    buffer = b''
+                    while _control_running:
                         try:
-                            parts = line.decode('utf-8').split()
-                            cmd = parts[0]
-                            speed = int(parts[1]) if len(parts) > 1 else 50
-                            dur = float(parts[2]) if len(parts) > 2 else 0.5
-                            _execute_move(cmd, speed, dur)
-                        except Exception as e:
-                            print(f"[tcp-ctrl] parse error: {e} (line={line})")
-                conn.close()
+                            data = conn.recv(4096)
+                        except socket.timeout:
+                            continue
+                        if not data:
+                            break
+                        buffer += data
+                        while b'\n' in buffer:
+                            line, buffer = buffer.split(b'\n', 1)
+                            if not line.strip():
+                                continue
+                            try:
+                                parts = line.decode('utf-8').split()
+                                command = parts[0]
+                                speed = parts[1] if len(parts) > 1 else 50
+                                duration = parts[2] if len(parts) > 2 else 0.5
+                                _execute_move(command, speed, duration)
+                            except (UnicodeDecodeError, ValueError, IndexError) as error:
+                                print(f"[tcp-ctrl] parse error: {error} (line={line!r})")
                 print("[tcp-ctrl] disconnected")
-            except socket.timeout:
-                continue
-            except Exception as e:
-                if _control_running:
-                    print(f"[tcp-ctrl] error: {e}")
-        sock.close()
-        print("[tcp-ctrl] stopped")
+        finally:
+            sock.close()
+            print("[tcp-ctrl] stopped")
 
-    ctrl_thread = threading.Thread(target=_start_control_server, args=(5001,), daemon=True)
-    ctrl_thread.start()
-
+    threading.Thread(target=_start_control_server, args=(5001,), daemon=True).start()
     sensor.start()
     try:
         app.run(

@@ -59,14 +59,20 @@ def register(request):
         return Response({'msg': '用户名、密码、邮箱和手机号不能为空'}, status=status.HTTP_400_BAD_REQUEST)
     if UserProfile.objects.filter(username=username).exists():
         return Response({'msg': '用户名已存在'}, status=status.HTTP_400_BAD_REQUEST)
+    encrypted_email = aes_encrypt_text(email)
+    encrypted_phone = aes_encrypt_text(phone)
+    if UserProfile.objects.filter(phone=encrypted_phone).exists():
+        return Response({'msg': '该手机号已注册，请换一个手机号或直接登录'}, status=status.HTTP_400_BAD_REQUEST)
+    if UserProfile.objects.filter(email=encrypted_email).exists():
+        return Response({'msg': '该邮箱已注册，请换一个邮箱或直接登录'}, status=status.HTTP_400_BAD_REQUEST)
     if len(face_images) < 3:
         return Response({'msg': '请上传至少三张人脸图片'}, status=status.HTTP_400_BAD_REQUEST)
 
     user = UserProfile(
         username=username,
         password=aes_encrypt_text(password),
-        email=aes_encrypt_text(email),
-        phone=aes_encrypt_text(phone),
+        email=encrypted_email,
+        phone=encrypted_phone,
         face_image=face_images[0],
     )
     user.save()

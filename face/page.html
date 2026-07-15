@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>人脸识别 · 登录注册</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "PingFang SC", sans-serif;
+      background: linear-gradient(135deg, #0f172a, #1e3a8a);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #e2e8f0;
+      padding: 24px;
+    }
+    .card {
+      width: 100%;
+      max-width: 920px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 18px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+    .header { padding: 24px 28px 12px; }
+    .header h1 { margin: 0 0 8px; font-size: 28px; }
+    .header p { margin: 0; color: #94a3b8; }
+    .tabs { display: flex; gap: 8px; padding: 0 28px 16px; }
+    .tab {
+      border: none;
+      background: #1e293b;
+      color: #cbd5e1;
+      padding: 10px 18px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .tab.active { background: #2563eb; color: white; }
+    .content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 0 28px 28px;
+    }
+    .panel {
+      background: #111827;
+      border-radius: 14px;
+      padding: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.12);
+    }
+    label { display: block; margin: 10px 0 6px; color: #cbd5e1; font-size: 14px; }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #0b1220;
+      color: #f8fafc;
+    }
+    video, canvas, .preview, #carCam {
+      width: 100%;
+      border-radius: 12px;
+      background: #000;
+      aspect-ratio: 4/3;
+      object-fit: cover;
+    }
+    .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      background: #334155;
+      color: white;
+    }
+    button.primary { background: #2563eb; }
+    button.success { background: #059669; }
+    button.warn { background: #d97706; }
+    .identity-result {
+      margin-top: 14px;
+      padding: 16px;
+      border-radius: 12px;
+      background: #0b1220;
+      font-size: 18px;
+      line-height: 1.6;
+      min-height: 72px;
+    }
+    .identity-result.ok { border: 1px solid #059669; color: #6ee7b7; }
+    .identity-result.fail { border: 1px solid #dc2626; color: #fca5a5; }
+    .status {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 10px;
+      background: #0b1220;
+      min-height: 48px;
+      white-space: pre-wrap;
+      font-size: 14px;
+      color: #cbd5e1;
+    }
+    .hint { margin: 8px 0 0; font-size: 12px; color: #94a3b8; line-height: 1.5; }
+    .hidden { display: none !important; }
+    @media (max-width: 800px) { .content { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h1>人脸识别认证</h1>
+      <p>注册录入人脸（本地+百度云），1:N 识别返回身份与置信度。接口挂在小车 :5000</p>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="identify">身份识别</button>
+      <button class="tab" data-tab="login">登录</button>
+      <button class="tab" data-tab="register">注册</button>
+    </div>
+    <div class="content">
+      <div class="panel">
+        <video id="video" class="hidden" autoplay playsinline muted></video>
+        <img id="carCam" class="hidden" alt="小车摄像头" />
+        <canvas id="canvas" class="hidden"></canvas>
+        <div class="actions">
+          <button id="startCarCam" class="primary">打开小车摄像头</button>
+          <button id="startCamera">打开本机摄像头</button>
+          <button id="capture" class="primary">拍照</button>
+          <button id="clearShot">清除照片</button>
+        </div>
+        <div class="actions">
+          <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <span>或上传图片</span>
+            <input id="fileInput" type="file" accept="image/*" multiple style="width:auto;border:none;padding:0;" />
+          </label>
+        </div>
+        <p class="hint">
+          用电脑浏览器访问小车 IP（http://…）时，本机摄像头常被浏览器禁用（非 HTTPS）。
+          请优先「打开小车摄像头」，或直接上传照片。
+        </p>
+        <img id="preview" class="preview hidden" alt="拍照预览" />
+      </div>
+      <div class="panel">
+        <div id="identifyPanel">
+          <p style="margin:0 0 12px;color:#94a3b8;font-size:14px;">
+            打开摄像头后点击「识别此人」，系统会在人脸库中搜索最相似的用户。
+          </p>
+          <div class="actions">
+            <button id="identifyBtn" class="warn">识别此人</button>
+          </div>
+          <div id="identityResult" class="identity-result">等待识别...</div>
+        </div>
+        <form id="loginForm" class="hidden">
+          <label>用户名</label>
+          <input name="username" required />
+          <label>密码</label>
+          <input name="password" type="password" required />
+          <div class="actions">
+            <button type="submit" class="success">登录并人脸校验</button>
+          </div>
+        </form>
+        <form id="registerForm" class="hidden">
+          <label>用户名</label>
+          <input name="username" required />
+          <label>密码</label>
+          <input name="password" type="password" required />
+          <label>邮箱</label>
+          <input name="email" type="email" required />
+          <label>手机号</label>
+          <input name="phone" required />
+          <div class="actions">
+            <button type="submit" class="success">注册（需拍 3 张照片）</button>
+          </div>
+        </form>
+        <div id="status" class="status hidden">请先打开摄像头并拍照。注册需要连续拍 3 张，登录拍 1 张。</div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const video = document.getElementById('video');
+    const carCam = document.getElementById('carCam');
+    const canvas = document.getElementById('canvas');
+    const preview = document.getElementById('preview');
+    const statusEl = document.getElementById('status');
+    const identifyPanel = document.getElementById('identifyPanel');
+    const identityResult = document.getElementById('identityResult');
+    const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    let stream = null;
+    let camMode = null; // 'local' | 'car'
+    let shots = [];
+
+    function setStatus(text) { statusEl.textContent = text; }
+    function setIdentity(text, ok) {
+      identityResult.textContent = text;
+      identityResult.classList.remove('ok', 'fail');
+      identityResult.classList.add(ok ? 'ok' : 'fail');
+    }
+    function stopLocalStream() {
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+      }
+      video.srcObject = null;
+    }
+    function showSource(mode) {
+      camMode = mode;
+      video.classList.toggle('hidden', mode !== 'local');
+      carCam.classList.toggle('hidden', mode !== 'car');
+    }
+    function hasLivePreview() {
+      return camMode === 'local' || camMode === 'car';
+    }
+    function switchTab(tab) {
+      identifyPanel.classList.toggle('hidden', tab !== 'identify');
+      loginForm.classList.toggle('hidden', tab !== 'login');
+      registerForm.classList.toggle('hidden', tab !== 'register');
+      statusEl.classList.toggle('hidden', tab === 'identify');
+      shots = [];
+      preview.classList.add('hidden');
+      if (tab === 'identify') {
+        setIdentity('打开摄像头，对准人脸后点击「识别此人」。', false);
+      } else if (tab === 'login') {
+        setStatus('登录模式：拍 1 张照片。');
+      } else {
+        setStatus('注册模式：请连续拍 3 张不同角度的人脸照片。');
+      }
+    }
+    document.querySelectorAll('.tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        switchTab(btn.dataset.tab);
+      });
+    });
+
+    document.getElementById('startCarCam').addEventListener('click', async () => {
+      stopLocalStream();
+      showSource('car');
+      // 与控制页一致：直连 :8080/stream（你浏览器里 snapshot 已经能开），同源 /video_feed 仅作备用
+      const host = location.hostname;
+      const ros = 'http://' + host + ':8080/stream?topic=/camera/color/image_raw';
+      const fallback = '/video_feed';
+      carCam.dataset.fb = '';
+      carCam.onerror = () => {
+        if (carCam.dataset.fb === '1') {
+          setStatus('相机流不可用：请确认 :8080 有画面，并硬刷新页面。');
+          return;
+        }
+        carCam.dataset.fb = '1';
+        setStatus('直连 :8080 失败，改用 /video_feed…');
+        carCam.src = fallback;
+      };
+      carCam.onload = () => setStatus('小车摄像头已打开，对准人脸后点击拍照。');
+      carCam.src = ros;
+      setStatus('正在连接小车摄像头: ' + ros);
+    });
+
+    document.getElementById('startCamera').addEventListener('click', async () => {
+      try {
+        const md = navigator.mediaDevices;
+        if (!md || typeof md.getUserMedia !== 'function') {
+          setStatus(
+            '本机摄像头不可用：当前页面不是安全环境（局域网 http://IP 会被浏览器禁用 getUserMedia）。\n' +
+            '请改用「打开小车摄像头」，或下面「上传图片」。'
+          );
+          return;
+        }
+        stopLocalStream();
+        stream = await md.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+        showSource('local');
+        video.srcObject = stream;
+        setStatus('本机摄像头已打开，请点击拍照。');
+      } catch (err) {
+        setStatus('无法打开本机摄像头: ' + (err && err.message ? err.message : err) +
+          '\n可改用「打开小车摄像头」或上传图片。');
+      }
+    });
+
+    async function blobFromSnapshot() {
+      // 同源代理优先；勿直连 :8080（跨域会被浏览器拦）
+      const urls = ['/api/face/snapshot'];
+      for (const url of urls) {
+        try {
+          const res = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
+          if (!res.ok) continue;
+          const blob = await res.blob();
+          if (blob && blob.size > 1000 && (blob.type || '').indexOf('json') < 0) return blob;
+        } catch (_) { /* try canvas fallback */ }
+      }
+      return null;
+    }
+
+    async function captureShot() {
+      if (camMode === 'car') {
+        const snap = await blobFromSnapshot();
+        if (snap) return snap;
+        // 退回：从当前 video_feed 画面抓一帧（MJPEG 时可能不准，优先 snapshot）
+        const width = carCam.naturalWidth || 640;
+        const height = carCam.naturalHeight || 480;
+        if (width < 2 || height < 2) throw new Error('小车画面未就绪');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(carCam, 0, 0, width, height);
+        return new Promise((resolve, reject) =>
+          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('抓帧失败'))), 'image/jpeg', 0.92)
+        );
+      }
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+      return new Promise((resolve, reject) =>
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('抓帧失败'))), 'image/jpeg', 0.92)
+      );
+    }
+
+    function pushShot(blob) {
+      const activeTab = document.querySelector('.tab.active').dataset.tab;
+      if (activeTab === 'register') {
+        shots.push(blob);
+        if (shots.length > 3) shots = shots.slice(-3);
+        setStatus(`已拍摄 ${shots.length}/3 张注册照片。`);
+      } else if (activeTab === 'identify') {
+        shots = [blob];
+        setStatus('已拍摄识别照片。');
+      } else {
+        shots = [blob];
+        setStatus('已拍摄登录校验照片。');
+      }
+      preview.src = URL.createObjectURL(blob);
+      preview.classList.remove('hidden');
+    }
+
+    document.getElementById('capture').addEventListener('click', async () => {
+      if (!hasLivePreview()) {
+        setStatus('请先打开小车摄像头 / 本机摄像头，或上传图片。');
+        return;
+      }
+      try {
+        const blob = await captureShot();
+        pushShot(blob);
+      } catch (err) {
+        setStatus('拍照失败: ' + (err && err.message ? err.message : err));
+      }
+    });
+
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      const activeTab = document.querySelector('.tab.active').dataset.tab;
+      const blobs = [];
+      for (const f of files) {
+        blobs.push(f);
+      }
+      if (activeTab === 'register') {
+        shots = shots.concat(blobs).slice(-3);
+        setStatus(`已选择/累计 ${shots.length}/3 张注册照片。`);
+      } else {
+        shots = [blobs[0]];
+        setStatus('已选择照片。');
+      }
+      preview.src = URL.createObjectURL(shots[shots.length - 1]);
+      preview.classList.remove('hidden');
+      e.target.value = '';
+    });
+
+    document.getElementById('clearShot').addEventListener('click', () => {
+      shots = [];
+      preview.classList.add('hidden');
+      setStatus('照片已清除。');
+    });
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (shots.length < 1) { setStatus('登录请先拍 1 张人脸照片。'); return; }
+      const formData = new FormData(loginForm);
+      formData.append('face_image', shots[0], 'login.jpg');
+      setStatus('正在登录并做人脸校验...');
+      const res = await fetch('/api/face/login', { method: 'POST', body: formData, credentials: 'include' });
+      setStatus(JSON.stringify(await res.json(), null, 2));
+    });
+    document.getElementById('identifyBtn').addEventListener('click', async () => {
+      try {
+        let blob = shots[0];
+        if (!blob) {
+          if (!hasLivePreview()) {
+            setIdentity('请先打开摄像头或上传图片。', false);
+            return;
+          }
+          blob = await captureShot();
+          pushShot(blob);
+        }
+        setIdentity('正在识别，请稍候...', false);
+        const formData = new FormData();
+        formData.append('image', blob, 'identify.jpg');
+        const res = await fetch('/api/face/recognize', { method: 'POST', body: formData, credentials: 'include' });
+        const data = await res.json();
+        if (res.ok && data.identity) {
+          const score = (data.score != null ? data.score : (data.user && data.user.score)) || 0;
+          setIdentity(`识别成功\n你是：${data.identity}\n相似度：${Number(score).toFixed(1)} 分`, true);
+        } else {
+          setIdentity(`识别失败\n${data.msg || JSON.stringify(data)}`, false);
+        }
+      } catch (err) {
+        setIdentity('请求失败: ' + err.message, false);
+      }
+    });
+    switchTab('identify');
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (shots.length < 3) { setStatus('注册需要至少 3 张人脸照片，请继续拍照。'); return; }
+      const formData = new FormData(registerForm);
+      shots.forEach((blob, idx) => formData.append('face_images', blob, `face_${idx}.jpg`));
+      setStatus('正在注册并同步人脸到百度云...');
+      const res = await fetch('/api/face/register', { method: 'POST', body: formData, credentials: 'include' });
+      setStatus(JSON.stringify(await res.json(), null, 2));
+    });
+  </script>
+</body>
+</html>

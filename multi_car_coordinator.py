@@ -3,7 +3,7 @@
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from concurrent.futures import ThreadPoolExecutor
-import threading, time, math, requests, io, os, subprocess, sys
+import threading, time, math, requests, os, sys
 
 import logging as _logging
 _logging.basicConfig(
@@ -35,11 +35,6 @@ _status_cache = {}
 _position_cache = {}
 _collision_alerts = {}
 _lock = threading.Lock()
-_voice_process = None
-_voice_car_id = None
-_voice_lock = threading.RLock()
-_voice_log_path = os.path.join(os.path.dirname(__file__), "tmp", "voice_service.log")
-os.makedirs(os.path.dirname(_voice_log_path), exist_ok=True)
 
 
 # ========== 工具函数 ==========
@@ -332,19 +327,8 @@ def register_batch():
 @app.route('/api/cars/<car_id>', methods=['DELETE'])
 def disconnect_car(car_id):
     """Remove a car from this coordinator without stopping its own services."""
-    global _voice_process, _voice_car_id
     if car_id not in CARS:
         return jsonify({'code': -1, 'msg': f'car {car_id} not found'}), 404
-    with _voice_lock:
-        if _voice_car_id == car_id and _voice_process is not None and _voice_process.poll() is None:
-            _voice_process.terminate()
-            try:
-                _voice_process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                _voice_process.kill()
-                _voice_process.wait(timeout=3)
-            _voice_process = None
-            _voice_car_id = None
     CARS.pop(car_id, None)
     with _lock:
         _status_cache.pop(car_id, None)
@@ -353,6 +337,243 @@ def disconnect_car(car_id):
             if car_id in _collision_alerts[key].get('cars', ()):
                 _collision_alerts.pop(key, None)
     return jsonify({'code': 0, 'msg': f'{car_id} disconnected'})
+
+# ========== 协同展示服务 ==========
+
+DEMO_CAR_IDS = ('car_A', 'car_B')
+DEMO_MOVE_SPEED = 50
+DEMO_MOVE_DURATION = 0.8
+DEMO_MOVE_PAUSE = 0.2
+DEMO_RECORD_DURATION = 3.0
+DEMO_MOTION_STEPS = (
+    ('forward', '前进'),
+    ('backward', '后退'),
+    ('left', '左转'),
+    ('right', '右转'),
+    ('rotate_left', '左旋'),
+    ('rotate_right', '右旋'),
+    ('left_shift', '左移'),
+    ('right_shift', '右移'),
+)
+_demo_lock = threading.RLock()
+_demo_cancel = threading.Event()
+_demo_state = {
+    'state': 'idle', 'step': '等待开始', 'message': '',
+    'started_at': None, 'finished_at': None, 'results': {}, 'recordings': {},
+}
+
+
+def _demo_snapshot():
+    with _demo_lock:
+        return {
+            **_demo_state,
+            'results': dict(_demo_state['results']),
+            'recordings': dict(_demo_state['recordings']),
+        }
+
+
+def _demo_update(**changes):
+    with _demo_lock:
+        _demo_state.update(changes)
+
+
+def _demo_call_all(endpoint, method='GET', data=None, timeout=5):
+    with ThreadPoolExecutor(max_workers=len(DEMO_CAR_IDS)) as pool:
+        return dict(pool.map(
+            lambda car_id: (car_id, api(car_id, endpoint, method, data, timeout)),
+            DEMO_CAR_IDS,
+        ))
+
+
+def _demo_stop_all():
+    return _demo_call_all('/api/move', 'POST', {'cmd': 'stop', 'speed': 0, 'duration': 0},
+                          timeout=(MOVE_CONNECT_TIMEOUT, MOVE_READ_TIMEOUT))
+
+
+def _demo_cancelled():
+    return _demo_cancel.is_set()
+
+
+def _run_demo():
+    recordings = {}
+    try:
+        _demo_update(state='running', step='服务检查', message='正在检查两车控制、视频和音频接口。')
+        checks = _demo_call_all('/api/health', timeout=POLL_TIMEOUT)
+        cameras = _demo_call_all('/api/camera', timeout=POLL_TIMEOUT)
+        devices = _demo_call_all('/api/audio/devices', timeout=POLL_TIMEOUT)
+        results = {'health': checks, 'camera': cameras, 'audio_devices': devices}
+        failed = [car_id for car_id in DEMO_CAR_IDS if any(
+            group[car_id].get('code') != 0 for group in (checks, cameras, devices)
+        )]
+        _demo_update(results=results)
+        if failed:
+            _demo_update(state='failed', step='服务检查失败',
+                         message='以下车辆的控制、视频或音频接口不可用：' + ', '.join(failed))
+            return
+        if _demo_cancelled():
+            return
+
+        _demo_update(step='开始播报', message='两车通过扬声器播报开始提示。')
+        begin_speech = _demo_call_all('/api/audio/say', 'POST', {
+            'text': '协同展示开始，请注意安全。', 'lang': 'zh',
+        }, timeout=20)
+        _demo_update(results={**_demo_snapshot()['results'], 'begin_speech': begin_speech})
+        if any(result.get('code') != 0 for result in begin_speech.values()):
+            _demo_update(state='failed', step='开始播报失败', message='至少一辆车的扬声器播报失败，展示已取消。')
+            return
+        if _demo_cancelled():
+            return
+
+        for index, (command, label) in enumerate(DEMO_MOTION_STEPS, start=1):
+            if _demo_cancelled():
+                return
+
+            _demo_update(
+                step=f'动作展示 {index}/{len(DEMO_MOTION_STEPS)}：{label}',
+                message=(f'两车同步{label} {DEMO_MOVE_DURATION:.2f} 秒；'
+                         '车端自动停止后，总控将再次确认停止。'),
+            )
+            moves = _demo_call_all('/api/move', 'POST', {
+                'cmd': command,
+                'speed': DEMO_MOVE_SPEED,
+                'duration': DEMO_MOVE_DURATION,
+            }, timeout=(MOVE_CONNECT_TIMEOUT, MOVE_READ_TIMEOUT))
+            step_key = f'move_{index}_{command}'
+            _demo_update(results={**_demo_snapshot()['results'], step_key: moves})
+            if any(result.get('code') != 0 for result in moves.values()):
+                _demo_update(
+                    state='failed',
+                    step=f'动作展示失败：{label}',
+                    message='至少一辆车未接受移动指令，后续动作已取消。',
+                )
+                return
+
+            time.sleep(DEMO_MOVE_DURATION + DEMO_MOVE_PAUSE)
+            stops = _demo_stop_all()
+            _demo_update(results={**_demo_snapshot()['results'], f'{step_key}_stop': stops})
+            if any(result.get('code') != 0 for result in stops.values()):
+                _demo_update(
+                    state='failed',
+                    step=f'停止确认失败：{label}',
+                    message='至少一辆车未确认停止，后续动作已取消。',
+                )
+                return
+            if _demo_cancelled():
+                return
+
+        _demo_update(step='协同播报', message='两车正在通过扬声器播报展示提示。')
+        speech = _demo_call_all('/api/audio/say', 'POST', {
+            'text': '协同展示开始，请注意安全。', 'lang': 'zh',
+        }, timeout=20)
+        _demo_update(results={**_demo_snapshot()['results'], 'speech': speech})
+        if any(result.get('code') != 0 for result in speech.values()):
+            _demo_update(state='failed', step='协同播报失败', message='至少一辆车的扬声器播报失败。')
+            return
+        if _demo_cancelled():
+            return
+
+        _demo_update(step='双车录音', message='两车麦克风正在录音 3 秒。')
+        starts = _demo_call_all('/api/audio/record/start', 'POST',
+                                {'duration': DEMO_RECORD_DURATION}, timeout=5)
+        for car_id, result in starts.items():
+            if result.get('code') == 0:
+                recordings[car_id] = result.get('data', {}).get('record_id', '')
+        _demo_update(results={**_demo_snapshot()['results'], 'record_start': starts},
+                     recordings=recordings)
+        if len(recordings) != len(DEMO_CAR_IDS):
+            _demo_update(state='failed', step='双车录音失败', message='至少一辆车未能开始录音。')
+            return
+
+        deadline = time.monotonic() + DEMO_RECORD_DURATION + 5
+        statuses = {}
+        while time.monotonic() < deadline:
+            if _demo_cancelled():
+                return
+            statuses = _demo_call_all('/api/audio/record/status', timeout=5)
+            if all(item.get('data', {}).get('status') == 'done' for item in statuses.values()):
+                break
+            time.sleep(0.4)
+        _demo_update(results={**_demo_snapshot()['results'], 'record_status': statuses})
+        if not all(item.get('data', {}).get('status') == 'done' for item in statuses.values()):
+            _demo_update(state='failed', step='录音未完成', message='录音等待超时，请检查车端麦克风。')
+            return
+        _demo_update(state='completed', step='展示完成',
+                     message='双车展示完成，可在下方电脑端播放或下载录音。',
+                     recordings=recordings, finished_at=time.strftime('%H:%M:%S'))
+    except Exception as error:
+        _log.exception('demo failed')
+        _demo_update(state='failed', step='展示异常', message=str(error), recordings=recordings,
+                     finished_at=time.strftime('%H:%M:%S'))
+    finally:
+        stops = _demo_stop_all()
+        snapshot = _demo_snapshot()
+        _demo_update(results={**snapshot['results'], 'final_stop': stops})
+        if _demo_cancelled() and _demo_snapshot()['state'] == 'running':
+            _demo_update(state='stopped', step='已紧急停止', message='已向两辆车发送停止指令。',
+                         finished_at=time.strftime('%H:%M:%S'))
+
+
+@app.route('/api/demo/status')
+def demo_status():
+    return jsonify({'code': 0, 'data': _demo_snapshot()})
+
+
+@app.route('/api/demo/start', methods=['POST'])
+def demo_start():
+    with _demo_lock:
+        if _demo_state['state'] == 'running':
+            return jsonify({'code': -1, 'msg': '展示正在运行，请勿重复启动。', 'data': _demo_snapshot()}), 409
+        _demo_cancel.clear()
+        _demo_state.update({
+            'state': 'running', 'step': '准备开始', 'message': '展示任务已创建。',
+            'started_at': time.strftime('%H:%M:%S'), 'finished_at': None,
+            'results': {}, 'recordings': {},
+        })
+    threading.Thread(target=_run_demo, daemon=True).start()
+    return jsonify({'code': 0, 'msg': '协同展示已开始。', 'data': _demo_snapshot()})
+
+
+@app.route('/api/demo/stop', methods=['POST'])
+def demo_stop():
+    _demo_cancel.set()
+    stops = _demo_stop_all()
+    _demo_update(state='stopped', step='已紧急停止', message='已向两辆车发送停止指令。',
+                 results={**_demo_snapshot()['results'], 'emergency_stop': stops},
+                 finished_at=time.strftime('%H:%M:%S'))
+    return jsonify({'code': 0, 'msg': '紧急停止已发送。', 'data': _demo_snapshot()})
+
+
+@app.route('/api/demo/reset', methods=['POST'])
+def demo_reset():
+    with _demo_lock:
+        if _demo_state['state'] == 'running':
+            return jsonify({'code': -1, 'msg': '展示运行中，请先紧急停止。'}), 409
+        _demo_state.update({
+            'state': 'idle', 'step': '等待开始', 'message': '',
+            'started_at': None, 'finished_at': None, 'results': {}, 'recordings': {},
+        })
+    return jsonify({'code': 0, 'msg': '展示状态已重置。', 'data': _demo_snapshot()})
+
+
+@app.route('/api/demo/recording/<car_id>')
+def demo_recording(car_id):
+    recording_id = _demo_snapshot()['recordings'].get(car_id)
+    if car_id not in DEMO_CAR_IDS or not recording_id:
+        return jsonify({'code': -1, 'msg': '录音不存在。'}), 404
+    info = CARS.get(car_id)
+    if not info:
+        return jsonify({'code': -1, 'msg': '车辆不存在。'}), 404
+    url = f"http://{info['ip']}:{info['port']}/api/audio/record/{recording_id}.wav"
+    try:
+        response = requests.get(url, timeout=(3, 15))
+        response.raise_for_status()
+    except requests.RequestException as error:
+        return jsonify({'code': -1, 'msg': f'获取 {car_id} 录音失败：{error}'}), 502
+    return Response(response.content, mimetype='audio/wav', headers={
+        'Content-Disposition': f'inline; filename="{car_id}_{recording_id}.wav"',
+        'Cache-Control': 'no-store',
+    })
+
 
 @app.route('/proxy/camera/<car_id>')
 def proxy_camera(car_id):
@@ -411,75 +632,44 @@ def index():
 
 
 
-# ========== 语音控制服务管理 ==========
+# ========== 云端告警代理 ==========
 
-def _voice_status():
-    with _voice_lock:
-        running = _voice_process is not None and _voice_process.poll() is None
-        return {'running': running, 'pid': _voice_process.pid if running else None, 'car_id': _voice_car_id if running else None, 'log': _voice_log_path}
+CLOUD_API_BASE = 'http://8.140.28.233:8000'
+CLOUD_ALARM_CACHE = []
+_cloud_alarm_lock = threading.Lock()
+_cloud_last_fetch = 0
 
-
-@app.route('/api/voice/status')
-def voice_status():
-    return jsonify({'code': 0, 'data': _voice_status()})
-
-
-@app.route('/api/voice/start', methods=['POST'])
-def voice_start():
-    global _voice_process, _voice_car_id
-    data = request.get_json(silent=True) or {}
-    car_id = data.get('car_id', 'car_A')
-    if car_id not in CARS:
-        return jsonify({'code': -1, 'msg': f'car {car_id} not found'}), 404
-    info = CARS[car_id]
-    whisper_url = os.environ.get('MINIMOVER_WHISPER_URL', '').strip()
-    api_key = os.environ.get('MINIMOVER_API_KEY', '').strip()
-    if not whisper_url or not api_key:
-        return jsonify({
-            'code': -1,
-            'msg': '缺少语音识别配置：请设置 MINIMOVER_WHISPER_URL 和 MINIMOVER_API_KEY',
-            'data': {'required': ['MINIMOVER_WHISPER_URL', 'MINIMOVER_API_KEY']},
-        }), 503
-    with _voice_lock:
-        if _voice_process is not None and _voice_process.poll() is None:
-            return jsonify({'code': -1, 'msg': 'voice service is already running', 'data': _voice_status()}), 409
-        env = os.environ.copy()
-        env['MINIMOVER_CAR_URL'] = f"http://{info['ip']}:{info['port']}"
-        env['MINIMOVER_ASR_BACKEND'] = 'remote_whisper'
-        env['MINIMOVER_CAR_SPEAKER'] = '1'
-        env['MINIMOVER_WHISPER_URL'] = whisper_url
-        env['MINIMOVER_API_KEY'] = api_key
-        log_file = open(_voice_log_path, 'a', encoding='utf-8')
-        try:
-            _voice_process = subprocess.Popen(
-                [sys.executable, '-m', 'voice_assistant.voice_service', '--asr', 'remote_whisper'],
-                cwd=os.path.dirname(os.path.abspath(__file__)), env=env,
-                stdout=log_file, stderr=subprocess.STDOUT)
-            _voice_car_id = car_id
-        except Exception:
-            log_file.close()
-            raise
-    return jsonify({'code': 0, 'msg': f'voice service started for {car_id}', 'data': _voice_status()})
+def _fetch_cloud_alarms():
+    global _cloud_last_fetch
+    now = time.monotonic()
+    if now - _cloud_last_fetch < 15:
+        return
+    _cloud_last_fetch = now
+    try:
+        url = f'{CLOUD_API_BASE}/api/v1/fire-alarms?page=1&size=10'
+        r = requests.get(url, timeout=5)
+        data = r.json()
+        if data.get('code') == 0:
+            with _cloud_alarm_lock:
+                CLOUD_ALARM_CACHE[:] = data['data'].get('items', [])
+    except Exception:
+        pass
 
 
-@app.route('/api/voice/stop', methods=['POST'])
-def voice_stop():
-    global _voice_process, _voice_car_id
-    with _voice_lock:
-        process = _voice_process
-        if process is None or process.poll() is not None:
-            _voice_process = None
-            _voice_car_id = None
-            return jsonify({'code': 0, 'msg': 'voice service is not running', 'data': _voice_status()})
-        process.terminate()
-        try:
-            process.wait(timeout=3)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=3)
-        _voice_process = None
-        _voice_car_id = None
-    return jsonify({'code': 0, 'msg': 'voice service stopped', 'data': _voice_status()})
+@app.route('/api/cloud-alarms')
+def cloud_alarms():
+    _fetch_cloud_alarms()
+    with _cloud_alarm_lock:
+        return jsonify({'code': 0, 'data': {'items': list(CLOUD_ALARM_CACHE)}})
+
+
+@app.route('/api/cloud-alarms/<int:alarm_id>')
+def cloud_alarm_detail(alarm_id):
+    try:
+        r = requests.get(f'{CLOUD_API_BASE}/api/v1/fire-alarms/{alarm_id}', timeout=5)
+        return jsonify(r.json())
+    except Exception as e:
+        return jsonify({'code': -1, 'msg': str(e)}), 502
 
 # ========== 内嵌 HTML 面板 (避免额外模板文件) ==========
 
@@ -543,6 +733,14 @@ h2{{font-size:15px;color:#8b949e;margin:12px 0 6px}}
 .alert-bar{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:10px;margin-bottom:12px;font-size:13px}}
 .alert-bar.warning{{border-color:#d29922}}
 .alert-bar.critical{{border-color:#f85149}}
+.demo-panel{{border-color:#1f6feb;background:linear-gradient(135deg,#161b22,#12243b)}}
+.demo-status{{font-size:13px;line-height:1.7;color:#c9d1d9;min-height:48px}}
+.demo-status strong{{color:#58a6ff}}
+.demo-log{{font-size:12px;color:#8b949e;white-space:pre-wrap;margin-top:6px}}
+.demo-recordings{{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px}}
+.demo-recording{{display:none;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:8px;min-width:280px}}
+.demo-recording audio{{display:block;width:100%;margin-top:5px}}
+.demo-recording a{{font-size:12px;color:#58a6ff}}
 </style>
 </head>
 <body>
@@ -551,6 +749,21 @@ h2{{font-size:15px;color:#8b949e;margin:12px 0 6px}}
 <div id="alertBar" class="alert-bar" style="display:none">Loading...</div>
 
 <div class="car-grid" id="carGrid"></div>
+
+<div class="control-panel demo-panel">
+  <h2>双车协同展示</h2>
+  <div class="demo-status" id="demoStatus"><strong>状态：</strong>等待开始。展示会依次执行前进、后退、左转、右转、左旋、右旋、左移、右移；每项均以 50% 速度运行 0.8 秒，并在下一项前确认停止。随后双车播报并各录音 3 秒。</div>
+  <div class="ctrl-row">
+    <button id="demoStartBtn" onclick="startDemo()">一键协同展示</button>
+    <button onclick="stopDemo()" class="stop">紧急停止</button>
+    <button onclick="resetDemo()">重置</button>
+  </div>
+  <div class="demo-log" id="demoLog"></div>
+  <div class="demo-recordings">
+    <div class="demo-recording" id="demoRecording_car_A"><strong>car_A 麦克风录音</strong><audio controls preload="none"></audio><a download>下载 WAV</a></div>
+    <div class="demo-recording" id="demoRecording_car_B"><strong>car_B 麦克风录音</strong><audio controls preload="none"></audio><a download>下载 WAV</a></div>
+  </div>
+</div>
 
 <div class="control-panel">
   <div class="ctrl-row">
@@ -586,20 +799,85 @@ h2{{font-size:15px;color:#8b949e;margin:12px 0 6px}}
 </div>
 
 <div class="control-panel">
-  <h2>车载语音控制</h2>
-  <div class="ctrl-row">
-    <label>Car:</label>
-    <select id="voiceCar"><option value="car_A">car_A</option><option value="car_B">car_B</option></select>
-    <button onclick="startVoice()">启动语音</button>
-    <button onclick="stopVoice()" class="stop">停止语音</button>
-    <span id="voiceStatus" style="font-size:12px;color:#8b949e">未启动</span>
+  <h2>云端告警</h2>
+  <div style="font-size:12px;color:#8b949e;margin-bottom:6px">最近 10 条来自云端服务器 http://8.140.28.233:8000 的火灾/烟雾告警。</div>
+  <div id="cloudAlarmList" style="max-height:300px;overflow-y:auto;font-size:12px">
+    <div style="color:#8b949e;padding:8px">加载中...</div>
   </div>
-  <div style="font-size:12px;color:#8b949e">小车麦克风 → Whisper → 控车；反馈通过小车扬声器播放</div>
+  <div class="ctrl-row">
+    <button onclick="refreshCloudAlarms()">刷新</button>
+  </div>
 </div>
 
 <script>
 var API=window.location.origin;
 var SPEED=50;
+var demoState='idle';
+
+function renderDemo(data){{
+  var d=data||{{}}, state=d.state||'idle';
+  demoState=state;
+  var status=document.getElementById('demoStatus');
+  var start=document.getElementById('demoStartBtn');
+  var colors={{running:'#d29922',completed:'#3fb950',failed:'#f85149',stopped:'#f85149',idle:'#c9d1d9'}};
+  status.innerHTML='<strong>状态：</strong><span style="color:'+(colors[state]||'#c9d1d9')+'">'+state+'</span>　<strong>步骤：</strong>'+(d.step||'-')+'<br>'+(d.message||'');
+  start.disabled=state==='running';
+  start.textContent=state==='running'?'展示进行中...':'一键协同展示';
+  var results=d.results||{{}};
+  var logs=[];
+  Object.keys(results).forEach(function(step){{
+    var row=results[step]||{{}};
+    logs.push(step+': '+Object.keys(row).map(function(car){{
+      var item=row[car]||{{}};
+      return car+' '+(item.code===0?'成功':(item.msg||'失败'));
+    }}).join(' | '));
+  }});
+  document.getElementById('demoLog').textContent=logs.join('\\n');
+  var recordings=d.recordings||{{}};
+  ['car_A','car_B'].forEach(function(car){{
+    var box=document.getElementById('demoRecording_'+car);
+    var audio=box.querySelector('audio');
+    var link=box.querySelector('a');
+    if(recordings[car]&&state==='completed'){{
+      var url=API+'/api/demo/recording/'+car;
+      if(audio.dataset.url!==url){{audio.src=url;audio.dataset.url=url;}}
+      link.href=url;link.download=car+'_'+recordings[car]+'.wav';
+      box.style.display='block';
+    }}else{{
+      box.style.display='none';
+      audio.removeAttribute('src');audio.dataset.url='';
+    }}
+  }});
+}}
+
+function updateDemo(){{
+  fetch(API+'/api/demo/status').then(function(r){{return r.json()}}).then(function(d){{
+    if(d.code===0) renderDemo(d.data);
+  }}).catch(function(){{}});
+}}
+
+function startDemo(){{
+  if(demoState==='running') return;
+  if(!confirm('请确认两车周围各方向均有净空且有人监护。展示会以 50% 速度依次执行前进、后退、左右转、左右旋、左右移，每项 0.8 秒；随后播报和录音。')) return;
+  fetch(API+'/api/demo/start',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:'{{}}'}})
+    .then(function(r){{return r.json()}}).then(function(d){{
+      if(d.code!==0) alert(d.msg||'展示启动失败');
+      if(d.data) renderDemo(d.data);
+    }}).catch(function(e){{alert('无法启动展示：'+e);}});
+}}
+
+function resetDemo(){{
+  fetch(API+'/api/demo/reset',{{method:'POST'}}).then(function(r){{return r.json()}}).then(function(d){{
+    if(d.code!==0){{alert(d.msg||'重置失败');return;}}
+    renderDemo(d.data);
+  }}).catch(function(e){{alert('重置请求失败：'+e);}});
+}}
+
+function stopDemo(){{
+  fetch(API+'/api/demo/stop',{{method:'POST'}}).then(function(r){{return r.json()}}).then(function(d){{
+    if(d.data) renderDemo(d.data);
+  }}).catch(function(e){{alert('停止请求失败：'+e);}});
+}}
 
 
 function disconnectCar(car){{
@@ -611,25 +889,33 @@ function disconnectCar(car){{
     }});
 }}
 
-function updateVoiceStatus(){{
-  fetch(API+'/api/voice/status').then(function(r){{return r.json()}}).then(function(data){{
-    var d=data.data||{{}}, el=document.getElementById('voiceStatus');
-    el.textContent=d.running?'运行中 PID='+d.pid:'未启动';
-    el.style.color=d.running?'#3fb950':'#8b949e';
+function refreshCloudAlarms(){{
+  var list=document.getElementById('cloudAlarmList');
+  list.innerHTML='<div style="color:#8b949e;padding:8px">加载中...</div>';
+  fetch(API+'/api/cloud-alarms').then(function(r){{return r.json()}}).then(function(data){{
+    var items=data.data&&data.data.items||[];
+    if(!items.length){{
+      list.innerHTML='<div style="color:#8b949e;padding:8px">暂无云端告警数据。</div>';
+      return;
+    }}
+    var html='';
+    var typeMap={{confirmed_fire:'<span style="color:#f85149">🔥 火灾</span>',suspected_smoke:'<span style="color:#d29922">💨 烟雾</span>',ai_unavailable:'<span style="color:#8b949e">⚠ AI失效</span>'}};
+    for(var i=0;i<items.length;i++){{
+      var a=items[i];
+      var ts=a.occurred_at||'';
+      if(ts.length>19) ts=ts.substr(0,19).replace('T',' ');
+      html+='<div style="padding:6px 8px;border-bottom:1px solid #21262d;display:flex;gap:8px;align-items:center">'+
+        '<span style="white-space:nowrap">'+ts.substr(5,11)+'</span>'+
+        '<span>'+(typeMap[a.alarm_type]||a.alarm_type)+'</span>'+
+        '<span style="color:#8b949e;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(a.reason||'')+'</span>'+
+        '<span style="color:#58a6ff;font-size:11px">'+(a.car_id||'')+'</span>'+
+        '<a href="'+API+'/api/cloud-alarms/'+a.id+'" target="_blank" style="color:#8b949e;font-size:11px;text-decoration:none">详情</a>'+
+      '</div>';
+    }}
+    list.innerHTML=html;
+  }}).catch(function(e){{
+    list.innerHTML='<div style="color:#f85149;padding:8px">加载云端告警失败: '+e+'</div>';
   }});
-}}
-function startVoice(){{
-  var car=document.getElementById('voiceCar').value;
-  fetch(API+'/api/voice/start',{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{car_id:car}})}})
-    .then(function(r){{return r.json()}}).then(function(d){{
-      var el=document.getElementById('voiceStatus');
-      el.textContent=d.msg||'启动完成';
-      el.style.color=d.code===0?'#3fb950':'#f85149';
-      if(d.code===0) updateVoiceStatus();
-    }});
-}}
-function stopVoice(){{
-  fetch(API+'/api/voice/stop',{{method:'POST'}}).then(function(r){{return r.json()}}).then(function(d){{document.getElementById('voiceStatus').textContent=d.msg||'已停止';updateVoiceStatus();}});
 }}
 
 function renderCars(data){{
@@ -796,6 +1082,8 @@ function registerCar(){{
 }}
 
 setInterval(update,3000);update();
+setInterval(updateDemo,1000);updateDemo();
+refreshCloudAlarms();
 </script>
 </body>
 </html>'''

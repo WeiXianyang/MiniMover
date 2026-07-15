@@ -1,11 +1,16 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """iCar 音频驱动 —— 录音 / 播放 / TTS
 硬件:
   麦克风: hw:2,0  (讯飞 XFM-DP-V0.0.18, mono 16kHz)
-  扬声器: hw:0,0  (C-Media USB Audio, stereo 44.1kHz)
+  扬声器: PulseAudio USB Sink (C-Media USB Audio, stereo 44.1kHz)
+TTS:
+  主力: 阿里云百炼 CosyVoice (DashScope API)
+  回退: espeak-ng
 """
 
 import os
+import io
+import json
 import subprocess
 import threading
 import time
@@ -16,10 +21,27 @@ from pathlib import Path
 
 # === 配置 ===
 MIC_DEVICE = "hw:2,0"       # 讯飞麦克风阵列
-# PulseAudio sink 名 (USB 声卡是喇叭的物理设备)
 USB_SINK = "alsa_output.usb-C-Media_Electronics_Inc._USB_Audio_Device-00.analog-stereo"
 RECORD_DIR = Path("/tmp/icar_audio")
 RECORD_DIR.mkdir(parents=True, exist_ok=True)
+
+# TTS 环境变量加载（从小车 ~/MiniMover/.tts.env）
+_ENV_LOADED = False
+
+def _load_tts_env():
+    global _ENV_LOADED
+    if _ENV_LOADED:
+        return
+    env_file = Path(__file__).resolve().parent.parent / ".tts.env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("export ") and "=" in line:
+                k, v = line[len("export "):].split("=", 1)
+                v = v.strip().strip('"').strip("'")
+                if k not in os.environ:
+                    os.environ[k] = v
+    _ENV_LOADED = True
 
 # === 录音管理 ===
 class _Recorder:
@@ -113,7 +135,7 @@ class _Player:
         tmp.close()
         with self._lock:
             self._proc = subprocess.Popen(
-                ["paplay", "--device=" + USB_SINK, tmp.name],
+                ["paplay", "--volume=65536", "--device=" + USB_SINK, tmp.name],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self._status = "playing"
         def _cleanup():
@@ -126,7 +148,7 @@ class _Player:
         self.stop()
         with self._lock:
             self._proc = subprocess.Popen(
-                ["paplay", "--device=" + USB_SINK, filepath],
+                ["paplay", "--volume=65536", "--device=" + USB_SINK, filepath],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self._status = "playing"
 
@@ -153,62 +175,36 @@ _player = _Player()
 
 # === TTS ===
 
-# ---- 百炼 DashScope CosyVoice 云端 TTS ----
-# 自动从 .tts.env 文件加载配置，确保不依赖进程环境变量
-_ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".tts.env")
-if os.path.isfile(_ENV_FILE):
-    try:
-        with open(_ENV_FILE, "r", encoding="utf-8") as _fh:
-            for _line in _fh:
-                _line = _line.strip()
-                if _line.startswith("#") or "=" not in _line:
-                    continue
-                if _line.startswith("export "):
-                    _line = _line[len("export "):]
-                _key, _, _val = _line.partition("=")
-                if _key and _val:
-                    os.environ.setdefault(_key.strip(), _val.strip().strip('"').strip("'"))
-    except Exception:
-        pass
+DASHSCOPE_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2speech/speech-synthesis"
 
-_DASHSCOPE_KEY = os.getenv("MINIMOVER_DASHSCOPE_API_KEY", "")
-_COSYVOICE_MODEL = os.getenv("MINIMOVER_COSYVOICE_MODEL", "cosyvoice-v3-flash")
-_COSYVOICE_VOICE = os.getenv("MINIMOVER_COSYVOICE_VOICE", "longanyang")
-_TTS_PROVIDER   = os.getenv("MINIMOVER_TTS_PROVIDER", "dashscope").lower()
-
-_DASHSCOPE_URL = "https://dashscope.aliyuncs.com/api/v1/services/audio/tts/SpeechSynthesizer"
-_DASHSCOPE_TIMEOUT = 30
-
-def _tts_dashscope(text: str) -> bytes:
-    """百炼 CosyVoice TTS -> WAV bytes（非流式）"""
-    import json as _json
-    from urllib import request as _req
-
-    payload = _json.dumps({
-        "model": _COSYVOICE_MODEL,
-        "input": {
-            "text": text,
-            "voice": _COSYVOICE_VOICE,
-            "format": "wav",
-            "sample_rate": 24000,
-        }
-    }, ensure_ascii=False).encode("utf-8")
-
+def _dashscope_tts(text: str, voice: str = "longanyang", model: str = "cosyvoice-v3-flash") -> bytes:
+    """调用阿里云百炼 CosyVoice, 返回 WAV 字节。失败抛异常。"""
+    import requests
+    _load_tts_env()
+    api_key = os.environ.get("MINIMOVER_DASHSCOPE_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("MINIMOVER_DASHSCOPE_API_KEY not set")
+    v = os.environ.get("MINIMOVER_COSYVOICE_VOICE", voice)
+    m = os.environ.get("MINIMOVER_COSYVOICE_MODEL", model)
     headers = {
-        "Authorization": "Bearer " + _DASHSCOPE_KEY,
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-
-    req = _req.Request(_DASHSCOPE_URL, data=payload, headers=headers, method="POST")
-    with _req.urlopen(req, timeout=_DASHSCOPE_TIMEOUT) as resp:
-        body = _json.loads(resp.read().decode("utf-8"))
-
-    audio_url = body.get("output", {}).get("audio", {}).get("url", "")
-    if not audio_url:
-        raise RuntimeError("DashScope TTS returned no audio url: " + str(body))
-
-    with _req.urlopen(audio_url, timeout=_DASHSCOPE_TIMEOUT) as resp2:
-        return resp2.read()
+    payload = {
+        "model": m,
+        "input": {"text": text, "voice": v},
+        "parameters": {"format": "wav", "sample_rate": 24000},
+    }
+    r = requests.post(DASHSCOPE_URL, json=payload, headers=headers, timeout=15)
+    if r.status_code != 200:
+        raise RuntimeError(f"DashScope HTTP {r.status_code}: {r.text[:200]}")
+    # DashScope 返回 JSON, audio 字段是 WAV base64
+    resp = r.json()
+    audio_b64 = resp.get("output", {}).get("audio", "")
+    if not audio_b64:
+        raise RuntimeError(f"DashScope response missing audio: {json.dumps(resp, ensure_ascii=False)[:200]}")
+    import base64
+    return base64.b64decode(audio_b64)
 
 
 def _has_espeak() -> bool:
@@ -220,19 +216,14 @@ def _has_espeak() -> bool:
 def say(text: str, lang: str = "zh") -> bytes:
     """
     TTS 文本转语音, 返回 WAV 字节。
-    优先级: 百炼 DashScope CosyVoice > espeak-ng > espeak
+    优先 DashScope CosyVoice, 不可用时回退 espeak-ng。
     """
     _player.stop()
-
-    # ---- 百炼 CosyVoice ----
-    if _TTS_PROVIDER == "dashscope" and _DASHSCOPE_KEY:
-        try:
-            return _tts_dashscope(text)
-        except Exception:
-            import traceback
-            traceback.print_exc()
-
-    # ---- espeak 离线回退 ----
+    try:
+        return _dashscope_tts(text)
+    except Exception as e:
+        print(f"[TTS] DashScope failed: {e}, falling back to espeak-ng")
+    # 回退离线 TTS
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         wav_path = tmp.name
     try:
@@ -257,6 +248,8 @@ def play_say(text: str, lang: str = "zh") -> None:
 # === 设备信息 ===
 def get_devices() -> dict:
     """返回音频设备信息"""
+    _load_tts_env()
+    tts_provider = os.environ.get("MINIMOVER_TTS_PROVIDER", "dashscope")
     return {
         "mic": {
             "device": MIC_DEVICE,
@@ -272,8 +265,9 @@ def get_devices() -> dict:
             "channels": 2
         },
         "tts": {
-            "available": _has_espeak(),
-            "engine": "espeak-ng" if _has_espeak() else None
+            "available": True,
+            "engine": "DashScope CosyVoice" if tts_provider == "dashscope" else "espeak-ng",
+            "provider": tts_provider,
         }
     }
 

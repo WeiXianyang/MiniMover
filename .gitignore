@@ -229,6 +229,11 @@ __marimo__/
 /fire_smoke_detection/.env
 !/fire_smoke_detection/.env.example
 
+# Face module runtime DB / debug
+/face/face_users.db
+/face/__pycache__/
+/fire_smoke_detection/fire_smoke_detection/runtime/debug/
+
 # Local external repositories and generated demo artifacts
 /oh-ai-car-ros-app/
 /traffic_light/gitee-traffic_light_detection/
@@ -238,3 +243,13 @@ __marimo__/
 /traffic_light/test_images/
 /traffic_light/test_plate.jpg
 /traffic_light/output_yolo/
+yahboomcar-nav-src/**/.ipynb_checkpoints/
+yahboomcar-nav-src/**/*.bak*
+yahboomcar-nav-src/**/*.new*
+yahboomcar-nav-src/**/*.zzh*
+yahboomcar-nav-src/**/*.okk
+yahboomcar-nav-src/**/*.0409
+yahboomcar-nav-src/**/*.0421
+yahboomcar-nav-src/**/*.20250409
+yahboomcar-nav-src/**/*.outdoor
+yahboomcar-nav-src/**/*.room

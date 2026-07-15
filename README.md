@@ -208,7 +208,15 @@ ros2 run icar_linefollow follow_line_a1_X3
    sudo python3 setup.py install
    ```
 
-## 九、关键文件索引
+## 九、MiniMover API 补充入口
+
+通过 `api_server.py`（默认 `:5000`）还可访问：
+
+- `/face`：车端人脸注册 / 1:N 识别页面
+- `/nav/patrol`：地图巡逻
+- `/nav`：单点导航
+
+## 十、关键文件索引
 
 
 | 想了解...          | 看这个文件                                                           |
