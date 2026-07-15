@@ -4,7 +4,7 @@ from __future__ import annotations
 
 CAR_STREAMS = {
     "car_a": "http://192.168.137.23:8080/stream?topic=/camera/color/image_raw",
-    "car_b": "http://192.168.137.254:8080/stream?topic=/camera/color/image_raw",
+    "car_b": "http://192.168.43.8:6500/video_feed",
 }
 PROXY_STREAMS = {
     "proxy:car_a": "http://localhost:8888/proxy/camera/car_A",
