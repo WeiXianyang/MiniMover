@@ -9,12 +9,14 @@ from Rosmaster_Lib import Rosmaster
 from audio.icar_audio import record_start, record_status, record_stop, record_get
 from audio.icar_audio import play_wav, stop_playback, say as tts_say, get_devices as audio_devices
 from navigation import nav_bp, register_legacy_routes, register_patrol_page
+from face import register_face_routes
 
 app = Flask(__name__)
 CORS(app)
 app.register_blueprint(nav_bp, url_prefix='/api/nav')
 register_legacy_routes(app)
 register_patrol_page(app)
+register_face_routes(app)
 sensor = iCarSensorDriver()
 bot = Rosmaster(debug=False)
 bot.create_receive_threading()
@@ -519,6 +521,7 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 <h1>FIRECUARD</h1>
 <a class="nav-link" href="/nav/patrol">🗺️ 地图巡逻</a>
 <a class="nav-link" href="/nav">📍 单点导航</a>
+<a class="nav-link" href="/face">👤 人脸识别</a>
 <div class="ip-bar" id="ipBar">连接中...</div>
 <div class="sensors" id="sensorBar"></div>
 <div class="video-wrap" id="videoWrap"><img id="videoFeed" src="" alt="video"><div id="camHint" style="font-size:12px;color:#888;padding:6px"></div></div>
