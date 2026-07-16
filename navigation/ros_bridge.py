@@ -11,6 +11,8 @@ _PATROL_HINT = '请在网页点击「启动导航栈」（会自动启动容器�
 _cache_lock_time = 0.0
 _container_cache = (False, 0.0)  # running, ts
 _ready_cache = (False, 0.0)  # ready, ts
+_pose_cache = (None, 0.0)  # normalized pose, ts
+_POSE_CACHE_TTL = 0.8
 
 
 def _docker_cmd(*args):
@@ -83,6 +85,68 @@ def _parse_trigger_response(text):
     return {'success': False, 'message': text or 'empty response from ros2'}
 
 
+_NUMBER_RE = r'[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?'
+
+
+def _invalid_pose(message, success=True):
+    return {
+        'success': success,
+        'valid': False,
+        'x': None,
+        'y': None,
+        'yaw': None,
+        'frame_id': '',
+        'source': '',
+        'stamp': {'sec': 0, 'nanosec': 0},
+        'message': message,
+    }
+
+
+def _parse_robot_pose_response(text):
+    valid_match = re.search(r'valid=(True|False)', text)
+    if not valid_match:
+        return _invalid_pose('failed to parse pose service response', success=False)
+
+    message_match = re.search(r"message='([^']*)'", text, re.DOTALL)
+    message = message_match.group(1) if message_match else ''
+    if valid_match.group(1) != 'True':
+        return _invalid_pose(message or 'map-frame pose unavailable')
+
+    position_match = re.search(
+        r'position=.*?Point\(x=(%s), y=(%s),' % (_NUMBER_RE, _NUMBER_RE),
+        text, re.DOTALL)
+    orientation_match = re.search(
+        r'orientation=.*?Quaternion\(x=(%s), y=(%s), z=(%s), w=(%s)\)'
+        % (_NUMBER_RE, _NUMBER_RE, _NUMBER_RE, _NUMBER_RE),
+        text, re.DOTALL)
+    frame_match = re.search(r"frame_id='([^']*)'", text)
+    stamp_match = re.search(r'Time\(sec=(-?\d+), nanosec=(\d+)\)', text)
+    source_match = re.search(r"source='([^']*)'", text)
+    if not all([position_match, orientation_match, frame_match, stamp_match, source_match]):
+        return _invalid_pose('failed to parse pose service response', success=False)
+
+    x = float(position_match.group(1))
+    y = float(position_match.group(2))
+    qx, qy, qz, qw = (float(value) for value in orientation_match.groups())
+    yaw = math.atan2(
+        2.0 * (qw * qz + qx * qy),
+        1.0 - 2.0 * (qy * qy + qz * qz))
+    return {
+        'success': True,
+        'valid': True,
+        'x': x,
+        'y': y,
+        'yaw': yaw,
+        'frame_id': frame_match.group(1),
+        'source': source_match.group(1),
+        'stamp': {
+            'sec': int(stamp_match.group(1)),
+            'nanosec': int(stamp_match.group(2)),
+        },
+        'message': message or 'ok',
+    }
+
+
 def _call_trigger(service):
     proc, err = _run_ros(
         'ros2 service call %s std_srvs/srv/Trigger "{}"' % service, timeout=12)
@@ -92,6 +156,30 @@ def _call_trigger(service):
     if proc.returncode != 0:
         return {'success': False, 'message': _friendly_error(text or 'trigger failed')}
     return _parse_trigger_response(text)
+
+
+
+def get_robot_pose(force=False):
+    global _pose_cache
+    now = time.time()
+    cached, cached_at = _pose_cache
+    if not force and cached is not None and now - cached_at < _POSE_CACHE_TTL:
+        return cached
+
+    proc, err = _run_ros(
+        'ros2 service call /patrol/get_robot_pose '
+        'yahboomcar_patrol_interfaces/srv/GetRobotPose "{}"',
+        timeout=5)
+    if err:
+        result = _invalid_pose(err.get('message', 'localization service unavailable'), success=False)
+    else:
+        text = _combined_output(proc)
+        if proc.returncode != 0:
+            result = _invalid_pose(_friendly_error(text or 'pose service failed'), success=False)
+        else:
+            result = _parse_robot_pose_response(text)
+    _pose_cache = (result, now)
+    return result
 
 
 def patrol_services_ready(force=False):

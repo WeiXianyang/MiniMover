@@ -133,6 +133,13 @@ def patrol_clear():
     return _ok(result, result.get('message', 'ok'))
 
 
+@nav_bp.route('/pose', methods=['GET'])
+def patrol_pose_api():
+    result = dict(ros_bridge.get_robot_pose())
+    result.pop('success', None)
+    return _ok(result, result.get('message', 'ok'))
+
+
 @nav_bp.route('/patrol/status', methods=['GET'])
 def patrol_status_api():
     return _ok(ros_bridge.patrol_status())
