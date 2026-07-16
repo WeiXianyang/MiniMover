@@ -323,6 +323,16 @@ python -m voice_assistant.voice_service --asr remote_whisper
 | 麦克风无输入 | 设备权限 | `arecord -l` 确认 `hw:2,0` 存在 |
 | torch 导入失败 | venv 路径错误 | 确认用的 `.venv-voice` 或 `.venv-voice-cpu` |
 
+## One-click live demo
+
+On Windows, double-click the root-level hospital-guide `.bat` launcher, or run:
+
+```powershell
+python scripts/start_hospital_guide_demo.py
+```
+
+The launcher reuses or starts the real PC ASR WebSocket server, uploads the non-secret Jetson launcher over SSH, and checks the real API, map patrol page, ASR port, and Jetson microphone stream. The SSH password is entered interactively and is never written to the script. The car LLM configuration remains in the permission-600 `.env.voice`.
+
 ## Live hospital-guide voice bridge
 
 Set `MINIMOVER_HOSPITAL_GUIDE_MODE=1` together with `MINIMOVER_HOSPITAL_GUIDE_ENABLED=1` on the Jetson. The live chain is: car microphone and wake word -> WebSocket ASR `final_text` -> local `/api/hospital-guide/turn` -> ShortMedKG retrieval plus an OpenAI-compatible LLM -> the existing car TTS endpoint. In hospital-guide mode, the Jetson client ignores legacy upstream `chat_reply` and `command` messages so they cannot duplicate speech or bypass confirmation-gated navigation.
