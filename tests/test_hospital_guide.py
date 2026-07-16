@@ -88,5 +88,25 @@ class HospitalGuideTests(unittest.TestCase):
         car.navigate_to.assert_not_called()
 
 
+    def test_invalid_or_disabled_navigation_is_rejected(self):
+        payload = json.loads(self.config_path.read_text(encoding="utf-8"))
+        payload["departments"][0]["navigation"]["enabled"] = False
+        write_json(self.config_path, payload)
+        config = HospitalGuideConfig.from_path(self.config_path)
+        self.assertFalse(config.department("internal_medicine").navigation_enabled)
+
+        payload["departments"].append(dict(payload["departments"][0]))
+        write_json(self.config_path, payload)
+        with self.assertRaises(ValueError):
+            HospitalGuideConfig.from_path(self.config_path)
+
+
+    def test_committed_template_configuration_loads_with_navigation_disabled(self):
+        template = Path(__file__).resolve().parents[1] / "voice_assistant" / "data" / "hospital_guide_template.json"
+        config = HospitalGuideConfig.from_path(template)
+        self.assertFalse(config.department("emergency").navigation_enabled)
+        self.assertFalse(config.department("pharmacy").navigation_enabled)
+
+
 if __name__ == "__main__":
     unittest.main()
