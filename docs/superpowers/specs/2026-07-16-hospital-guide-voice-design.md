@@ -1,4 +1,4 @@
-﻿# 医院导诊语音机器人设计
+# 医院导诊语音机器人设计
 
 ## 目标
 
@@ -81,6 +81,8 @@ flowchart LR
 
 `hospital_guide_template.json` 使用以下结构；坐标必须由现有地图选点工具取得并人工复核。
 
+`navigation.enabled` is the manual waypoint-review gate: every bundled template entry must start as `false`. It may be set to `true` only after real map coordinates have been selected and verified on site; a disabled entry must never call navigation.
+
 ```json
 {
   "hospital_name": "MiniMover 示范医院",
@@ -92,7 +94,7 @@ flowchart LR
       "aliases": ["急诊科", "急救", "急救中心"],
       "floor": "一层",
       "directions": "从当前位置沿主走廊直行，到服务台右转即可到达急诊入口。",
-      "navigation": {"x": 0.0, "y": 0.0, "theta": 0.0}
+      "navigation": {"enabled": false, "x": 0.0, "y": 0.0, "theta": 0.0}
     }
   ]
 }

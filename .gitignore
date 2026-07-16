@@ -259,3 +259,5 @@ yahboomcar-nav-src/**/*.room
 /launch_log.txt
 /.reasonix/attachments/
 /traffic_light/runtime/
+# Downloaded medical knowledge snapshot and verification metadata
+/voice_assistant/data/shortmedkg/

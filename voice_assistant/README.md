@@ -191,6 +191,59 @@ export MINIMOVER_API_KEY=sk-xxx
 
 ---
 
+## Hospital-guide defense template
+
+The hospital-guide template is enabled by default. Motion commands keep their existing priority: for example, a stop command still goes directly to the vehicle controller, and only non-motion utterances enter the guide conversation. Short-term memory and a pending destination are reset at the start of a wake-word session and when the AWAKE window expires.
+
+This feature is for defense demonstrations only. It provides department routing, in-building directions, and general health education; it **does not diagnose, prescribe, adjust medication, or replace on-site clinicians**. For emergency clues such as unconsciousness, heavy bleeding, or breathing difficulty, it tells the user to contact on-site staff or go to emergency care and never starts navigation automatically.
+
+### 1. Download the pinned local medical knowledge snapshot
+
+From the repository root, run:
+
+```bash
+python scripts/fetch_shortmedkg.py
+```
+
+The downloader retrieves a fixed ShortMedKG Git commit, validates the JSONL, atomically writes `voice_assistant/data/shortmedkg/input_v4.jsonl`, and creates checksum metadata beside it. The snapshot and metadata are ignored by Git: never commit them, API keys, recordings, or conversation data.
+
+### 2. Bind departments to existing floor-map waypoints
+
+Edit `voice_assistant/data/hospital_guide_template.json`. For each department you will demonstrate, select `x`, `y`, and `theta` with the existing floor-model/map waypoint tool, manually verify the result, and set `navigation.enabled` to `true`.
+
+```json
+"navigation": {"enabled": true, "x": 1.25, "y": -3.40, "theta": 0.0}
+```
+
+All template departments start with `navigation.enabled: false` and placeholder `0.0` coordinates. **Never use the default `0.0, 0.0, 0.0` as a valid waypoint.** A disabled department never calls `/api/navigate`. The robot asks for an explicit confirmation before it sends any configured destination to navigation.
+
+### 3. Configure the existing OpenAI-compatible LLM and start
+
+The guide uses the existing OpenAI-compatible LLM settings. With no LLM configured, direct department routing and confirmation can still be demonstrated; symptom questions safely fall back to asking the user to consult the service desk.
+
+```bash
+export MINIMOVER_LLM_URL=https://your-endpoint/v1
+export MINIMOVER_LLM_MODEL=your-model
+export MINIMOVER_API_KEY=your-secret
+export MINIMOVER_HOSPITAL_GUIDE_ENABLED=1
+python -m voice_assistant.voice_service
+```
+
+| Variable | Default | Purpose |
+|------|--------|------|
+| `MINIMOVER_HOSPITAL_GUIDE_ENABLED` | `1` | Set to `0` or `false` to disable guide orchestration. |
+| `MINIMOVER_HOSPITAL_GUIDE_PATH` | bundled template | Department and manually reviewed map-waypoint configuration. |
+| `MINIMOVER_MEDICAL_KB_PATH` | local ShortMedKG JSONL | Local lightweight retrieval corpus. |
+| `MINIMOVER_MEDICAL_MEMORY_TURNS` | `6` | Conversation turns retained, clamped to 1-12. |
+| `MINIMOVER_MEDICAL_RETRIEVAL_LIMIT` | `3` | Evidence snippets per turn, clamped to 1-5. |
+| `MINIMOVER_MEDICAL_REPLY_MAX_CHARS` | `180` | Reply length before TTS, clamped to 60-300. |
+
+### Demonstration and privacy boundary
+
+This is not for real diagnosis, treatment, or emergency rescue. Ensure on-site staff are available during a defense demonstration. Do not collect or persist names, IDs, medical-record numbers, contact information, recordings, or conversation logs. The current version does not cancel a navigation goal that has already been sent to the navigation stack: a voice stop command retains only its existing chassis-control priority.
+
+---
+
 ## 远程 Whisper 兜底
 
 当 FunASR 不可用时，可切换为通过小车麦克风录制后发送到远程 Whisper：
@@ -224,6 +277,12 @@ python -m voice_assistant.voice_service --asr remote_whisper
 | `MINIMOVER_API_KEY` | (空) | API Key |
 | `MINIMOVER_WHISPER_URL` | (空) | Whisper API 地址 |
 | `MINIMOVER_CAR_AUDIO_DURATION` | `4` | 远程 Whisper 录制秒数 |
+| `MINIMOVER_HOSPITAL_GUIDE_ENABLED` | `1` | Enable hospital-guide orchestration |
+| `MINIMOVER_HOSPITAL_GUIDE_PATH` | bundled template | Department and reviewed map-waypoint configuration |
+| `MINIMOVER_MEDICAL_KB_PATH` | local ShortMedKG path | Local medical-knowledge JSONL |
+| `MINIMOVER_MEDICAL_MEMORY_TURNS` | `6` | Guide memory turns (1-12) |
+| `MINIMOVER_MEDICAL_RETRIEVAL_LIMIT` | `3` | Local evidence count (1-5) |
+| `MINIMOVER_MEDICAL_REPLY_MAX_CHARS` | `180` | Guide reply length (60-300) |
 
 ---
 
