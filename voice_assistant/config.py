@@ -22,6 +22,7 @@ class VoiceConfig:
         module_dir = os.path.dirname(os.path.abspath(__file__))
         default_guide_path = os.path.join(module_dir, "data", "hospital_guide_template.json")
         default_kb_path = os.path.join(module_dir, "data", "shortmedkg", "input_v4.jsonl")
+        default_telemetry_path = os.path.join(module_dir, "data", "hospital_guide_runtime.json")
 
         self.asr_backend = os.getenv("MINIMOVER_ASR_BACKEND", "auto").lower()
         self.car_url = os.getenv("MINIMOVER_CAR_URL", "http://127.0.0.1:5000")
@@ -45,6 +46,9 @@ class VoiceConfig:
             "MINIMOVER_HOSPITAL_GUIDE_PATH", default_guide_path
         )
         self.medical_kb_path = os.getenv("MINIMOVER_MEDICAL_KB_PATH", default_kb_path)
+        self.hospital_guide_telemetry_path = os.getenv(
+            "MINIMOVER_HOSPITAL_GUIDE_TELEMETRY_PATH", default_telemetry_path
+        )
         self.medical_memory_turns = max(
             1, min(_int("MINIMOVER_MEDICAL_MEMORY_TURNS", 6), 12)
         )

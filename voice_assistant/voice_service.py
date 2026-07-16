@@ -18,6 +18,7 @@ try:
     from .wake_word import WakeWordVoiceService
     from .hospital_guide import HospitalGuideConfig, HospitalGuideOrchestrator
     from .medical_knowledge import MedicalKnowledgeBase
+    from .hospital_guide_telemetry import HospitalGuideTelemetry
 except ImportError:
     from asr_backend import FunAsrBackend, WhisperBackend
     from remote_audio_backend import RemoteWhisperBackend
@@ -30,6 +31,7 @@ except ImportError:
     from wake_word import WakeWordVoiceService
     from hospital_guide import HospitalGuideConfig, HospitalGuideOrchestrator
     from medical_knowledge import MedicalKnowledgeBase
+    from hospital_guide_telemetry import HospitalGuideTelemetry
 
 LOGGER = logging.getLogger("mini-mover-voice")
 
@@ -177,6 +179,7 @@ def main():
     hospital_guide = None
     if config.hospital_guide_enabled:
         try:
+            telemetry = HospitalGuideTelemetry(config.hospital_guide_telemetry_path)
             hospital_guide = HospitalGuideOrchestrator(
                 HospitalGuideConfig.from_path(config.hospital_guide_path),
                 MedicalKnowledgeBase.from_jsonl(config.medical_kb_path),
@@ -185,6 +188,7 @@ def main():
                 memory_turns=config.medical_memory_turns,
                 retrieval_limit=config.medical_retrieval_limit,
                 reply_max_chars=config.medical_reply_max_chars,
+                telemetry=telemetry,
             )
             LOGGER.info("hospital guide enabled with configuration: %s", config.hospital_guide_path)
         except ValueError:

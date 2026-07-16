@@ -1,7 +1,10 @@
-﻿import unittest
+import os
+import unittest
+from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from voice_assistant.config import VoiceConfig
 from voice_assistant.hospital_guide_telemetry import HospitalGuideTelemetry
 
 
@@ -34,6 +37,11 @@ class HospitalGuideTelemetryTests(unittest.TestCase):
         self.assertEqual(["reply", "reply"], [item["type"] for item in snapshot["events"]])
         self.assertFalse(snapshot["navigation"]["requested"])
 
+
+    def test_voice_config_defaults_telemetry_next_to_guide_data(self):
+        with patch.dict(os.environ, {}, clear=True):
+            config = VoiceConfig()
+        self.assertTrue(config.hospital_guide_telemetry_path.endswith("hospital_guide_runtime.json"))
 
 if __name__ == "__main__":
     unittest.main()
