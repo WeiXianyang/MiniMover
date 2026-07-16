@@ -1,4 +1,4 @@
-﻿---
+---
 bool valid
 geometry_msgs/PoseStamped pose
 string source

@@ -5,6 +5,7 @@ export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-30}
 export ROBOT_TYPE=${ROBOT_TYPE:-x3}
 export RPLIDAR_TYPE=${RPLIDAR_TYPE:-a1}
 WS=/root/yahboomcar_ros2_ws/yahboomcar_ws
+LIB_WS=/root/yahboomcar_ros2_ws/software/library_ws
 PIDFILE=/tmp/p1_stack.pid
 LOCKFILE=/tmp/p1_stack.lock
 LOGFILE=/tmp/p1_stack.log
@@ -16,6 +17,9 @@ if [ -f "$WS/ros_aliases.sh" ]; then
 fi
 
 source /opt/ros/foxy/setup.bash
+if [ -f "$LIB_WS/install/setup.bash" ]; then
+    source "$LIB_WS/install/setup.bash"
+fi
 source "$WS/install/yahboomcar_patrol_interfaces/share/yahboomcar_patrol_interfaces/local_setup.bash"
 source "$WS/install/yahboomcar_nav/share/yahboomcar_nav/package.bash"
 
@@ -86,6 +90,7 @@ start)
     # setsid：脱离 docker exec 会话，避免宿主机 docker exec 结束后把 launch 杀掉
     : > "$LOGFILE"
     setsid bash -c "source /opt/ros/foxy/setup.bash; \
+      if [ -f '$LIB_WS/install/setup.bash' ]; then source '$LIB_WS/install/setup.bash'; fi; \
       source '$WS/install/yahboomcar_patrol_interfaces/share/yahboomcar_patrol_interfaces/local_setup.bash'; \
       source '$WS/install/yahboomcar_nav/share/yahboomcar_nav/package.bash'; \
       export ROS_DOMAIN_ID='$ROS_DOMAIN_ID'; \
