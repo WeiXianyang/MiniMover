@@ -128,6 +128,39 @@ def test_terminal_navigation_failure_enters_recovery():
     assert controller.status()["recovery_reason"] == "Nav2 did not reach the target"
 
 
+def test_status_route_publishes_arrival_after_real_navigation_evidence():
+    navigation = {"arrived": False, "status": "ACTIVE", "message": "goal active"}
+    controller = HospitalGuideDemoController(
+        bridge=RecordingBridge(),
+        navigation_status=lambda: dict(navigation),
+        snapshot_fetcher=_camera_failure,
+        scan_timeout_s=60.0,
+    )
+    app = Flask(__name__)
+    register_hospital_guide_demo(app, controller)
+    client = app.test_client()
+
+    controller.start()
+    controller._session.set_welcome(None)
+    claim = controller.claim_welcome()
+    controller.acknowledge_welcome(claim["session_id"])
+    controller.on_guide_event({
+        "type": "department_matched",
+        "department_id": "internal_medicine",
+    })
+    controller.on_guide_event({
+        "type": "navigation_started",
+        "department_id": "internal_medicine",
+    })
+    navigation.update({"arrived": True, "status": "SUCCEEDED", "message": "goal succeeded"})
+
+    payload = client.get("/api/hospital-guide/demo/status").get_json()["data"]
+
+    assert payload["session"]["phase"] == "ARRIVED"
+    assert payload["navigation"]["status"] == "SUCCEEDED"
+    assert payload["navigation"]["arrived"] is True
+
+
 def test_public_status_exposes_only_demo_session_and_navigation_evidence():
     controller = HospitalGuideDemoController(
         bridge=RecordingBridge(),
