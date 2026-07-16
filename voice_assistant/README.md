@@ -322,3 +322,15 @@ python -m voice_assistant.voice_service --asr remote_whisper
 | TTS 返回 500 | edge-tts 未装 | `python3 -c "import edge_tts"` |
 | 麦克风无输入 | 设备权限 | `arecord -l` 确认 `hw:2,0` 存在 |
 | torch 导入失败 | venv 路径错误 | 确认用的 `.venv-voice` 或 `.venv-voice-cpu` |
+
+## Live hospital-guide voice bridge
+
+Set `MINIMOVER_HOSPITAL_GUIDE_MODE=1` together with `MINIMOVER_HOSPITAL_GUIDE_ENABLED=1` on the Jetson. The live chain is: car microphone and wake word -> WebSocket ASR `final_text` -> local `/api/hospital-guide/turn` -> ShortMedKG retrieval plus an OpenAI-compatible LLM -> the existing car TTS endpoint. In hospital-guide mode, the Jetson client ignores legacy upstream `chat_reply` and `command` messages so they cannot duplicate speech or bypass confirmation-gated navigation.
+
+Fetch the pinned open medical corpus before starting the service:
+
+```bash
+python3 scripts/fetch_shortmedkg.py
+```
+
+Optional LLM variables are `MINIMOVER_HOSPITAL_GUIDE_LLM_URL`, `MINIMOVER_HOSPITAL_GUIDE_LLM_MODEL`, and `MINIMOVER_HOSPITAL_GUIDE_LLM_API_KEY`. If URL is omitted but a DashScope/API key is present, the bridge uses the DashScope OpenAI-compatible endpoint with `qwen-plus`. If the LLM is unavailable, the bridge falls back to a conservative answer based on the retrieved corpus; it does not diagnose or prescribe.

@@ -11,6 +11,7 @@ from audio.icar_audio import play_wav, stop_playback, say as tts_say, get_device
 from navigation import nav_bp, register_legacy_routes, register_patrol_page
 from face import register_face_routes
 from hospital_guide_console import register_hospital_guide_console
+from hospital_guide_bridge import register_hospital_guide_bridge
 
 app = Flask(__name__)
 CORS(app)
@@ -21,6 +22,12 @@ register_hospital_guide_console(
     app,
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_runtime.json"),
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_template.json"),
+)
+register_hospital_guide_bridge(
+    app,
+    config_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_template.json"),
+    knowledge_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "shortmedkg", "input_v4.jsonl"),
+    telemetry_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_runtime.json"),
 )
 register_face_routes(app)
 sensor = iCarSensorDriver()
