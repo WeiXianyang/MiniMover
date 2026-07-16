@@ -18,7 +18,7 @@ Usage: start_hospital_guide_demo.sh [--asr-host HOST] [--asr-port PORT]
 
 Starts the real Jetson-side hospital-guide chain:
   fireguard-api.service -> hospital guide API + existing map/navigation API
-  voice_assistant/car_client.py -> Jetson microphone -> PC ASR final_text
+  voice_assistant/car_client_jetson.py -> Jetson microphone -> PC ASR final_text
   hospital guide -> ShortMedKG + configured OpenAI-compatible LLM -> car TTS
 
 No mock input or fake navigation result is generated.
@@ -141,7 +141,7 @@ if [ -f "$CAR_PID_FILE" ]; then
     fi
 fi
 if [ -z "$existing_pid" ]; then
-    existing_pid="$(pgrep -f '[v]oice_assistant/car_client.py' | head -1 || true)"
+    existing_pid="$(pgrep -f '[v]oice_assistant/car_client_jetson.py' | head -1 || true)"
 fi
 
 if [ -n "$existing_pid" ]; then
@@ -151,6 +151,11 @@ if [ -n "$existing_pid" ]; then
         process_env="$(tr '\0' '\n' < "/proc/$existing_pid/environ" 2>/dev/null || true)"
         if ! printf '%s\n' "$process_env" | grep -qx 'MINIMOVER_HOSPITAL_GUIDE_MODE=1'; then
             echo "[ERROR] existing car client is not in hospital-guide mode (pid=$existing_pid)" >&2
+            echo "        Stop it manually, then rerun this launcher." >&2
+            exit 1
+        fi
+        if ! printf '%s\n' "$process_env" | grep -qx 'MINIMOVER_HOSPITAL_GUIDE_DEMO_MODE=1'; then
+            echo "[ERROR] existing car client is not in hospital-guide demo mode (pid=$existing_pid)" >&2
             echo "        Stop it manually, then rerun this launcher." >&2
             exit 1
         fi
@@ -173,9 +178,10 @@ else
         MINIMOVER_ASR_PORT="$ASR_PORT" \
         MINIMOVER_CAR_URL="$CAR_URL" \
         MINIMOVER_HOSPITAL_GUIDE_MODE=1 \
+        MINIMOVER_HOSPITAL_GUIDE_DEMO_MODE=1 \
         MINIMOVER_HOSPITAL_GUIDE_ENABLED=1 \
         MINIMOVER_CAR_SPEAKER=1 \
-        "$PYTHON" -u voice_assistant/car_client.py \
+        "$PYTHON" -u voice_assistant/car_client_jetson.py \
         >>"$CAR_LOG" 2>&1 < /dev/null &
     car_pid=$!
     echo "$car_pid" > "$CAR_PID_FILE"

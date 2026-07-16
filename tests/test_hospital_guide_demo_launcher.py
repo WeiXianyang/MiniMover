@@ -27,8 +27,11 @@ def test_launchers_use_real_components_and_no_credentials():
     local = (ROOT / "scripts" / "start_hospital_guide_demo.py").read_text(encoding="utf-8")
     jetson = (ROOT / "scripts" / "start_hospital_guide_demo.sh").read_text(encoding="utf-8")
     assert "pc_asr_server.py" in local
-    assert "voice_assistant/car_client.py" in jetson
+    assert "voice_assistant/car_client_jetson.py" in jetson
+    assert "voice_assistant/car_client.py" not in jetson
     assert "hospital-guide" in jetson
+    assert jetson.count("MINIMOVER_HOSPITAL_GUIDE_DEMO_MODE=1") >= 2
+    assert "MINIMOVER_HOSPITAL_GUIDE_MODE=1" in jetson
     assert "yahboom" not in local.lower()
     assert "sk-" not in local
     assert "MINIMOVER_SSH_PASSWORD" in local
