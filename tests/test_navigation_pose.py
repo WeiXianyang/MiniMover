@@ -29,8 +29,8 @@ def test_get_robot_pose_interface_declares_map_pose_response():
 def test_route_patrol_wires_tf_amcl_fallback_and_pose_service():
     source = ROUTE_PATROL.read_text(encoding='utf-8')
 
-    assert 'from tf2_ros import Buffer, TransformListener' in source
-    assert 'from geometry_msgs.msg import PoseWithCovarianceStamped' in source
+    assert 'Buffer' in source and 'TransformListener' in source
+    assert 'PoseWithCovarianceStamped' in source
     assert 'GetRobotPose' in source
     assert "'/amcl_pose'" in source
     assert "'/patrol/get_robot_pose'" in source

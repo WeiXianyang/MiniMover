@@ -10,15 +10,19 @@ import math
 
 import rclpy
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import PointStamped, PoseStamped, Quaternion
+from geometry_msgs.msg import (
+    PointStamped, PoseStamped, PoseWithCovarianceStamped, Quaternion,
+)
 from nav_msgs.msg import Path
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.node import Node
+from rclpy.time import Time
 from std_msgs.msg import String
+from tf2_ros import Buffer, TransformException, TransformListener
 from std_srvs.srv import SetBool, Trigger
 from visualization_msgs.msg import Marker, MarkerArray
-from yahboomcar_patrol_interfaces.srv import GetRoute, SetRoute
+from yahboomcar_patrol_interfaces.srv import GetRobotPose, GetRoute, SetRoute
 
 
 def yaw_to_quaternion(yaw):
@@ -61,18 +65,26 @@ class RoutePatrol(Node):
         self.declare_parameter('waypoint_spacing', 0.5)
         self.declare_parameter('loop', True)
         self.declare_parameter('frame_id', 'map')
+        self.declare_parameter('pose_max_age', 3.0)
 
         self.waypoint_spacing = self.get_parameter('waypoint_spacing').value
         self.loop = self.get_parameter('loop').value
         self.frame_id = self.get_parameter('frame_id').value
+        self.pose_max_age = float(self.get_parameter('pose_max_age').value)
 
         self.route_points = []
         self.patrol_poses = []
         self.patrol_active = False
         self._goal_handle = None
         self._current_index = 0
+        self._last_amcl_pose = None
+        self._last_amcl_received_at = None
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.create_subscription(PointStamped, '/clicked_point', self._clicked_point_cb, 10)
+        self.create_subscription(
+            PoseWithCovarianceStamped, '/amcl_pose', self._amcl_pose_cb, 10)
         self.route_pub = self.create_publisher(Path, '/patrol_route', 10)
         self.waypoints_pub = self.create_publisher(MarkerArray, '/waypoints', 10)
         self.status_pub = self.create_publisher(String, '/patrol_status', 10)
@@ -84,6 +96,7 @@ class RoutePatrol(Node):
         self.create_service(SetBool, '/patrol/set_loop', self._set_loop_cb)
         self.create_service(SetRoute, '/patrol/set_route', self._set_route_cb)
         self.create_service(GetRoute, '/patrol/get_route', self._get_route_cb)
+        self.create_service(GetRobotPose, '/patrol/get_robot_pose', self._get_robot_pose_cb)
 
         self._action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
 
@@ -91,6 +104,51 @@ class RoutePatrol(Node):
             'ready: RViz Publish Point 画路线, 然后 pstart 开始巡逻'
         )
         self.get_logger().info('Route patrol ready (navigate_to_pose mode, same as n3)')
+
+    def _amcl_pose_cb(self, msg):
+        self._last_amcl_pose = msg
+        self._last_amcl_received_at = self.get_clock().now()
+
+    def _pose_is_fresh(self, received_at):
+        if received_at is None:
+            return False
+        age_ns = (self.get_clock().now() - received_at).nanoseconds
+        return 0 <= age_ns <= int(self.pose_max_age * 1000000000)
+
+    def _get_robot_pose_cb(self, request, response):
+        del request
+        now = self.get_clock().now().to_msg()
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.frame_id, 'base_footprint', Time())
+            response.valid = True
+            response.pose.header.stamp = now
+            response.pose.header.frame_id = self.frame_id
+            response.pose.pose.position.x = transform.transform.translation.x
+            response.pose.pose.position.y = transform.transform.translation.y
+            response.pose.pose.position.z = transform.transform.translation.z
+            response.pose.pose.orientation = transform.transform.rotation
+            response.source = 'tf'
+            response.message = 'ok'
+            return response
+        except TransformException as exc:
+            tf_error = str(exc)
+
+        if (self._last_amcl_pose is not None
+                and self._last_amcl_pose.header.frame_id == self.frame_id
+                and self._pose_is_fresh(self._last_amcl_received_at)):
+            response.valid = True
+            response.pose.header = self._last_amcl_pose.header
+            response.pose.pose = self._last_amcl_pose.pose.pose
+            response.source = 'amcl_pose'
+            response.message = 'TF unavailable; using fresh AMCL pose'
+            return response
+
+        response.valid = False
+        response.source = ''
+        response.message = 'map-frame pose unavailable'
+        self.get_logger().debug('Live pose unavailable: %s' % tf_error)
+        return response
 
     def _publish_status(self, text):
         msg = String()
