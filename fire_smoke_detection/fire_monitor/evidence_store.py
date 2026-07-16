@@ -1,4 +1,4 @@
-ls -la /dev/v4l* 2>/dev/nullfrom __future__ import annotations
+from __future__ import annotations
 
 import json
 from datetime import datetime
