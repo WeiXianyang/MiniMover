@@ -10,12 +10,18 @@ from audio.icar_audio import record_start, record_status, record_stop, record_ge
 from audio.icar_audio import play_wav, stop_playback, say as tts_say, get_devices as audio_devices
 from navigation import nav_bp, register_legacy_routes, register_patrol_page
 from face import register_face_routes
+from hospital_guide_console import register_hospital_guide_console
 
 app = Flask(__name__)
 CORS(app)
 app.register_blueprint(nav_bp, url_prefix='/api/nav')
 register_legacy_routes(app)
 register_patrol_page(app)
+register_hospital_guide_console(
+    app,
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_runtime.json"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_template.json"),
+)
 register_face_routes(app)
 sensor = iCarSensorDriver()
 bot = Rosmaster(debug=False)
@@ -576,6 +582,7 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 <h1>FIRECUARD</h1>
 <a class="nav-link" href="/nav/patrol">🗺️ 地图巡逻</a>
 <a class="nav-link" href="/nav">📍 单点导航</a>
+<a class="nav-link" href="/hospital-guide">Hospital Guide</a>
 <a class="nav-link" href="/face">👤 人脸识别</a>
 <div class="ip-bar" id="ipBar">连接中...</div>
 <div class="sensors" id="sensorBar"></div>
