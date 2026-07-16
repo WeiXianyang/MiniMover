@@ -230,3 +230,12 @@ def test_preflight_rejects_invalid_or_duplicate_arguments_before_curl_runs(tmp_p
     assert completed.returncode == 2
     assert "usage error" in completed.stderr
     assert curl_log == ""
+
+
+def test_runbook_labels_preflight_as_read_only_and_not_a_release_gate():
+    runbook = (ROOT / "docs" / "runbooks" / "five-minute-hospital-guide-demo.md").read_text(encoding="utf-8")
+
+    assert "check_hospital_guide_preflight.sh" in runbook
+    assert "\u53ea\u8bfb" in runbook
+    assert "\u4e0d\u7b49\u4e8e\u5b9e\u8f66\u653e\u884c" in runbook
+    assert "\u8fde\u7eed\u8bd5\u8dd1\u4e09\u6b21" in runbook
