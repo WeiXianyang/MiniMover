@@ -15,6 +15,12 @@ MIN_SNAPSHOT_BYTES = 500
 INTERNAL_MEDICINE_ID = "internal_medicine"
 
 
+def _default_navigation_status():
+    from navigation.ros_bridge import demo_goal_status
+
+    return demo_goal_status()
+
+
 class HospitalGuideDemoController:
     """Coordinates a minimal, privacy-preserving five-minute guide session."""
 
@@ -28,6 +34,7 @@ class HospitalGuideDemoController:
         scan_timeout_s=8.0,
         confidence_threshold=0.90,
         scan_interval_s=0.5,
+        navigation_status=None,
     ):
         self._bridge = bridge
         self._session = session or DemoSession()
@@ -36,6 +43,7 @@ class HospitalGuideDemoController:
         self._scan_timeout_s = max(0.0, float(scan_timeout_s))
         self._confidence_threshold = min(1.0, max(0.0, float(confidence_threshold)))
         self._scan_interval_s = max(0.1, float(scan_interval_s))
+        self._navigation_status = navigation_status or _default_navigation_status
         self._scanner_lock = threading.RLock()
         self._scanner_thread = None
         self._scanner_session_id = None
@@ -55,6 +63,45 @@ class HospitalGuideDemoController:
 
     def status(self):
         return self._session.snapshot()
+
+    def refresh_navigation(self):
+        return self._apply_navigation_status(self._read_navigation_status())
+
+    def public_status(self):
+        navigation = self._read_navigation_status()
+        self._apply_navigation_status(navigation)
+        return {
+            "session": self._session.snapshot(),
+            "navigation": navigation,
+        }
+
+    def _read_navigation_status(self):
+        try:
+            result = self._navigation_status()
+        except Exception as exc:
+            return {
+                "active": False,
+                "arrived": False,
+                "status": "FAILED",
+                "message": "navigation status unavailable: %s" % exc,
+            }
+        if not isinstance(result, dict):
+            return {
+                "active": False,
+                "arrived": False,
+                "status": "FAILED",
+                "message": "navigation status returned an invalid payload",
+            }
+        return dict(result)
+
+    def _apply_navigation_status(self, result):
+        if self._session.snapshot()["phase"] != DemoPhase.NAVIGATING.value:
+            return False
+        if result.get("arrived") is True:
+            return self._session.mark_arrived()
+        if result.get("status") in {"FAILED", "CANCELLED"}:
+            self._session.recover(result.get("message", "navigation stopped"))
+        return False
 
     def claim_welcome(self):
         return self._session.claim_welcome()
@@ -193,7 +240,7 @@ def register_hospital_guide_demo(app, controller):
 
     @app.route("/api/hospital-guide/demo/status", methods=["GET"])
     def hospital_guide_demo_status():
-        return jsonify({"code": 0, "data": controller.status()})
+        return jsonify({"code": 0, "data": controller.public_status()})
 
     @app.route("/api/hospital-guide/demo/claim-welcome", methods=["POST"])
     def hospital_guide_demo_claim_welcome():

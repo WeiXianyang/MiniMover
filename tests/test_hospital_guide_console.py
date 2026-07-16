@@ -53,6 +53,24 @@ class HospitalGuideConsoleTests(unittest.TestCase):
         self.assertIn(b"/nav/patrol", response.data)
         self.assertNotIn(b"/api/navigate", response.data)
 
+    def test_favicon_request_returns_no_content_for_a_clean_console(self):
+        response = self.client.get("/favicon.ico")
+
+        self.assertEqual(204, response.status_code)
+
+    def test_console_has_anonymized_demo_fields_without_face_or_transcript_data(self):
+        from hospital_guide_console import HOSPITAL_GUIDE_CONSOLE_HTML
+
+        self.assertIn("demo-phase-value", HOSPITAL_GUIDE_CONSOLE_HTML)
+        self.assertIn("demo-identity-value", HOSPITAL_GUIDE_CONSOLE_HTML)
+        self.assertIn("/api/hospital-guide/demo/status", HOSPITAL_GUIDE_CONSOLE_HTML)
+        self.assertIn('rel="icon" href="data:,"', HOSPITAL_GUIDE_CONSOLE_HTML)
+        self.assertNotIn("confidence", HOSPITAL_GUIDE_CONSOLE_HTML)
+        self.assertNotIn("candidates", HOSPITAL_GUIDE_CONSOLE_HTML)
+        self.assertNotIn("face_image", HOSPITAL_GUIDE_CONSOLE_HTML)
+        self.assertNotIn("data.memory", HOSPITAL_GUIDE_CONSOLE_HTML)
+        self.assertNotIn("/api/nav/demo/cancel", HOSPITAL_GUIDE_CONSOLE_HTML)
+
     def test_public_config_exposes_department_metadata_without_coordinates(self):
         response = self.client.get("/api/hospital-guide/config")
         payload = response.get_json()["data"]
