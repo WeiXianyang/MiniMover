@@ -98,6 +98,36 @@ def test_arrival_transition_uses_real_navigation_evidence_only():
     assert controller.status()["phase"] == "ARRIVED"
 
 
+def test_terminal_navigation_failure_enters_recovery():
+    controller = HospitalGuideDemoController(
+        bridge=RecordingBridge(),
+        navigation_status=lambda: {
+            "arrived": False,
+            "status": "FAILED",
+            "message": "Nav2 did not reach the target",
+        },
+        snapshot_fetcher=_camera_failure,
+        scan_timeout_s=60.0,
+    )
+
+    controller.start()
+    controller._session.set_welcome(None)
+    claim = controller.claim_welcome()
+    controller.acknowledge_welcome(claim["session_id"])
+    controller.on_guide_event({
+        "type": "department_matched",
+        "department_id": "internal_medicine",
+    })
+    controller.on_guide_event({
+        "type": "navigation_started",
+        "department_id": "internal_medicine",
+    })
+
+    assert controller.refresh_navigation() is False
+    assert controller.status()["phase"] == "RECOVERY"
+    assert controller.status()["recovery_reason"] == "Nav2 did not reach the target"
+
+
 def test_public_status_exposes_only_demo_session_and_navigation_evidence():
     controller = HospitalGuideDemoController(
         bridge=RecordingBridge(),
