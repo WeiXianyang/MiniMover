@@ -105,7 +105,7 @@ def _invalid_pose(message, success=True):
 def _parse_robot_pose_response(text):
     valid_match = re.search(r'valid=(True|False)', text)
     if not valid_match:
-        return _invalid_pose(text or 'empty response from ros2', success=False)
+        return _invalid_pose('failed to parse pose service response', success=False)
 
     message_match = re.search(r"message='([^']*)'", text, re.DOTALL)
     message = message_match.group(1) if message_match else ''
@@ -123,7 +123,7 @@ def _parse_robot_pose_response(text):
     stamp_match = re.search(r'Time\(sec=(-?\d+), nanosec=(\d+)\)', text)
     source_match = re.search(r"source='([^']*)'", text)
     if not all([position_match, orientation_match, frame_match, stamp_match, source_match]):
-        return _invalid_pose('??????????', success=False)
+        return _invalid_pose('failed to parse pose service response', success=False)
 
     x = float(position_match.group(1))
     y = float(position_match.group(2))
@@ -171,7 +171,7 @@ def get_robot_pose(force=False):
         'yahboomcar_patrol_interfaces/srv/GetRobotPose "{}"',
         timeout=5)
     if err:
-        result = _invalid_pose(err.get('message', '???????'), success=False)
+        result = _invalid_pose(err.get('message', 'localization service unavailable'), success=False)
     else:
         text = _combined_output(proc)
         if proc.returncode != 0:

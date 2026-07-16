@@ -121,3 +121,11 @@ def test_patrol_page_contains_live_pose_marker_poll_and_invalid_state():
     assert 'function updateRobotPose' in PATROL_PAGE_HTML
     assert "robotPose.valid && robotPose.frame_id==='map'" in PATROL_PAGE_HTML
     assert '定位等待中' in PATROL_PAGE_HTML
+
+
+def test_malformed_robot_pose_response_returns_diagnostic():
+    pose = ros_bridge._parse_robot_pose_response('not a ROS pose response')
+
+    assert pose['success'] is False
+    assert pose['valid'] is False
+    assert pose['message'] == 'failed to parse pose service response'
