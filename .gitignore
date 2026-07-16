@@ -261,3 +261,4 @@ yahboomcar-nav-src/**/*.room
 /traffic_light/runtime/
 # Downloaded medical knowledge snapshot and verification metadata
 /voice_assistant/data/shortmedkg/
+/voice_assistant/data/hospital_guide_runtime.json

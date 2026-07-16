@@ -242,6 +242,32 @@ python -m voice_assistant.voice_service
 
 This is not for real diagnosis, treatment, or emergency rescue. Ensure on-site staff are available during a defense demonstration. Do not collect or persist names, IDs, medical-record numbers, contact information, recordings, or conversation logs. The current version does not cancel a navigation goal that has already been sent to the navigation stack: a voice stop command retains only its existing chassis-control priority.
 
+
+## 医院导诊控制台
+
+当 `MINIMOVER_HOSPITAL_GUIDE_ENABLED=1` 的语音服务已启动时，在小车同一局域网中打开：
+
+```text
+http://<小车IP>:5000/hospital-guide
+```
+
+页面实时展示以下已发生的语音导诊流程：
+
+- 对话记忆、本轮知识库命中数量、急症提示和流程审计；
+- 待确认科室、导航是否已下发及结果；
+- 已配置的科室点位启用状态（不展示坐标）。
+
+这是一个**只读展示页**：它不提供网页端下发导航的接口，仍只有语音会话中科室已匹配且用户明确说“好的 / 确认”后，才能调用导航。
+
+配置实际科室点位时，请在现有的地图建模选点控制台中进行：
+
+```text
+http://<小车IP>:5000/nav/patrol
+```
+
+将已核对的点位填入 `voice_assistant/data/hospital_guide_template.json` 后，再将相应科室的 `navigation.enabled` 设为 `true`。任何使用默认 `0.0, 0.0, 0.0` 的点位都不应启用导航。
+
+
 ---
 
 ## 远程 Whisper 兜底
@@ -283,6 +309,7 @@ python -m voice_assistant.voice_service --asr remote_whisper
 | `MINIMOVER_MEDICAL_MEMORY_TURNS` | `6` | Guide memory turns (1-12) |
 | `MINIMOVER_MEDICAL_RETRIEVAL_LIMIT` | `3` | Local evidence count (1-5) |
 | `MINIMOVER_MEDICAL_REPLY_MAX_CHARS` | `180` | Guide reply length (60-300) |
+| `MINIMOVER_HOSPITAL_GUIDE_TELEMETRY_PATH` | guide data directory | Read-only dashboard runtime snapshot path |
 
 ---
 
