@@ -60,12 +60,25 @@
       background: #0b1220;
       color: #f8fafc;
     }
-    video, canvas, .preview {
+    video, #carCam, canvas, .preview {
       width: 100%;
       border-radius: 12px;
       background: #000;
       aspect-ratio: 4/3;
       object-fit: cover;
+    }
+    .camera-stage { position: relative; }
+    .camera-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      max-width: calc(100% - 24px);
+      padding: 7px 10px;
+      border-radius: 7px;
+      background: rgba(0, 0, 0, 0.72);
+      color: #f8fafc;
+      font: 700 13px/1.3 monospace;
+      pointer-events: none;
     }
     .actions { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
     button {
@@ -108,7 +121,7 @@
   <div class="card">
     <div class="header">
       <h1>人脸识别认证</h1>
-      <p>注册录入人脸，登录校验，或 1:N 识别眼前是谁（百度云 API，暂不连接小车）</p>
+      <p>注册录入人脸，登录校验，或 1:N 识别眼前是谁（百度云 API，通过小车摄像头实时画面）</p>
     </div>
     <div class="tabs">
       <button class="tab active" data-tab="identify">身份识别</button>
@@ -117,7 +130,11 @@
     </div>
     <div class="content">
       <div class="panel">
-        <video id="video" autoplay playsinline></video>
+        <div class="camera-stage">
+        <video id="video" class="hidden" autoplay playsinline></video>
+        <img id="carCam" class="hidden" crossorigin="anonymous" alt="小车摄像头实时画面" />
+          <div id="cameraOverlay" class="camera-overlay hidden">No CameraNAVmode OK without cam</div>
+        </div>
         <canvas id="canvas" class="hidden"></canvas>
         <div class="actions">
           <button id="startCamera">打开摄像头</button>
@@ -129,7 +146,7 @@
       <div class="panel">
         <div id="identifyPanel">
           <p style="margin:0 0 12px;color:#94a3b8;font-size:14px;">
-            打开摄像头后点击「识别此人」，系统会在人脸库中搜索最相似的用户。
+            打开小车摄像头后点击「识别此人」，系统会在人脸库中搜索最相似的用户。
           </p>
           <div class="actions">
             <button id="identifyBtn" class="warn">识别此人</button>
@@ -164,6 +181,8 @@
   </div>
   <script>
     const video = document.getElementById('video');
+    const carCam = document.getElementById('carCam');
+    const cameraOverlay = document.getElementById('cameraOverlay');
     const canvas = document.getElementById('canvas');
     const preview = document.getElementById('preview');
     const statusEl = document.getElementById('status');
@@ -172,6 +191,7 @@
     const loginForm = document.getElementById('loginForm');
     const registerForm = document.getElementById('registerForm');
     let stream = null;
+    let camMode = null;
     let shots = [];
     function setStatus(text) { statusEl.textContent = text; }
     function setIdentity(text, ok) {
@@ -201,26 +221,45 @@
         switchTab(btn.dataset.tab);
       });
     });
-    document.getElementById('startCamera').addEventListener('click', async () => {
-      try {
-        if (stream) stream.getTracks().forEach((t) => t.stop());
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
-        video.srcObject = stream;
-        setStatus('摄像头已打开，请点击拍照。');
-      } catch (err) {
-        setStatus('无法打开摄像头: ' + err.message);
+    function stopLocalStream() {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = null;
       }
+      video.srcObject = null;
+    }
+    function hasLivePreview() {
+      return camMode === 'car' && carCam.complete && carCam.naturalWidth > 1;
+    }
+    document.getElementById('startCamera').addEventListener('click', () => {
+      stopLocalStream();
+      camMode = 'car';
+      video.classList.add('hidden');
+      carCam.classList.remove('hidden');
+      cameraOverlay.classList.remove('hidden');
+      const streamUrl = `http://${location.hostname}:5000/video_feed`;
+      carCam.onload = () => setStatus('小车摄像头已打开，请点击拍照或「识别此人」。');
+      carCam.onerror = () => setStatus(`无法打开小车摄像头：${streamUrl}`);
+      carCam.src = `${streamUrl}?t=${Date.now()}`;
+      setStatus('正在连接小车摄像头...');
     });
     function captureShot() {
-      const width = video.videoWidth || 640;
-      const height = video.videoHeight || 480;
+      if (!hasLivePreview()) {
+        throw new Error('小车实时画面尚未就绪');
+      }
+      const width = carCam.naturalWidth || 640;
+      const height = carCam.naturalHeight || 480;
       canvas.width = width;
       canvas.height = height;
-      canvas.getContext('2d').drawImage(video, 0, 0, width, height);
-      return new Promise((resolve) => canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.92));
+      canvas.getContext('2d').drawImage(carCam, 0, 0, width, height);
+      return new Promise((resolve, reject) => canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error('抓拍小车画面失败'))),
+        'image/jpeg',
+        0.92
+      ));
     }
     document.getElementById('capture').addEventListener('click', async () => {
-      if (!stream) { setStatus('请先打开摄像头。'); return; }
+      if (!hasLivePreview()) { setStatus('请先打开小车摄像头并等待画面出现。'); return; }
       const blob = await captureShot();
       const activeTab = document.querySelector('.tab.active').dataset.tab;
       if (activeTab === 'register') {
@@ -249,8 +288,8 @@
       setStatus(JSON.stringify(await res.json(), null, 2));
     });
     document.getElementById('identifyBtn').addEventListener('click', async () => {
-      if (!stream) {
-        setIdentity('请先打开摄像头。', false);
+      if (!hasLivePreview()) {
+        setIdentity('请先打开小车摄像头并等待画面出现。', false);
         return;
       }
       setIdentity('正在识别，请稍候...', false);
