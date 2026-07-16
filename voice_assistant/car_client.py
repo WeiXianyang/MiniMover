@@ -1,6 +1,7 @@
-﻿"""HTTP client for the existing MiniMover control API."""
+"""HTTP client for the existing MiniMover control API."""
 
 import json
+import math
 import threading
 import time
 from urllib import request
@@ -34,6 +35,29 @@ class CarClient:
         result = json.loads(raw)
         if result.get("code") != 0:
             raise RuntimeError(result.get("msg", "car control failed"))
+        return result
+
+    def navigate_to(self, x, y, theta=0.0):
+        """Send a validated goal to the existing map-point navigation endpoint."""
+        try:
+            x = float(x)
+            y = float(y)
+            theta = float(theta)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("navigation coordinates must be numeric") from exc
+        if not all(math.isfinite(value) for value in (x, y, theta)):
+            raise ValueError("navigation coordinates must be finite")
+        body = json.dumps({"x": x, "y": y, "theta": theta}).encode("utf-8")
+        req = request.Request(
+            self.base_url + "/api/navigate",
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with request.urlopen(req, timeout=self.timeout) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        if result.get("code") != 0:
+            raise RuntimeError(result.get("msg", "car navigation failed"))
         return result
 
     def execute_dance(self):

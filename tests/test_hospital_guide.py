@@ -2,8 +2,9 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
+from voice_assistant.car_client import CarClient
 from voice_assistant.hospital_guide import HospitalGuideConfig, HospitalGuideOrchestrator
 from voice_assistant.medical_knowledge import MedicalKnowledgeBase
 
@@ -106,6 +107,31 @@ class HospitalGuideTests(unittest.TestCase):
         config = HospitalGuideConfig.from_path(template)
         self.assertFalse(config.department("emergency").navigation_enabled)
         self.assertFalse(config.department("pharmacy").navigation_enabled)
+
+
+    def test_llm_receives_limited_history_and_evidence(self):
+        llm = Mock()
+        llm.answer.return_value = "guide reply"
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), llm, Mock(), memory_turns=1,
+        )
+        guide.handle("\u80f8\u75db")
+        kwargs = llm.answer.call_args.kwargs
+        self.assertIn("medical_evidence", kwargs["context"])
+        self.assertLessEqual(len(kwargs["context"]["history"]), 2)
+        self.assertIn("\u4e0d\u8bca\u65ad", kwargs["context"]["system_rules"])
+
+    @patch("voice_assistant.car_client.request.urlopen")
+    def test_car_client_posts_validated_navigation_payload(self, urlopen):
+        response = Mock()
+        response.read.return_value = b'{"code": 0}'
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        urlopen.return_value = response
+        CarClient("http://127.0.0.1:6500").navigate_to(1.2, -3.4, 0.0)
+        payload = json.loads(urlopen.call_args.args[0].data.decode("utf-8"))
+        self.assertEqual(payload, {"x": 1.2, "y": -3.4, "theta": 0.0})
 
 
 if __name__ == "__main__":
