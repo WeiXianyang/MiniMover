@@ -1,6 +1,6 @@
-﻿# 五分钟医院导诊小车演示 Runbook
+# 五分钟医院导诊小车演示 Runbook
 
-> **安全放行规则：** `voice_assistant/data/hospital_guide_template.json` 中所有导航点位当前保持 `enabled: false`。在完成真实坐标采集、两名操作员复核和连续三次试跑并填写本页放行记录之前，**不得**启用 `internal_medicine`，更不得为其它科室启用导航。
+> **安全放行规则：** `voice_assistant/data/hospital_guide_template.json` 中所有导航点位当前保持 `enabled: false`。在完成真实坐标采集、双人复核（两名操作员）和连续三次试跑并填写本页放行记录之前，**不得**启用 `internal_medicine`，更不得为其它科室启用导航。
 
 ## 适用范围与不可替代的安全措施
 
