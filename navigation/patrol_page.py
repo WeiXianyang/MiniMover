@@ -25,6 +25,7 @@ h1{font-size:20px;color:#e94560;margin:8px 0 4px}
 .marker{position:absolute;width:14px;height:14px;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:10px;line-height:10px;text-align:center;color:#fff}
 .marker.route{background:#e94560}
 .marker.start{background:#22c55e}
+.marker.robot{width:22px;height:16px;border:2px solid #dbeafe;border-radius:2px;background:#38bdf8;clip-path:polygon(100% 50%,45% 0,45% 25%,0 25%,0 75%,45% 75%,45% 100%);box-shadow:0 0 10px #38bdf8}
 .info{font-size:12px;color:#aaa;margin:6px 0;word-break:break-all}
 .panel{background:#16213e;border-radius:8px;padding:8px;margin:8px 0;text-align:left;font-size:12px}
 .panel h3{font-size:13px;color:#38bdf8;margin-bottom:4px}
@@ -74,11 +75,13 @@ a{color:#38bdf8}
 <div class="map-wrap" id="mapWrap"><img id="mapImg" src="/api/nav/map/image" alt="map"></div>
 <div class="panel"><h3>路径点 (<span id="ptCount">0</span>)</h3><div id="pointList">（暂无）</div></div>
 <div class="panel"><h3>起点</h3><div id="startInfo">(0.00, 0.00) yaw=0°</div></div>
+<div class="panel"><h3>实时位姿</h3><div id="robotPoseInfo">定位等待中</div></div>
 <div class="panel"><h3>状态</h3><div id="statusBox">等待操作...</div></div>
 
 <script>
 var API=window.location.origin,mapInfo={width:0,height:0,resolution:0.05,origin:[-10,-21.2,0]},mapW=0,mapH=0;
 var points=[],startPose={x:0,y:0,yaw:0},clickMode='route';
+var robotPose={valid:false,x:null,y:null,yaw:null,frame_id:'',source:'',stamp:{sec:0,nanosec:0},message:'定位等待中'};
 var stackBusy=false,pollFast=false,ready=false;
 
 function setStatus(m,ok){
@@ -115,6 +118,14 @@ function redraw(){
     var mk=document.createElement('div');mk.className='marker route';
     mk.style.left=(px2/mapW*100)+'%';mk.style.top=(py2/mapH*100)+'%';mk.textContent=i+1;w.appendChild(mk);
   });
+  if(robotPose.valid && robotPose.frame_id==='map' && mapW && mapH){
+    var px3=(robotPose.x-mapInfo.origin[0])/mapInfo.resolution;
+    var py3=mapH-(robotPose.y-mapInfo.origin[1])/mapInfo.resolution;
+    var robot=document.createElement('div');robot.className='marker robot';
+    robot.style.left=(px3/mapW*100)+'%';robot.style.top=(py3/mapH*100)+'%';
+    robot.style.transform='translate(-50%,-50%) rotate('+(-robotPose.yaw*180/Math.PI)+'deg)';
+    w.appendChild(robot);
+  }
 }
 document.getElementById('mapImg').onload=function(){
   mapW=this.naturalWidth;mapH=this.naturalHeight;
@@ -131,6 +142,29 @@ document.getElementById('mapImg').onclick=function(e){
   document.getElementById('coordInfo').textContent='map坐标: ('+m.x.toFixed(3)+', '+m.y.toFixed(3)+')';
   redraw();
 };
+function setRobotPoseUnavailable(message){
+  robotPose={valid:false,x:null,y:null,yaw:null,frame_id:'',source:'',stamp:{sec:0,nanosec:0},message:message||'定位等待中'};
+  document.getElementById('robotPoseInfo').textContent='定位等待中: '+robotPose.message;
+  redraw();
+}
+function updateRobotPose(){
+  fetch(API+'/api/nav/pose').then(function(r){return r.json();}).then(function(j){
+    var pose=j.data||{};
+    if(j.code===0 && pose.valid && pose.frame_id==='map'
+        && typeof pose.x==='number' && typeof pose.y==='number' && typeof pose.yaw==='number'){
+      robotPose=pose;
+      var stamp=pose.stamp&&pose.stamp.sec?new Date(pose.stamp.sec*1000).toLocaleTimeString():'--';
+      document.getElementById('robotPoseInfo').textContent='('+pose.x.toFixed(3)+', '+pose.y.toFixed(3)+') | yaw='+(pose.yaw*180/Math.PI).toFixed(1)+' deg | '+(pose.source||'unknown')+' | '+stamp;
+      redraw();
+    }else{
+      setRobotPoseUnavailable(pose.message||(pose.frame_id?'定位坐标系不是 map':'定位不可用'));
+    }
+  }).catch(function(){setRobotPoseUnavailable('定位接口请求失败');});
+}
+function poseTick(){
+  updateRobotPose();
+  setTimeout(poseTick,1000);
+}
 function undoPoint(){points.pop();refreshList();redraw();}
 function clearAll(){
   points=[];refreshList();redraw();
@@ -232,4 +266,5 @@ function tick(){
 }
 refreshList();
 tick();
+poseTick();
 </script></body></html>'''
