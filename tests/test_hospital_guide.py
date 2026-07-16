@@ -188,5 +188,26 @@ class HospitalGuideTests(unittest.TestCase):
         self.assertIn("configured-id", payload["messages"][0]["content"])
 
 
+    def test_department_confirmation_is_visible_before_navigation(self):
+        from voice_assistant.hospital_guide_telemetry import HospitalGuideTelemetry
+
+        car = Mock()
+        telemetry = HospitalGuideTelemetry(Path(self.temp_dir.name) / "runtime.json")
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), Mock(), car, telemetry=telemetry,
+        )
+
+        guide.handle("\u5e26\u6211\u53bb\u5185\u79d1")
+        pending = telemetry.read()
+        guide.handle("\u597d\u7684")
+        navigated = telemetry.read()
+
+        self.assertEqual("WAITING_CONFIRMATION", pending["session"]["state"])
+        self.assertEqual("\u5185\u79d1", pending["session"]["pending_department"]["name"])
+        self.assertFalse(pending["navigation"]["requested"])
+        self.assertTrue(navigated["navigation"]["requested"])
+        self.assertEqual("started", navigated["navigation"]["status"])
+
 if __name__ == "__main__":
     unittest.main()

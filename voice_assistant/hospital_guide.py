@@ -118,7 +118,7 @@ class ConversationMemory:
 class HospitalGuideOrchestrator:
     """Turns non-motion utterances into safe, confirmation-gated guide replies."""
 
-    def __init__(self, config, knowledge_base, llm_client, car_client, memory_turns=6, retrieval_limit=3, reply_max_chars=180):
+    def __init__(self, config, knowledge_base, llm_client, car_client, memory_turns=6, retrieval_limit=3, reply_max_chars=180, telemetry=None):
         self._config = config
         self._knowledge_base = knowledge_base
         self._llm_client = llm_client
@@ -127,6 +127,7 @@ class HospitalGuideOrchestrator:
         self._retrieval_limit = max(1, min(int(retrieval_limit), 5))
         self._reply_max_chars = max(60, min(int(reply_max_chars), 300))
         self._pending_department_id = None
+        self._telemetry = telemetry
 
     def remember(self, user_text, assistant_text):
         self._memory.add_turn(user_text, assistant_text)
@@ -137,27 +138,40 @@ class HospitalGuideOrchestrator:
     def reset(self):
         self._memory.clear()
         self._pending_department_id = None
+        if self._telemetry:
+            try:
+                self._telemetry.reset()
+            except Exception:
+                pass
 
     def handle(self, text):
         text = str(text or "").strip()
         if not text:
-            return "请再说一遍您的导诊需求。"
+            return self._remember_and_return(
+                text, "\u8bf7\u518d\u8bf4\u4e00\u904d\u60a8\u7684\u5bfc\u8bca\u9700\u6c42\u3002", event_type="empty_input",
+            )
         if _contains(text, EMERGENCY_HINTS):
             self._pending_department_id = None
-            return self._remember_and_return(text, "您描述的情况可能需要紧急处理，请立即联系现场医护人员或前往急诊，不要等待普通门诊。")
+            return self._remember_and_return(
+                text,
+                "\u60a8\u63cf\u8ff0\u7684\u60c5\u51b5\u53ef\u80fd\u9700\u8981\u7d27\u6025\u5904\u7406\uff0c\u8bf7\u7acb\u5373\u8054\u7cfb\u73b0\u573a\u533b\u62a4\u4eba\u5458\u6216\u524d\u5f80\u6025\u8bca\uff0c\u4e0d\u8981\u7b49\u5f85\u666e\u901a\u95e8\u8bca\u3002",
+                event_type="emergency",
+            )
         if _contains(text, REJECTION_HINTS):
             self._pending_department_id = None
-            return self._remember_and_return(text, "好的，已取消带路请求。如需导诊，请随时告诉我。")
+            return self._remember_and_return(
+                text, "\u597d\u7684\uff0c\u5df2\u53d6\u6d88\u5e26\u8def\u8bf7\u6c42\u3002\u5982\u9700\u5bfc\u8bca\uff0c\u8bf7\u968f\u65f6\u544a\u8bc9\u6211\u3002", event_type="guide_cancelled",
+            )
         if self._pending_department_id and _contains(text, CONFIRMATION_HINTS):
             return self._start_pending_navigation(text)
 
         department = self._config.find_department(text)
         if department:
             self._pending_department_id = department.department_id
-            reply = "%s在%s。%s需要我带您去%s吗？" % (
+            reply = "%s\u5728%s\u3002%s\u9700\u8981\u6211\u5e26\u60a8\u53bb%s\u5417\uff1f" % (
                 department.name, department.floor, department.directions, department.name,
             )
-            return self._remember_and_return(text, reply)
+            return self._remember_and_return(text, reply, event_type="department_matched")
 
         evidence = self._knowledge_base.search(text, self._retrieval_limit)
         reply = self._ask_llm(text, evidence)
@@ -169,19 +183,58 @@ class HospitalGuideOrchestrator:
                 pass
             else:
                 self._pending_department_id = department_id
-                reply = "%s需要我带您去%s吗？" % (reply.rstrip("。"), self._config.department(department_id).name)
-        return self._remember_and_return(text, reply)
+                reply = "%s\u9700\u8981\u6211\u5e26\u60a8\u53bb%s\u5417\uff1f" % (
+                    reply.rstrip("\u3002"), self._config.department(department_id).name,
+                )
+        return self._remember_and_return(
+            text,
+            reply,
+            event_type="llm_department_matched" if department_id else "knowledge_answer",
+            evidence_count=len(evidence),
+        )
 
     def _start_pending_navigation(self, text):
         department = self._config.department(self._pending_department_id)
         if not department.navigation_enabled:
-            return self._remember_and_return(text, "该科室点位尚未配置，请咨询服务台。")
+            self._pending_department_id = None
+            return self._remember_and_return(
+                text,
+                "\u8be5\u79d1\u5ba4\u70b9\u4f4d\u5c1a\u672a\u914d\u7f6e\uff0c\u8bf7\u54a8\u8be2\u670d\u52a1\u53f0\u3002",
+                event_type="navigation_not_configured",
+                navigation={
+                    "requested": False,
+                    "status": "not_configured",
+                    "message": "\u8be5\u79d1\u5ba4\u70b9\u4f4d\u5c1a\u672a\u914d\u7f6e\u3002",
+                    "department": self._department_payload(department),
+                },
+            )
         try:
             self._car_client.navigate_to(department.x, department.y, department.theta)
         except Exception:
-            return self._remember_and_return(text, "导航未启动，请联系工作人员或稍后重试。")
+            self._pending_department_id = None
+            return self._remember_and_return(
+                text,
+                "\u5bfc\u822a\u672a\u542f\u52a8\uff0c\u8bf7\u8054\u7cfb\u5de5\u4f5c\u4eba\u5458\u6216\u7a0d\u540e\u91cd\u8bd5\u3002",
+                event_type="navigation_failed",
+                navigation={
+                    "requested": False,
+                    "status": "failed",
+                    "message": "\u5bfc\u822a\u8c03\u7528\u5931\u8d25\uff0c\u672a\u4e0b\u53d1\u76ee\u6807\u3002",
+                    "department": self._department_payload(department),
+                },
+            )
         self._pending_department_id = None
-        return self._remember_and_return(text, "已开始带您前往%s。%s" % (department.name, department.directions))
+        return self._remember_and_return(
+            text,
+            "\u5df2\u5f00\u59cb\u5e26\u60a8\u524d\u5f80%s\u3002%s" % (department.name, department.directions),
+            event_type="navigation_started",
+            navigation={
+                "requested": True,
+                "status": "started",
+                "message": "\u5df2\u5f00\u59cb\u5e26\u60a8\u524d\u5f80%s\u3002" % department.name,
+                "department": self._department_payload(department),
+            },
+        )
 
     def _ask_llm(self, text, evidence):
         if not self._llm_client:
@@ -203,8 +256,37 @@ class HospitalGuideOrchestrator:
             return "我暂时无法确认，请咨询服务台。"
         return reply.strip()[:self._reply_max_chars]
 
-    def _remember_and_return(self, user_text, reply):
+    def _department_payload(self, department):
+        return {
+            "id": department.department_id,
+            "name": department.name,
+            "floor": department.floor,
+            "navigation_enabled": department.navigation_enabled,
+        }
+
+    def _pending_department_payload(self):
+        if not self._pending_department_id:
+            return None
+        try:
+            return self._department_payload(self._config.department(self._pending_department_id))
+        except ValueError:
+            return None
+
+    def _remember_and_return(self, user_text, reply, event_type="reply", evidence_count=0, navigation=None):
         self.remember(user_text, reply)
+        if self._telemetry:
+            try:
+                self._telemetry.publish(
+                    history=self.history(),
+                    state="WAITING_CONFIRMATION" if self._pending_department_id else "AWAKE",
+                    pending_department=self._pending_department_payload(),
+                    evidence_count=evidence_count,
+                    event_type=event_type,
+                    event_message=reply,
+                    navigation=navigation,
+                )
+            except Exception:
+                pass
         return reply
 
 
