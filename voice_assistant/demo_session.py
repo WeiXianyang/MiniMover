@@ -42,7 +42,7 @@ class DemoSession:
         with self._lock:
             if self._phase is not DemoPhase.SCANNING:
                 return False
-            self._display_name = str(display_name).strip() or None
+            self._display_name = str(display_name).strip() if display_name is not None else None
             self._phase = DemoPhase.WELCOME_PENDING
             self._welcome_claimed = False
             return True
