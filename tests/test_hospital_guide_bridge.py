@@ -42,7 +42,7 @@ class HospitalGuideBridgeTests(unittest.TestCase):
         }, ensure_ascii=False), encoding="utf-8")
         return path
 
-    def _create_client(self, directory, enabled=False):
+    def _create_client(self, directory, enabled=False, on_guide_event=None):
         config_path = self._write_config(directory, enabled=enabled)
         kb_path = Path(directory) / "kb.jsonl"
         kb_path.write_text(json.dumps({"text": "健康教育问题应遵循现场医护人员指导。"}, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -57,6 +57,7 @@ class HospitalGuideBridgeTests(unittest.TestCase):
             telemetry_path=telemetry_path,
             navigation_client=self.navigator,
             llm_client=self.llm,
+            on_guide_event=on_guide_event,
         )
         return app.test_client(), telemetry_path
 
@@ -80,6 +81,29 @@ class HospitalGuideBridgeTests(unittest.TestCase):
         self.assertEqual("internal_medicine", snapshot["session"]["pending_department"]["id"])
         self.assertEqual("department_matched", snapshot["events"][-1]["type"])
 
+    def test_department_match_emits_only_minimal_guide_event(self):
+        events = []
+        with TemporaryDirectory() as directory:
+            client, _ = self._create_client(
+                directory,
+                on_guide_event=events.append,
+            )
+            client.post("/api/hospital-guide/turn", json={"text": "\u6211\u8981\u53bb\u5185\u79d1"})
+        self.assertEqual([
+            {"type": "department_matched", "department_id": "internal_medicine"},
+        ], events)
+        self.assertEqual([], self.navigator.goals)
+
+    def test_bridge_can_replace_the_guide_event_handler(self):
+        events = []
+        with TemporaryDirectory() as directory:
+            client, _ = self._create_client(directory)
+            self.bridge.set_guide_event_handler(events.append)
+            client.post("/api/hospital-guide/turn", json={"text": "\u6211\u8981\u53bb\u5185\u79d1"})
+        self.assertEqual([
+            {"type": "department_matched", "department_id": "internal_medicine"},
+        ], events)
+
     def test_disabled_department_confirmation_does_not_send_navigation(self):
         with TemporaryDirectory() as directory:
             client, telemetry_path = self._create_client(directory, enabled=False)
@@ -101,6 +125,38 @@ class HospitalGuideBridgeTests(unittest.TestCase):
         self.assertEqual([(1.2, -0.4, 0.0)], self.navigator.goals)
         self.assertEqual("started", snapshot["navigation"]["status"])
         self.assertEqual("navigation_started", snapshot["events"][-1]["type"])
+
+    def test_confirmed_navigation_emits_event_only_after_client_accepts_goal(self):
+        events = []
+        with TemporaryDirectory() as directory:
+            client, _ = self._create_client(
+                directory,
+                enabled=True,
+                on_guide_event=events.append,
+            )
+            client.post("/api/hospital-guide/turn", json={"text": "\u6211\u8981\u53bb\u5185\u79d1"})
+            client.post("/api/hospital-guide/turn", json={"text": "\u597d\u7684\uff0c\u5e26\u6211\u53bb"})
+        self.assertEqual([(1.2, -0.4, 0.0)], self.navigator.goals)
+        self.assertEqual([
+            {"type": "department_matched", "department_id": "internal_medicine"},
+            {"type": "navigation_started", "department_id": "internal_medicine"},
+        ], events)
+
+    def test_bridge_reset_invalidates_an_old_navigation_confirmation(self):
+        events = []
+        with TemporaryDirectory() as directory:
+            client, _ = self._create_client(
+                directory,
+                enabled=True,
+                on_guide_event=events.append,
+            )
+            client.post("/api/hospital-guide/turn", json={"text": "\u6211\u8981\u53bb\u5185\u79d1"})
+            self.bridge.reset()
+            client.post("/api/hospital-guide/turn", json={"text": "\u597d\u7684\uff0c\u5e26\u6211\u53bb"})
+        self.assertEqual([], self.navigator.goals)
+        self.assertEqual([
+            {"type": "department_matched", "department_id": "internal_medicine"},
+        ], events)
 
     def test_knowledge_query_passes_retrieved_shortmedkg_evidence_to_llm(self):
         with TemporaryDirectory() as directory:
