@@ -22,6 +22,7 @@ h1{font-size:20px;color:#e94560;margin:8px 0 4px}
 .toolbar button.active{outline:2px solid #38bdf8}
 .map-wrap{position:relative;display:inline-block;border:2px solid #333;border-radius:8px;overflow:hidden;max-width:100%}
 .map-wrap img{display:block;max-width:100%;cursor:crosshair;touch-action:none}
+.trail-overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .marker{position:absolute;width:14px;height:14px;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;font-size:10px;line-height:10px;text-align:center;color:#fff}
 .marker.route{background:#e94560}
 .marker.start{background:#22c55e}
@@ -59,6 +60,7 @@ a{color:#38bdf8}
 <button id="modeStart" onclick="setMode('start')">② 设起点</button>
 <button onclick="undoPoint()">撤销</button>
 <button class="danger" onclick="clearAll()">清空路线</button>
+<button onclick="clearRobotTrail()">清除轨迹</button>
 <button onclick="setInitialPose()">应用起点</button>
 <button onclick="uploadRoute()">上传路线</button>
 <button class="primary" onclick="startPatrol()">▶ 开始巡逻</button>
@@ -72,7 +74,7 @@ a{color:#38bdf8}
 </ol>
 
 <div class="info" id="coordInfo">加载地图中...</div>
-<div class="map-wrap" id="mapWrap"><img id="mapImg" src="/api/nav/map/image" alt="map"></div>
+<div class="map-wrap" id="mapWrap"><img id="mapImg" src="/api/nav/map/image" alt="map"><svg id="robotTrailSvg" class="trail-overlay" aria-hidden="true"><polyline id="robotTrailLine" fill="none" stroke="rgba(56,189,248,0.9)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></polyline></svg></div>
 <div class="panel"><h3>路径点 (<span id="ptCount">0</span>)</h3><div id="pointList">（暂无）</div></div>
 <div class="panel"><h3>起点</h3><div id="startInfo">(0.00, 0.00) yaw=0°</div></div>
 <div class="panel"><h3>实时位姿</h3><div id="robotPoseInfo">定位等待中</div></div>
@@ -82,6 +84,8 @@ a{color:#38bdf8}
 var API=window.location.origin,mapInfo={width:0,height:0,resolution:0.05,origin:[-10,-21.2,0]},mapW=0,mapH=0;
 var points=[],startPose={x:0,y:0,yaw:0},clickMode='route';
 var robotPose={valid:false,x:null,y:null,yaw:null,frame_id:'',source:'',stamp:{sec:0,nanosec:0},message:'定位等待中'};
+var ROBOT_TRAIL_MIN_DISTANCE=0.08,ROBOT_TRAIL_MAX_POINTS=2000;
+var robotTrail=[];
 var stackBusy=false,pollFast=false,ready=false;
 
 function setStatus(m,ok){
@@ -105,8 +109,21 @@ function refreshList(){
     return (i+1)+'. ('+p.x.toFixed(3)+', '+p.y.toFixed(3)+')';
   }).join('<br>'):'（暂无）';
 }
+function drawRobotTrail(){
+  var svg=document.getElementById('robotTrailSvg'),line=document.getElementById('robotTrailLine');
+  if(!svg||!line){return;}
+  if(!mapW||!mapH){line.setAttribute('points','');return;}
+  svg.setAttribute('viewBox','0 0 '+mapW+' '+mapH);
+  line.setAttribute('points',robotTrail.map(function(p){
+    var px=(p.x-mapInfo.origin[0])/mapInfo.resolution;
+    var py=mapH-(p.y-mapInfo.origin[1])/mapInfo.resolution;
+    return px.toFixed(2)+','+py.toFixed(2);
+  }).join(' '));
+  line.style.display=robotTrail.length>1?'':'none';
+}
 function redraw(){
   document.querySelectorAll('.marker').forEach(function(m){m.remove();});
+  drawRobotTrail();
   var w=document.getElementById('mapWrap');
   var px=(startPose.x-mapInfo.origin[0])/mapInfo.resolution;
   var py=mapH-(startPose.y-mapInfo.origin[1])/mapInfo.resolution;
@@ -142,6 +159,22 @@ document.getElementById('mapImg').onclick=function(e){
   document.getElementById('coordInfo').textContent='map坐标: ('+m.x.toFixed(3)+', '+m.y.toFixed(3)+')';
   redraw();
 };
+function recordRobotTrail(pose){
+  if(!pose||!pose.valid||pose.frame_id!=='map'
+      ||typeof pose.x!=='number'||typeof pose.y!=='number'){return;}
+  var last=robotTrail[robotTrail.length-1];
+  if(last){
+    var dx=pose.x-last.x,dy=pose.y-last.y;
+    if(Math.sqrt(dx*dx+dy*dy)<ROBOT_TRAIL_MIN_DISTANCE){return;}
+  }
+  robotTrail.push({x:pose.x,y:pose.y});
+  if(robotTrail.length>ROBOT_TRAIL_MAX_POINTS){robotTrail.shift();}
+}
+function clearRobotTrail(){
+  robotTrail=[];
+  redraw();
+  setStatus('已清除运行轨迹',true);
+}
 function setRobotPoseUnavailable(message){
   robotPose={valid:false,x:null,y:null,yaw:null,frame_id:'',source:'',stamp:{sec:0,nanosec:0},message:message||'定位等待中'};
   document.getElementById('robotPoseInfo').textContent='定位等待中: '+robotPose.message;
@@ -153,6 +186,7 @@ function updateRobotPose(){
     if(j.code===0 && pose.valid && pose.frame_id==='map'
         && typeof pose.x==='number' && typeof pose.y==='number' && typeof pose.yaw==='number'){
       robotPose=pose;
+      recordRobotTrail(pose);
       var stamp=pose.stamp&&pose.stamp.sec?new Date(pose.stamp.sec*1000).toLocaleTimeString():'--';
       document.getElementById('robotPoseInfo').textContent='('+pose.x.toFixed(3)+', '+pose.y.toFixed(3)+') | yaw='+(pose.yaw*180/Math.PI).toFixed(1)+' deg | '+(pose.source||'unknown')+' | '+stamp;
       redraw();

@@ -123,6 +123,26 @@ def test_patrol_page_contains_live_pose_marker_poll_and_invalid_state():
     assert '定位等待中' in PATROL_PAGE_HTML
 
 
+def test_patrol_page_records_and_draws_live_robot_trail():
+    from navigation.patrol_page import PATROL_PAGE_HTML
+
+    assert 'robotTrail=[]' in PATROL_PAGE_HTML
+    assert 'ROBOT_TRAIL_MIN_DISTANCE' in PATROL_PAGE_HTML
+    assert 'ROBOT_TRAIL_MAX_POINTS' in PATROL_PAGE_HTML
+    assert 'recordRobotTrail' in PATROL_PAGE_HTML
+    assert 'robotTrail.length' in PATROL_PAGE_HTML
+    assert 'polyline' in PATROL_PAGE_HTML
+    assert 'rgba(56,189,248' in PATROL_PAGE_HTML
+
+
+def test_patrol_page_has_a_separate_clear_trail_action():
+    from navigation.patrol_page import PATROL_PAGE_HTML
+
+    assert '\u6e05\u9664\u8f68\u8ff9' in PATROL_PAGE_HTML
+    assert 'function clearRobotTrail' in PATROL_PAGE_HTML
+    assert 'robotTrail=[]' in PATROL_PAGE_HTML
+
+
 def test_malformed_robot_pose_response_returns_diagnostic():
     pose = ros_bridge._parse_robot_pose_response('not a ROS pose response')
 
