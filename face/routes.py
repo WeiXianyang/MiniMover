@@ -1,4 +1,5 @@
 """人脸识别 Flask 蓝图：注册页 + 1:N 识别 + 注册/登录。"""
+import threading
 import time
 from pathlib import Path
 
@@ -6,6 +7,7 @@ from flask import Blueprint, Response, jsonify, request, send_file
 
 from . import baidu, store
 from .identity_utils import resolve_display_name
+from audio.icar_audio import play_say
 
 face_bp = Blueprint('face', __name__)
 PAGE_PATH = Path(__file__).resolve().parent / 'page.html'
@@ -105,6 +107,14 @@ def face_recognize():
         return jsonify({'ok': False, 'msg': '请上传图片字段 image'}), 400
     try:
         payload, status = _identify_from_bytes(_read_image_file(image))
+        # 识别成功时触发 TTS 让小车说话
+        if status == 200 and payload.get('ok'):
+            identity = payload.get('identity', '未知用户')
+            threading.Thread(
+                target=play_say,
+                args=(f'你好，{identity}',),
+                daemon=True,
+            ).start()
         return jsonify(payload), status
     except Exception as exc:
         return jsonify({'ok': False, 'msg': f'识别过程出错: {exc}'}), 500
