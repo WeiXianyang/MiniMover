@@ -16,6 +16,8 @@ try:
     from .car_client import CarClient
     from .command_parser import parse_command
     from .wake_word import WakeWordVoiceService
+    from .hospital_guide import HospitalGuideConfig, HospitalGuideOrchestrator
+    from .medical_knowledge import MedicalKnowledgeBase
 except ImportError:
     from asr_backend import FunAsrBackend, WhisperBackend
     from remote_audio_backend import RemoteWhisperBackend
@@ -26,12 +28,14 @@ except ImportError:
     from car_client import CarClient
     from command_parser import parse_command
     from wake_word import WakeWordVoiceService
+    from hospital_guide import HospitalGuideConfig, HospitalGuideOrchestrator
+    from medical_knowledge import MedicalKnowledgeBase
 
 LOGGER = logging.getLogger("mini-mover-voice")
 
 
 class VoiceService:
-    def __init__(self, car_client, asr_backend, speed=35, duration=0.8, llm_client=None, tts_backend=None, speaker_verifier=None):
+    def __init__(self, car_client, asr_backend, speed=35, duration=0.8, llm_client=None, tts_backend=None, speaker_verifier=None, hospital_guide=None):
         self.car_client = car_client
         self.asr_backend = asr_backend
         self.speed = speed
@@ -39,6 +43,7 @@ class VoiceService:
         self.llm_client = llm_client
         self.tts_backend = tts_backend
         self.speaker_verifier = speaker_verifier
+        self.hospital_guide = hospital_guide
         self.stop_event = threading.Event()
         self.last_command = None
         self.last_command_at = 0.0
@@ -47,13 +52,16 @@ class VoiceService:
         text = event.get("text", "")
         command = parse_command(text)
         if command is None:
-            if not self.llm_client:
-                LOGGER.info("ignored unsupported speech: %s", text)
-                return
             try:
-                answer = self.llm_client.answer(text)
+                if self.hospital_guide:
+                    answer = self.hospital_guide.handle(text)
+                elif self.llm_client:
+                    answer = self.llm_client.answer(text)
+                else:
+                    LOGGER.info("ignored unsupported speech: %s", text)
+                    return
                 LOGGER.info("answer: %s", answer)
-                if self.tts_backend:
+                if self.tts_backend and answer:
                     self.tts_backend.speak(answer)
             except Exception:
                 LOGGER.exception("question handling failed for %r", text)
@@ -108,6 +116,10 @@ class VoiceService:
         except Exception:
             LOGGER.exception("car command failed for %r", text)
 
+    def reset_conversation(self):
+        if self.hospital_guide:
+            self.hospital_guide.reset()
+
     def handle_partial(self, event):
         LOGGER.debug("partial: %s", event.get("text", ""))
 
@@ -161,7 +173,26 @@ def main():
                 pass
         asr._on_ready = _notify_ready
 
-    service = VoiceService(CarClient(args.car_url), asr, args.speed, args.duration, llm, tts, speaker)
+    car_client = CarClient(args.car_url)
+    hospital_guide = None
+    if config.hospital_guide_enabled:
+        try:
+            hospital_guide = HospitalGuideOrchestrator(
+                HospitalGuideConfig.from_path(config.hospital_guide_path),
+                MedicalKnowledgeBase.from_jsonl(config.medical_kb_path),
+                llm,
+                car_client,
+                memory_turns=config.medical_memory_turns,
+                retrieval_limit=config.medical_retrieval_limit,
+                reply_max_chars=config.medical_reply_max_chars,
+            )
+            LOGGER.info("hospital guide enabled with configuration: %s", config.hospital_guide_path)
+        except ValueError:
+            LOGGER.exception("hospital guide disabled because its configuration is invalid")
+
+    service = VoiceService(
+        car_client, asr, args.speed, args.duration, llm, tts, speaker, hospital_guide
+    )
 
     # ---- wake-word gate ----
     if config.wake_word:

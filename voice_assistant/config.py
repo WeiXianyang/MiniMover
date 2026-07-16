@@ -19,6 +19,10 @@ def _int(name, default):
 
 class VoiceConfig:
     def __init__(self):
+        module_dir = os.path.dirname(os.path.abspath(__file__))
+        default_guide_path = os.path.join(module_dir, "data", "hospital_guide_template.json")
+        default_kb_path = os.path.join(module_dir, "data", "shortmedkg", "input_v4.jsonl")
+
         self.asr_backend = os.getenv("MINIMOVER_ASR_BACKEND", "auto").lower()
         self.car_url = os.getenv("MINIMOVER_CAR_URL", "http://127.0.0.1:5000")
         self.car_audio_duration = _float("MINIMOVER_CAR_AUDIO_DURATION", 4.0)
@@ -33,6 +37,23 @@ class VoiceConfig:
         self.tts_voice = os.getenv("MINIMOVER_TTS_VOICE", "alloy")
         self.tts_command = os.getenv("MINIMOVER_TTS_COMMAND", "aplay -q -")
         self.car_speaker = os.getenv("MINIMOVER_CAR_SPEAKER", "0").lower() in {"1", "true", "yes", "on"}
+
+        self.hospital_guide_enabled = os.getenv(
+            "MINIMOVER_HOSPITAL_GUIDE_ENABLED", "1"
+        ).lower() not in {"0", "false", "no", "off"}
+        self.hospital_guide_path = os.getenv(
+            "MINIMOVER_HOSPITAL_GUIDE_PATH", default_guide_path
+        )
+        self.medical_kb_path = os.getenv("MINIMOVER_MEDICAL_KB_PATH", default_kb_path)
+        self.medical_memory_turns = max(
+            1, min(_int("MINIMOVER_MEDICAL_MEMORY_TURNS", 6), 12)
+        )
+        self.medical_retrieval_limit = max(
+            1, min(_int("MINIMOVER_MEDICAL_RETRIEVAL_LIMIT", 3), 5)
+        )
+        self.medical_reply_max_chars = max(
+            60, min(_int("MINIMOVER_MEDICAL_REPLY_MAX_CHARS", 180), 300)
+        )
 
         # ---- wake-word configuration ----
         self.wake_word = os.getenv("MINIMOVER_WAKE_WORD", "")

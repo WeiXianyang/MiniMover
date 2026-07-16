@@ -6,6 +6,7 @@ from voice_assistant.car_client import CarClient
 from voice_assistant.command_parser import parse_command
 from voice_assistant.voice_service import VoiceService
 from voice_assistant.speaker_verifier import cosine_similarity
+from voice_assistant.wake_word import WakeWordVoiceService
 
 
 class CommandParserTests(unittest.TestCase):
@@ -91,6 +92,23 @@ class VoiceServiceTests(unittest.TestCase):
         service.handle_final({"type": "final_text", "text": "\u6765\u8df3\u4e2a\u821e"})
         car.execute_dance.assert_called_once_with()
         car.execute.assert_not_called()
+
+
+class WakeWordVoiceServiceTests(unittest.TestCase):
+    def test_wake_word_resets_conversation_at_session_boundaries(self):
+        voice = Mock()
+        voice.tts_backend = None
+        service = WakeWordVoiceService(
+            voice, wake_word="wake", greeting="hello", idle_timeout=1.0
+        )
+
+        with patch("voice_assistant.wake_word.time.monotonic", return_value=10.0):
+            service._on_final({"text": "wake"})
+        voice.reset_conversation.assert_called_once_with()
+
+        with patch("voice_assistant.wake_word.time.monotonic", return_value=12.0):
+            service._on_final({"text": "later"})
+        self.assertEqual(voice.reset_conversation.call_count, 2)
 
 class CarClientTests(unittest.TestCase):
     @patch("voice_assistant.car_client.request.urlopen")
