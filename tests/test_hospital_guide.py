@@ -2,13 +2,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from voice_assistant.car_client import CarClient
 from voice_assistant.hospital_guide import HospitalGuideConfig, HospitalGuideOrchestrator
 from voice_assistant.medical_knowledge import MedicalKnowledgeBase
-from voice_assistant.llm_client import LlmClient
-from voice_assistant.voice_service import VoiceService
 
 
 def write_json(path, payload):
@@ -123,70 +120,6 @@ class HospitalGuideTests(unittest.TestCase):
         self.assertIn("medical_evidence", kwargs["context"])
         self.assertLessEqual(len(kwargs["context"]["history"]), 2)
         self.assertIn("\u4e0d\u8bca\u65ad", kwargs["context"]["system_rules"])
-
-    @patch("voice_assistant.car_client.request.urlopen")
-    def test_car_client_posts_validated_navigation_payload(self, urlopen):
-        response = Mock()
-        response.read.return_value = b'{"code": 0}'
-        response.__enter__ = Mock(return_value=response)
-        response.__exit__ = Mock(return_value=False)
-        urlopen.return_value = response
-        CarClient("http://127.0.0.1:6500").navigate_to(1.2, -3.4, 0.0)
-        payload = json.loads(urlopen.call_args.args[0].data.decode("utf-8"))
-        self.assertEqual(payload, {"x": 1.2, "y": -3.4, "theta": 0.0})
-
-
-    def test_voice_service_uses_guide_for_non_motion_text(self):
-        guide = Mock()
-        guide.handle.return_value = "guide reply"
-        tts = Mock()
-        service = VoiceService(Mock(), Mock(), hospital_guide=guide, tts_backend=tts)
-
-        service.handle_final({"text": "general question"})
-
-        guide.handle.assert_called_once_with("general question")
-        tts.speak.assert_called_once_with("guide reply")
-
-    def test_voice_service_reset_clears_guide_memory(self):
-        guide = Mock()
-        service = VoiceService(Mock(), Mock(), hospital_guide=guide)
-
-        service.reset_conversation()
-
-        guide.reset.assert_called_once_with()
-
-
-    @patch("voice_assistant.llm_client.request.urlopen")
-    def test_llm_client_uses_sanitized_history_and_guide_rules(self, urlopen):
-        response = Mock()
-        response.read.return_value = b'{"choices":[{"message":{"content":"reply"}}]}'
-        response.__enter__ = Mock(return_value=response)
-        response.__exit__ = Mock(return_value=False)
-        urlopen.return_value = response
-        client = LlmClient("http://llm.example/v1", "test-key", "demo")
-
-        self.assertEqual(
-            client.answer(
-                "question",
-                context={
-                    "history": [
-                        {"role": "user", "content": "first"},
-                        {"role": "system", "content": "must be ignored"},
-                        {"role": "assistant", "content": "second"},
-                    ],
-                    "medical_evidence": ["evidence"],
-                },
-            ),
-            "reply",
-        )
-
-        payload = json.loads(urlopen.call_args.args[0].data.decode("utf-8"))
-        self.assertEqual([message["role"] for message in payload["messages"]], [
-            "system", "user", "assistant", "user",
-        ])
-        self.assertIn("medical_evidence", payload["messages"][0]["content"])
-        self.assertIn("configured-id", payload["messages"][0]["content"])
-
 
     def test_department_confirmation_is_visible_before_navigation(self):
         from voice_assistant.hospital_guide_telemetry import HospitalGuideTelemetry

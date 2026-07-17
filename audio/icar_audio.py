@@ -17,6 +17,8 @@ import time
 import uuid
 import wave
 import tempfile
+
+from voice_assistant.audio_turn_safety import wav_duration_ms
 from pathlib import Path
 
 # === 配置 ===
@@ -129,13 +131,13 @@ class _Player:
 
     def play(self, wav_data: bytes) -> None:
         self.stop()
-        # paplay 直接指定 PulseAudio sink, 绕过默认 sink 问题
+        # aplay ALSA 直接输出, systemd 进程也能用（无需 PulseAudio）
         tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
         tmp.write(wav_data)
         tmp.close()
         with self._lock:
             self._proc = subprocess.Popen(
-                ["paplay", "--volume=65536", "--device=" + USB_SINK, tmp.name],
+                ["aplay", "-D", "plughw:0,0", "-q", tmp.name],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self._status = "playing"
         def _cleanup():
@@ -148,7 +150,7 @@ class _Player:
         self.stop()
         with self._lock:
             self._proc = subprocess.Popen(
-                ["paplay", "--volume=65536", "--device=" + USB_SINK, filepath],
+                ["aplay", "-D", "plughw:0,0", "-q", filepath],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             self._status = "playing"
 
@@ -176,35 +178,38 @@ _player = _Player()
 # === TTS ===
 
 DASHSCOPE_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/text2speech/speech-synthesis"
+_DASHSCOPE_TTS_LOCK = threading.Lock()
 
-def _dashscope_tts(text: str, voice: str = "longanyang", model: str = "cosyvoice-v3-flash") -> bytes:
-    """调用阿里云百炼 CosyVoice, 返回 WAV 字节。失败抛异常。"""
-    import requests
+def _dashscope_tts(text: str, voice: str = "longanhuan", model: str = "cosyvoice-v3-flash") -> bytes:
+    """调用阿里云百炼 CosyVoice (DashScope SDK), 返回 WAV 字节。失败抛异常。"""
     _load_tts_env()
     api_key = os.environ.get("MINIMOVER_DASHSCOPE_API_KEY", "")
     if not api_key:
         raise RuntimeError("MINIMOVER_DASHSCOPE_API_KEY not set")
     v = os.environ.get("MINIMOVER_COSYVOICE_VOICE", voice)
     m = os.environ.get("MINIMOVER_COSYVOICE_MODEL", model)
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": m,
-        "input": {"text": text, "voice": v},
-        "parameters": {"format": "wav", "sample_rate": 24000},
-    }
-    r = requests.post(DASHSCOPE_URL, json=payload, headers=headers, timeout=15)
-    if r.status_code != 200:
-        raise RuntimeError(f"DashScope HTTP {r.status_code}: {r.text[:200]}")
-    # DashScope 返回 JSON, audio 字段是 WAV base64
-    resp = r.json()
-    audio_b64 = resp.get("output", {}).get("audio", "")
-    if not audio_b64:
-        raise RuntimeError(f"DashScope response missing audio: {json.dumps(resp, ensure_ascii=False)[:200]}")
-    import base64
-    return base64.b64decode(audio_b64)
+    ws = os.environ.get("MINIMOVER_DASHSCOPE_WORKSPACE_ID", "")
+    # 设置 SDK 环境变量
+    # DashScope SDK keeps authentication in module-level state. Serializing the
+    # assignment and request prevents concurrent guide replies crossing API keys
+    # or workspaces.
+    import dashscope
+    from dashscope.audio.tts_v2 import SpeechSynthesizer
+    from dashscope.audio.tts_v2.speech_synthesizer import AudioFormat
+    with _DASHSCOPE_TTS_LOCK:
+        dashscope.api_key = api_key
+        synth = SpeechSynthesizer(
+            model=m,
+            voice=v,
+            format=AudioFormat.WAV_16000HZ_MONO_16BIT,
+            workspace=ws or None,
+        )
+        audio = synth.call(text=text)
+    if not audio:
+        raise RuntimeError("DashScope SDK returned empty audio")
+    if wav_duration_ms(audio) <= 0:
+        raise RuntimeError("DashScope SDK did not return a valid WAV response")
+    return audio
 
 
 def _has_espeak() -> bool:
@@ -221,9 +226,11 @@ def say(text: str, lang: str = "zh") -> bytes:
     _player.stop()
     try:
         return _dashscope_tts(text)
-    except Exception as e:
-        print(f"[TTS] DashScope failed: {e}, falling back to espeak-ng")
-    # 回退离线 TTS
+    except Exception as exc:
+        if os.environ.get("MINIMOVER_TTS_ALLOW_ESPEAK_FALLBACK", "0") != "1":
+            raise RuntimeError(f"DashScope TTS failed: {exc}") from exc
+        print(f"[TTS] DashScope failed: {exc}; espeak-ng fallback explicitly enabled")
+    # Offline fallback is opt-in only.
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         wav_path = tmp.name
     try:

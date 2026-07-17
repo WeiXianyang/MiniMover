@@ -11,14 +11,15 @@ ASR_PORT="${MINIMOVER_ASR_PORT:-8765}"
 CAR_URL="${MINIMOVER_CAR_URL:-http://127.0.0.1:5000}"
 CAR_LOG="${MINIMOVER_HOSPITAL_GUIDE_CAR_LOG:-/tmp/minimover-hospital-guide-car.log}"
 CAR_PID_FILE="${MINIMOVER_HOSPITAL_GUIDE_CAR_PID_FILE:-/tmp/minimover-hospital-guide-car.pid}"
+RESTART_CLIENT=0
 
 usage() {
     cat <<'EOF'
-Usage: start_hospital_guide_demo.sh [--asr-host HOST] [--asr-port PORT]
+Usage: start_hospital_guide_demo.sh [--asr-host HOST] [--asr-port PORT] [--restart-client]
 
 Starts the real Jetson-side hospital-guide chain:
-  fireguard-api.service -> hospital guide API + existing map/navigation API
-  voice_assistant/car_client.py -> Jetson microphone -> PC ASR final_text
+printf '演示流程: 直接说导诊问题，例如：头疼应该挂什么科？\n'
+  voice_assistant/car_client_jetson.py -> Jetson microphone -> PC ASR final_text
   hospital guide -> ShortMedKG + configured OpenAI-compatible LLM -> car TTS
 
 No mock input or fake navigation result is generated.
@@ -33,6 +34,8 @@ while [ "$#" -gt 0 ]; do
         --asr-port)
             [ "$#" -ge 2 ] || { echo "[ERROR] --asr-port needs a value" >&2; exit 2; }
             ASR_PORT="$2"; shift 2 ;;
+        --restart-client)
+            RESTART_CLIENT=1; shift ;;
         -h|--help)
             usage; exit 0 ;;
         *)
@@ -105,7 +108,7 @@ else
 fi
 
 api_ready=0
-for _ in 1 2 3 4 5 6 7 8 9 10; do
+for _ in $(seq 1 30); do
     if curl -fsS --max-time 3 "$CAR_URL/hospital-guide" >/dev/null 2>&1; then
         api_ready=1
         break
@@ -141,19 +144,35 @@ if [ -f "$CAR_PID_FILE" ]; then
     fi
 fi
 if [ -z "$existing_pid" ]; then
-    existing_pid="$(pgrep -f '[v]oice_assistant/car_client.py' | head -1 || true)"
+    existing_pid="$(pgrep -f '[v]oice_assistant/car_client_jetson.py' | head -1 || true)"
+fi
+
+if [ "$RESTART_CLIENT" -eq 1 ] && [ -n "$existing_pid" ]; then
+    process_command="$(tr '\0' ' ' < "/proc/$existing_pid/cmdline" 2>/dev/null || true)"
+    case "$process_command" in
+        *"voice_assistant/car_client_jetson.py"*) ;;
+        *)
+            echo "[ERROR] refusing to stop an unexpected process (pid=$existing_pid)" >&2
+            exit 1 ;;
+    esac
+    echo "[INFO] restarting dedicated car client to apply synchronized code (pid=$existing_pid)"
+    kill "$existing_pid"
+    for _ in $(seq 1 10); do
+        kill -0 "$existing_pid" 2>/dev/null || break
+        sleep 1
+    done
+    if kill -0 "$existing_pid" 2>/dev/null; then
+        echo "[ERROR] dedicated car client did not exit after restart request (pid=$existing_pid)" >&2
+        exit 1
+    fi
+    rm -f "$CAR_PID_FILE"
+    existing_pid=""
 fi
 
 if [ -n "$existing_pid" ]; then
-    # Reuse only an already configured hospital-guide client. Do not silently
-    # accept a legacy voice process because it could bypass the guide gate.
+    # This dedicated client only implements the hospital-guide demo flow.
     if [ -r "/proc/$existing_pid/environ" ]; then
         process_env="$(tr '\0' '\n' < "/proc/$existing_pid/environ" 2>/dev/null || true)"
-        if ! printf '%s\n' "$process_env" | grep -qx 'MINIMOVER_HOSPITAL_GUIDE_MODE=1'; then
-            echo "[ERROR] existing car client is not in hospital-guide mode (pid=$existing_pid)" >&2
-            echo "        Stop it manually, then rerun this launcher." >&2
-            exit 1
-        fi
         if ! printf '%s\n' "$process_env" | grep -qx "MINIMOVER_ASR_HOST=$ASR_HOST"; then
             echo "[ERROR] existing car client points to a different ASR host (pid=$existing_pid)" >&2
             echo "        Stop it manually, then rerun this launcher." >&2
@@ -172,10 +191,8 @@ else
         MINIMOVER_ASR_HOST="$ASR_HOST" \
         MINIMOVER_ASR_PORT="$ASR_PORT" \
         MINIMOVER_CAR_URL="$CAR_URL" \
-        MINIMOVER_HOSPITAL_GUIDE_MODE=1 \
-        MINIMOVER_HOSPITAL_GUIDE_ENABLED=1 \
         MINIMOVER_CAR_SPEAKER=1 \
-        "$PYTHON" -u voice_assistant/car_client.py \
+        "$PYTHON" -u voice_assistant/car_client_jetson.py \
         >>"$CAR_LOG" 2>&1 < /dev/null &
     car_pid=$!
     echo "$car_pid" > "$CAR_PID_FILE"
@@ -192,7 +209,7 @@ fi
 # real microphone-open line, but report a useful log tail instead of pretending
 # that audio is ready.
 mic_ready=0
-for _ in 1 2 3 4 5 6 7 8 9 10; do
+for _ in $(seq 1 30); do
     if grep -q 'Mic open, listening' "$CAR_LOG" 2>/dev/null; then
         mic_ready=1
         break
@@ -211,5 +228,5 @@ printf '\n控制台:   http://%s:5000/hospital-guide\n' "$JETSON_IP"
 printf '地图选点: http://%s:5000/nav/patrol\n' "$JETSON_IP"
 printf '车端日志: %s\n' "$CAR_LOG"
 printf '停止车端: kill %s\n' "$(cat "$CAR_PID_FILE" 2>/dev/null || echo '?')"
-printf '演示流程: 你好小北 -> 我要去内科 -> 好的，带我去\n'
+printf '演示流程: 直接说导诊问题，例如：头疼应该挂什么科？\n'
 printf '说明: 当前未审核的科室点位保持禁用；确认后不会绕过安全门控驱动底盘。\n'

@@ -30,8 +30,18 @@ DEFAULT_JETSON_HOST = "192.168.202.171"
 DEFAULT_JETSON_USER = "jetson"
 DEFAULT_ASR_PORT = 8765
 
+# These are the only Python modules executed by the Jetson-side microphone
+# client. Uploading them before every run prevents stale legacy clients from
+# being reused after a local hospital-guide change.
+DEMO_RUNTIME_FILES = (
+    Path("scripts/start_hospital_guide_demo.sh"),
+    Path("voice_assistant/car_client_jetson.py"),
+    Path("voice_assistant/audio_turn_safety.py"),
+    Path("voice_assistant/hospital_guide_client.py"),
+)
 
-def _listener(port: int) -> bool:
+
+def _port_listening(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.settimeout(0.5)
         return sock.connect_ex(("127.0.0.1", port)) == 0
@@ -75,11 +85,11 @@ def _listener_command(port: int) -> str:
 
 
 def _start_pc_asr(project_dir: Path, port: int, force_restart: bool) -> None:
-    if _listener(port) and not force_restart:
+    if _port_listening(port) and not force_restart:
         print(f"[OK] PC ASR 已在监听 0.0.0.0:{port}，复用现有真实进程")
         return
 
-    if _listener(port) and force_restart:
+    if _port_listening(port) and force_restart:
         raise RuntimeError(
             f"端口 {port} 已被占用；为避免误杀非 ASR 服务，请先手动停止占用进程"
         )
@@ -106,7 +116,7 @@ def _start_pc_asr(project_dir: Path, port: int, force_restart: bool) -> None:
     err.close()
     deadline = time.monotonic() + 25
     while time.monotonic() < deadline:
-        if _listener(port):
+        if _port_listening(port):
             command = _process_command(proc.pid)
             if command and "pc_asr_server.py" not in command:
                 raise RuntimeError(f"端口 {port} 被非预期进程占用: {command}")
@@ -135,11 +145,20 @@ def _exec_remote(client: paramiko.SSHClient, command: str) -> str:
     return out
 
 
-def _upload_launcher(client: paramiko.SSHClient, local_path: Path, remote_path: str) -> None:
+def _upload_demo_runtime(
+    client: paramiko.SSHClient, project_dir: Path, remote_project_dir: str
+) -> None:
+    """Upload the dedicated Jetson runtime without transferring credentials."""
     sftp = client.open_sftp()
     try:
-        sftp.put(str(local_path), remote_path)
-        sftp.chmod(remote_path, 0o755)
+        for relative_path in DEMO_RUNTIME_FILES:
+            local_path = project_dir / relative_path
+            if not local_path.is_file():
+                raise FileNotFoundError(local_path)
+            remote_path = f"{remote_project_dir}/{relative_path.as_posix()}"
+            sftp.put(str(local_path), remote_path)
+            if relative_path.suffix == ".sh":
+                sftp.chmod(remote_path, 0o755)
     finally:
         sftp.close()
 
@@ -180,12 +199,13 @@ def main() -> int:
             look_for_keys=True,
             allow_agent=True,
         )
-        remote_path = f"/home/{args.jetson_user}/MiniMover/scripts/start_hospital_guide_demo.sh"
-        _upload_launcher(client, launcher, remote_path)
+        remote_project_dir = f"/home/{args.jetson_user}/MiniMover"
+        _exec_remote(client, f"test -d {remote_project_dir!r}")
+        _upload_demo_runtime(client, project_dir, remote_project_dir)
         command = (
-            f"cd /home/{args.jetson_user}/MiniMover && "
+            f"cd {remote_project_dir!r} && "
             f"bash scripts/start_hospital_guide_demo.sh "
-            f"--asr-host {asr_host!r} --asr-port {args.asr_port}"
+            f"--asr-host {asr_host!r} --asr-port {args.asr_port} --restart-client"
         )
         _exec_remote(client, command)
     finally:
@@ -194,7 +214,7 @@ def main() -> int:
     print("=== 现场演示链已启动 ===")
     print(f"控制台: http://{args.jetson_host}:5000/hospital-guide")
     print(f"地图选点: http://{args.jetson_host}:5000/nav/patrol")
-    print("真实演示: 你好小北 -> 我要去内科 -> 好的，带我去")
+    print("真实演示：直接说导诊问题，例如：头疼应该挂什么科？")
     return 0
 
 

@@ -1,4 +1,26 @@
 #!/usr/bin/env python3
+# MiniMover api_server — auto-load env files (systemd EnvironmentFile fallback)
+import os as _os
+_base = _os.path.dirname(_os.path.abspath(__file__))
+for _env_file in (".env.voice", ".tts.env"):
+    _path = _os.path.join(_base, _env_file)
+    if _os.path.isfile(_path):
+        with open(_path, encoding="utf-8-sig") as _env_handle:
+            for _line in _env_handle:
+                _line = _line.strip()
+                if _line and not _line.startswith("#") and "=" in _line:
+                    _k, _v = _line.split("=", 1)
+                    _os.environ[_k.strip()] = _v.strip()
+
+import sys as _sys
+_env_voice_path = _os.path.join(_base, ".env.voice")
+if _os.path.isfile(_env_voice_path):
+    with open(_env_voice_path, encoding="utf-8-sig") as _env_handle:
+        _env_var_count = sum(1 for _line in _env_handle if "=" in _line and not _line.startswith("#"))
+else:
+    _env_var_count = 0
+print(f"[api_server] Loaded {_env_var_count} env vars, TTS_PROVIDER={_os.environ.get('MINIMOVER_TTS_PROVIDER','MISSING')}", file=_sys.stderr, flush=True)
+
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 import threading, time, os, sys, subprocess, socket
@@ -8,6 +30,7 @@ from sensors.icar_sensor_driver import iCarSensorDriver
 from Rosmaster_Lib import Rosmaster
 from audio.icar_audio import record_start, record_status, record_stop, record_get
 from audio.icar_audio import play_wav, stop_playback, say as tts_say, get_devices as audio_devices
+from voice_assistant.audio_turn_safety import wav_duration_ms
 from navigation import nav_bp, register_legacy_routes, register_patrol_page
 from face import register_face_routes
 from hospital_guide_console import register_hospital_guide_console
@@ -144,7 +167,7 @@ def get_sensors():
 
 @app.route('/api/health')
 def health():
-    return jsonify({'code':0,'msg':'FireGuard API Running'})
+    return jsonify({'code':0,'msg':'MiniMover API Running'})
 
 # ===== 音频接口 =====
 # /api/camera 与 /video_feed 见下方「视频流（可选）」
@@ -221,8 +244,13 @@ def audio_say():
         return jsonify({'code': -1, 'msg': 'text 为空'}), 400
     try:
         wav = tts_say(text, lang)
+        duration_ms = wav_duration_ms(wav)
         play_wav(wav)
-        return jsonify({'code': 0, 'msg': f'TTS: {text[:20]}...' if len(text)>20 else f'TTS: {text}'})
+        return jsonify({
+            'code': 0,
+            'msg': f'TTS: {text[:20]}...' if len(text)>20 else f'TTS: {text}',
+            'data': {'playback_duration_ms': duration_ms},
+        })
     except Exception as e:
         return jsonify({'code': -1, 'msg': str(e)}), 500
 
@@ -462,66 +490,10 @@ def video_feed():
                 time.sleep(1.5)
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
-# ===== 检测状态接口：读取火灾检测遥测文件 =====
-import json as _json
-
-_DET_DEBUG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               'fire_smoke_detection', 'runtime', 'debug')
-_DET_ALARMS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                'fire_smoke_detection', 'runtime', 'alarms.jsonl')
-
-@app.route('/api/detection/status')
-def detection_status():
-    """返回火灾检测链路状态 + 最近报警"""
-    data = {
-        'fire_monitor': {'running': False, 'state': 'idle', 'hits': 0, 'trigger_min': 5},
-        'last_alarm': None,
-        'recent_alarms': [],
-    }
-    # 读取遥测 status.json
-    status_path = os.path.join(_DET_DEBUG_DIR, 'status.json')
-    try:
-        with open(status_path, 'r', encoding='utf-8') as f:
-            telemetry = _json.load(f)
-        data['fire_monitor']['running'] = True
-        data['fire_monitor']['state'] = telemetry.get('event', {}).get('state', 'idle')
-        data['fire_monitor']['hits'] = telemetry.get('detector', {}).get('hit_count', 0)
-        data['fire_monitor']['trigger_min'] = telemetry.get('detector', {}).get('trigger_min_hits', 5)
-        data['fire_monitor']['classes'] = telemetry.get('detector', {}).get('classes', [])
-        data['fire_monitor']['max_confidence'] = telemetry.get('detector', {}).get('max_confidence', 0)
-        ai = telemetry.get('ai', {})
-        data['fire_monitor']['ai_state'] = ai.get('state', '')
-        data['fire_monitor']['ai_result'] = ai.get('result', '')
-        data['fire_monitor']['ai_confidence'] = ai.get('confidence')
-        alarm = telemetry.get('alarm', {})
-        data['fire_monitor']['alarm_state'] = alarm.get('state', '')
-        data['fire_monitor']['alarm_type'] = alarm.get('type', '')
-    except Exception:
-        pass
-
-    # 读取最近报警
-    try:
-        if os.path.exists(_DET_ALARMS_FILE):
-            with open(_DET_ALARMS_FILE, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            # 取最近 5 条
-            for line in lines[-5:]:
-                try:
-                    alarm = _json.loads(line.strip())
-                    data['recent_alarms'].append(alarm)
-                except Exception:
-                    pass
-            if data['recent_alarms']:
-                data['last_alarm'] = data['recent_alarms'][-1]
-    except Exception:
-        pass
-
-    return jsonify({'code': 0, 'data': data})
-
 @app.route('/')
 def dashboard():
     return '''<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no"><title>FireGuard</title><style>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no"><title>MiniMover</title><style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#1a1a2e;color:#eee;font-family:Arial;text-align:center;padding:10px;max-width:480px;margin:0 auto}
 h1{font-size:18px;color:#e94560;margin:6px 0}
@@ -574,19 +546,8 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 .music-progress{height:4px;background:#0f3460;border-radius:2px;margin:6px 0;overflow:hidden}
 .music-progress .bar{height:100%;width:0%;background:#22c55e;border-radius:2px;transition:width .3s}
 
-/* 检测告警面板 */
-.detect-panel{background:#16213e;border-radius:10px;padding:8px 12px;margin:6px auto;text-align:left;font-size:13px}
-.detect-panel .detect-title{color:#38bdf8;font-weight:bold;margin-bottom:4px;font-size:14px}
-.detect-panel .detect-row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid #1a1a2e}
-.detect-panel .detect-row:last-child{border:none}
-.detect-panel .detect-val{font-weight:bold}
-.detect-panel .alarm-fire{color:#e94560;animation:pulse 0.8s infinite}
-.detect-panel .alarm-smoke{color:#f59e0b;animation:pulse 1.5s infinite}
-.detect-panel .alarm-ai{color:#ef4444}
-.detect-panel .ok{color:#22c55e}
-.detect-panel .warn{color:#f59e0b}
 </style></head><body>
-<h1>FIRECUARD</h1>
+<h1>MiniMover</h1>
 <a class="nav-link" href="/nav/patrol">🗺️ 地图巡逻</a>
 <a class="nav-link" href="/nav">📍 单点导航</a>
 <a class="nav-link" href="/hospital-guide">Hospital Guide</a>
@@ -595,13 +556,6 @@ h1{font-size:18px;color:#e94560;margin:6px 0}
 <div class="sensors" id="sensorBar"></div>
 <div class="video-wrap" id="videoWrap"><img id="videoFeed" src="" alt="video"><div id="camHint" style="font-size:12px;color:#888;padding:6px"></div></div>
 
-<div class="detect-panel" id="detectPanel">
- <div class="detect-title">🔥 检测状态 <span id="detectBadge" style="font-size:11px;float:right"></span></div>
- <div class="detect-row"><span>火灾检测器</span><span class="detect-val" id="detState">未启动</span></div>
- <div class="detect-row"><span>触发进度</span><span class="detect-val" id="detHits">-</span></div>
- <div class="detect-row"><span>AI 复核</span><span class="detect-val" id="detAI">-</span></div>
- <div class="detect-row" id="detAlarmRow" style="display:none"><span>最近报警</span><span class="detect-val" id="detAlarm"></span></div>
-</div>
 
 <div class="dpad">
 <button class="fwd" onpointerdown="m('forward')">▲</button>
@@ -709,47 +663,7 @@ function speak(){
  };
  r.send(JSON.stringify({text:t,lang:'zh'}));
 }
-function updateDetectionUI(d){
- // 检测器运行状态
- var fm=d.fire_monitor;
- var badge=document.getElementById('detectBadge');
- var stateEl=document.getElementById('detState');
- if(!fm.running){stateEl.className='detect-val warn';stateEl.textContent='未启动';badge.textContent='';}
- else{
-  var es=fm.state;
-  if(es==='idle'){stateEl.className='detect-val ok';stateEl.textContent='待命中'}
-  else if(es==='ai_reviewing'){stateEl.className='detect-val warn';stateEl.textContent='AI复核中'}
-  else if(es==='alarmed_fire'){stateEl.className='detect-val alarm-fire';stateEl.textContent='🔥 火灾确认!'}
-  else if(es==='alarmed_smoke'){stateEl.className='detect-val alarm-smoke';stateEl.textContent='💨 烟雾报警!'}
-  else if(es==='ai_rejected'){stateEl.className='detect-val ok';stateEl.textContent='误报已排除'}
-  else if(es==='ai_failed'){stateEl.className='detect-val alarm-ai';stateEl.textContent='AI失效!'}
-  else{stateEl.className='detect-val';stateEl.textContent=es}
-  badge.textContent=fm.running?'● 运行中':'';
-  badge.style.color=fm.running?'#22c55e':'#aaa';
- }
- // 触发进度
- var hits=fm.hits||0, min=fm.trigger_min||5;
- document.getElementById('detHits').textContent=hits+'/'+min+(hits>=min?' ⚡':'');
- document.getElementById('detHits').className='detect-val'+(hits>=min?' warn':'');
- // AI 复核
- var ai=document.getElementById('detAI');
- if(fm.ai_state==='queued'){ai.textContent='排队中...';ai.className='detect-val'}
- else if(fm.ai_state==='completed'&&fm.ai_result==='confirmed_fire'){ai.textContent='确认: 火灾 ('+(fm.ai_confidence||0).toFixed(2)+')';ai.className='detect-val alarm-fire'}
- else if(fm.ai_state==='completed'&&fm.ai_result==='suspected_smoke'){ai.textContent='确认: 烟雾 ('+(fm.ai_confidence||0).toFixed(2)+')';ai.className='detect-val alarm-smoke'}
- else if(fm.ai_state==='completed'){ai.textContent=fm.ai_result||'已复核';ai.className='detect-val ok'}
- else if(fm.ai_state==='failed'){ai.textContent='复核失败';ai.className='detect-val alarm-ai'}
- else{ai.textContent=fm.ai_state||'-';ai.className='detect-val'}
- // 最近报警
- var row=document.getElementById('detAlarmRow');
- var el=document.getElementById('detAlarm');
- if(d.last_alarm){
-  row.style.display='';
-  var la=d.last_alarm;
-  var typeMap={confirmed_fire:'🔥 火灾',suspected_smoke:'💨 烟雾',ai_unavailable:'⚠ AI失效'};
-  el.textContent=(typeMap[la.alarm_type]||la.alarm_type)+' @'+(la.occurred_at||'').substr(11,8);
-  el.className='detect-val '+(la.alarm_type==='confirmed_fire'?'alarm-fire':la.alarm_type==='suspected_smoke'?'alarm-smoke':'alarm-ai');
- }else{row.style.display='none'}
-}
+
 // ===== 音乐播放控制 =====
 function musicPlay(){
  var btn=document.getElementById('musicPlayBtn');
@@ -819,10 +733,6 @@ function f(){
   document.getElementById("ipBar").textContent="IP: "+j.data.ip;
   var s=j.data.sensors;
   document.getElementById("sensorBar").innerHTML="<span>T:"+s.temperature.toFixed(1)+"C</span><span>H:"+s.humidity.toFixed(0)+"%</span><span>SMK:"+s.smoke+"</span><span>PM:"+s.pm25+"</span><span>P:"+s.pressure.toFixed(0)+"hPa</span><span>CO2:"+s.co2+"</span><span>BAT:"+j.data.battery+"V</span>";
-  // 检测告警轮询
-  fetch(API+"/api/detection/status").then(function(r2){return r2.json()}).then(function(dj){
-   if(dj.code==0) updateDetectionUI(dj.data);
-  }).catch(function(){});
  }; r.send();
 }
 // 导航模式可不启用相机；仅在 /api/camera.enabled 时拉流
