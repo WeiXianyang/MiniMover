@@ -115,3 +115,24 @@ def test_marker_routes_report_corrupted_storage_as_server_error(monkeypatch, tmp
     assert response.status_code == 500
     assert response.get_json()['code'] == -1
     assert path.read_text(encoding='utf-8') == '{not-json'
+
+from navigation.patrol_page import PATROL_PAGE_HTML
+
+
+def test_patrol_page_exposes_two_display_only_department_marker_modes():
+    assert 'id="modeInternalMedicine"' in PATROL_PAGE_HTML
+    assert 'id="modeSurgery"' in PATROL_PAGE_HTML
+    assert '标注内科' in PATROL_PAGE_HTML
+    assert '标注外科' in PATROL_PAGE_HTML
+    assert 'function saveDepartmentMarker' in PATROL_PAGE_HTML
+    assert 'function loadDepartmentMarkers' in PATROL_PAGE_HTML
+    assert "'/api/nav/department-markers'" in PATROL_PAGE_HTML
+
+
+def test_marker_specific_javascript_does_not_reference_vehicle_controls():
+    start = PATROL_PAGE_HTML.index('function saveDepartmentMarker')
+    end = PATROL_PAGE_HTML.index('function recordRobotTrail')
+    marker_code = PATROL_PAGE_HTML[start:end]
+
+    for forbidden in ('/navigate', '/initial_pose', '/patrol/', 'ros2', 'cmd_vel'):
+        assert forbidden not in marker_code
