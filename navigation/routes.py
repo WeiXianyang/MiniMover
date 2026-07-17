@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from flask import Blueprint, Response, jsonify, request
 
-from . import map_utils, ros_bridge
+from . import department_markers, map_utils, ros_bridge
 from . import stack_manager
 from .config import ROUTES_DIR
 from .patrol_page import PATROL_PAGE_HTML
@@ -22,6 +22,29 @@ def _ok(data=None, msg='ok'):
 
 def _err(msg, status=400):
     return jsonify({'code': -1, 'msg': msg}), status
+
+
+@nav_bp.route('/department-markers', methods=['GET'])
+def department_marker_list():
+    try:
+        return _ok(department_markers.list_markers())
+    except department_markers.MarkerConfigError as exc:
+        return _err(str(exc), 500)
+
+
+@nav_bp.route('/department-markers', methods=['POST'])
+def department_marker_save():
+    data = request.json or {}
+    try:
+        marker = department_markers.save_marker(
+            data.get('department'), data.get('x'), data.get('y'))
+    except department_markers.MarkerConfigError as exc:
+        return _err(str(exc), 500)
+    except ValueError as exc:
+        return _err(str(exc), 400)
+    except OSError as exc:
+        return _err('保存科室标注失败: %s' % exc, 500)
+    return _ok(marker, '科室标注已保存')
 
 
 def _parse_points(data):
