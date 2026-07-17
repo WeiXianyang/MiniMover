@@ -27,6 +27,7 @@ h1{font-size:20px;color:#e94560;margin:8px 0 4px}
 .marker.route{background:#e94560}
 .marker.start{background:#22c55e}
 .marker.robot{width:22px;height:16px;border:2px solid #dbeafe;border-radius:2px;background:#38bdf8;clip-path:polygon(100% 50%,45% 0,45% 25%,0 25%,0 75%,45% 75%,45% 100%);box-shadow:0 0 10px #38bdf8}
+.marker.department{width:auto;min-width:18px;height:18px;padding:1px 6px;border-radius:9px;white-space:nowrap;font-size:11px;line-height:14px;font-weight:bold;box-shadow:0 1px 5px rgba(0,0,0,.55)}
 .info{font-size:12px;color:#aaa;margin:6px 0;word-break:break-all}
 .panel{background:#16213e;border-radius:8px;padding:8px;margin:8px 0;text-align:left;font-size:12px}
 .panel h3{font-size:13px;color:#38bdf8;margin-bottom:4px}
@@ -58,6 +59,9 @@ a{color:#38bdf8}
 <div class="toolbar">
 <button id="modeRoute" class="active" onclick="setMode('route')">① 画路径点</button>
 <button id="modeStart" onclick="setMode('start')">② 设起点</button>
+<button id="modeInternalMedicine" onclick="setMode('internal_medicine')">标注内科</button>
+<button id="modeSurgery" onclick="setMode('surgery')">标注外科</button>
+<button id="modeCancelMarker" onclick="setMode('route')">取消标注</button>
 <button onclick="undoPoint()">撤销</button>
 <button class="danger" onclick="clearAll()">清空路线</button>
 <button onclick="clearRobotTrail()">清除轨迹</button>
@@ -77,12 +81,13 @@ a{color:#38bdf8}
 <div class="map-wrap" id="mapWrap"><img id="mapImg" src="/api/nav/map/image" alt="map"><svg id="robotTrailSvg" class="trail-overlay" aria-hidden="true"><polyline id="robotTrailLine" fill="none" stroke="rgba(56,189,248,0.9)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"></polyline></svg></div>
 <div class="panel"><h3>路径点 (<span id="ptCount">0</span>)</h3><div id="pointList">（暂无）</div></div>
 <div class="panel"><h3>起点</h3><div id="startInfo">(0.00, 0.00) yaw=0°</div></div>
+<div class="panel"><h3>科室标注</h3><div id="departmentList">（尚未标注）</div></div>
 <div class="panel"><h3>实时位姿</h3><div id="robotPoseInfo">定位等待中</div></div>
 <div class="panel"><h3>状态</h3><div id="statusBox">等待操作...</div></div>
 
 <script>
 var API=window.location.origin,mapInfo={width:0,height:0,resolution:0.05,origin:[-10,-21.2,0]},mapW=0,mapH=0;
-var points=[],startPose={x:0,y:0,yaw:0},clickMode='route';
+var points=[],startPose={x:0,y:0,yaw:0},clickMode='route',departmentMarkers=[];
 var robotPose={valid:false,x:null,y:null,yaw:null,frame_id:'',source:'',stamp:{sec:0,nanosec:0},message:'定位等待中'};
 var ROBOT_TRAIL_MIN_DISTANCE=0.08,ROBOT_TRAIL_MAX_POINTS=2000;
 var robotTrail=[];
@@ -97,6 +102,10 @@ function setMode(m){
   clickMode=m;
   document.getElementById('modeRoute').classList.toggle('active',m==='route');
   document.getElementById('modeStart').classList.toggle('active',m==='start');
+  document.getElementById('modeInternalMedicine').classList.toggle('active',m==='internal_medicine');
+  document.getElementById('modeSurgery').classList.toggle('active',m==='surgery');
+  if(m==='internal_medicine'){setStatus('请在地图上点击内科位置');}
+  if(m==='surgery'){setStatus('请在地图上点击外科位置');}
 }
 function screenToMap(cx,cy){
   var img=document.getElementById('mapImg'),r=img.getBoundingClientRect();
@@ -108,6 +117,30 @@ function refreshList(){
   document.getElementById('pointList').innerHTML=points.length?points.map(function(p,i){
     return (i+1)+'. ('+p.x.toFixed(3)+', '+p.y.toFixed(3)+')';
   }).join('<br>'):'（暂无）';
+}
+function refreshDepartmentList(){
+  var el=document.getElementById('departmentList');
+  el.innerHTML=departmentMarkers.length?departmentMarkers.map(function(marker){
+    return marker.label+': ('+marker.x.toFixed(3)+', '+marker.y.toFixed(3)+')';
+  }).join('<br>'):'（尚未标注）';
+}
+function loadDepartmentMarkers(){
+  return fetch(API+'/api/nav/department-markers').then(function(r){return r.json();}).then(function(j){
+    if(j.code!==0){throw new Error(j.msg||'读取科室标注失败');}
+    departmentMarkers=(j.data&&Array.isArray(j.data.markers))?j.data.markers:[];
+    refreshDepartmentList();if(mapW&&mapH){redraw();}
+  }).catch(function(){setStatus('读取科室标注失败',false);});
+}
+function saveDepartmentMarker(department,point){
+  setStatus('正在保存科室标注…');
+  return apiPost('/api/nav/department-markers',{department:department,x:point.x,y:point.y}).then(function(j){
+    if(j.code!==0){setStatus(j.msg||'保存科室标注失败',false);return;}
+    departmentMarkers=departmentMarkers.filter(function(marker){return marker.department!==j.data.department;});
+    departmentMarkers.push(j.data);
+    refreshDepartmentList();redraw();
+    setStatus(j.msg||'科室标注已保存',true);
+    setMode('route');
+  });
 }
 function drawRobotTrail(){
   var svg=document.getElementById('robotTrailSvg'),line=document.getElementById('robotTrailLine');
@@ -135,6 +168,14 @@ function redraw(){
     var mk=document.createElement('div');mk.className='marker route';
     mk.style.left=(px2/mapW*100)+'%';mk.style.top=(py2/mapH*100)+'%';mk.textContent=i+1;w.appendChild(mk);
   });
+  departmentMarkers.forEach(function(marker){
+    var px4=(marker.x-mapInfo.origin[0])/mapInfo.resolution;
+    var py4=mapH-(marker.y-mapInfo.origin[1])/mapInfo.resolution;
+    var department=document.createElement('div');department.className='marker department';
+    department.style.left=(px4/mapW*100)+'%';department.style.top=(py4/mapH*100)+'%';
+    department.style.background=marker.color;department.textContent=marker.label;
+    w.appendChild(department);
+  });
   if(robotPose.valid && robotPose.frame_id==='map' && mapW && mapH){
     var px3=(robotPose.x-mapInfo.origin[0])/mapInfo.resolution;
     var py3=mapH-(robotPose.y-mapInfo.origin[1])/mapInfo.resolution;
@@ -152,6 +193,10 @@ document.getElementById('mapImg').onload=function(){
 };
 document.getElementById('mapImg').onclick=function(e){
   var m=screenToMap(e.clientX,e.clientY);
+  if(clickMode==='internal_medicine'||clickMode==='surgery'){
+    saveDepartmentMarker(clickMode,m);
+    return;
+  }
   if(clickMode==='start'){
     startPose.x=m.x;startPose.y=m.y;
     document.getElementById('startInfo').textContent='('+m.x.toFixed(3)+', '+m.y.toFixed(3)+')';
@@ -298,6 +343,7 @@ function tick(){
   pollStatus();
   setTimeout(tick, pollFast?1500:5000);
 }
+loadDepartmentMarkers();
 refreshList();
 tick();
 poseTick();
