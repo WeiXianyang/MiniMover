@@ -64,3 +64,54 @@ def test_malformed_marker_file_is_reported_without_overwriting(monkeypatch, tmp_
     with pytest.raises(ValueError, match='科室标注配置格式错误'):
         department_markers.list_markers()
     assert path.read_text(encoding='utf-8') == '{not-json'
+
+from flask import Flask
+
+from navigation.routes import nav_bp
+
+
+def _marker_client(monkeypatch, tmp_path):
+    monkeypatch.setattr(department_markers, 'MARKERS_PATH', tmp_path / 'markers.json')
+    app = Flask(__name__)
+    app.register_blueprint(nav_bp, url_prefix='/api/nav')
+    return app.test_client()
+
+
+def test_marker_routes_return_empty_then_persist_a_marker(monkeypatch, tmp_path):
+    client = _marker_client(monkeypatch, tmp_path)
+
+    initial = client.get('/api/nav/department-markers')
+    saved = client.post('/api/nav/department-markers', json={
+        'department': 'internal_medicine', 'x': 1.5, 'y': -2.0,
+    })
+    reread = client.get('/api/nav/department-markers')
+
+    assert initial.status_code == 200
+    assert initial.get_json()['data']['markers'] == []
+    assert saved.status_code == 200
+    assert saved.get_json()['data']['label'] == '内科'
+    assert reread.get_json()['data']['markers'][0]['x'] == 1.5
+
+
+def test_marker_route_rejects_invalid_payload_without_writing(monkeypatch, tmp_path):
+    client = _marker_client(monkeypatch, tmp_path)
+
+    response = client.post('/api/nav/department-markers', json={
+        'department': 'pharmacy', 'x': 1.0, 'y': 2.0,
+    })
+
+    assert response.status_code == 400
+    assert response.get_json()['code'] == -1
+    assert not (tmp_path / 'markers.json').exists()
+
+
+def test_marker_routes_report_corrupted_storage_as_server_error(monkeypatch, tmp_path):
+    path = tmp_path / 'markers.json'
+    path.write_text('{not-json', encoding='utf-8')
+    client = _marker_client(monkeypatch, tmp_path)
+
+    response = client.get('/api/nav/department-markers')
+
+    assert response.status_code == 500
+    assert response.get_json()['code'] == -1
+    assert path.read_text(encoding='utf-8') == '{not-json'
