@@ -118,7 +118,18 @@ class ConversationMemory:
 class HospitalGuideOrchestrator:
     """Turns non-motion utterances into safe, confirmation-gated guide replies."""
 
-    def __init__(self, config, knowledge_base, llm_client, car_client, memory_turns=6, retrieval_limit=3, reply_max_chars=180, telemetry=None):
+    def __init__(
+        self,
+        config,
+        knowledge_base,
+        llm_client,
+        car_client,
+        memory_turns=6,
+        retrieval_limit=3,
+        reply_max_chars=180,
+        telemetry=None,
+        on_guide_event=None,
+    ):
         self._config = config
         self._knowledge_base = knowledge_base
         self._llm_client = llm_client
@@ -127,7 +138,9 @@ class HospitalGuideOrchestrator:
         self._retrieval_limit = max(1, min(int(retrieval_limit), 5))
         self._reply_max_chars = max(60, min(int(reply_max_chars), 300))
         self._pending_department_id = None
+        self._active_navigation_department_id = None
         self._telemetry = telemetry
+        self._on_guide_event = on_guide_event
 
     def remember(self, user_text, assistant_text):
         self._memory.add_turn(user_text, assistant_text)
@@ -138,6 +151,7 @@ class HospitalGuideOrchestrator:
     def reset(self):
         self._memory.clear()
         self._pending_department_id = None
+        self._active_navigation_department_id = None
         if self._telemetry:
             try:
                 self._telemetry.reset()
@@ -164,6 +178,23 @@ class HospitalGuideOrchestrator:
             )
         if self._pending_department_id and _contains(text, CONFIRMATION_HINTS):
             return self._start_pending_navigation(text)
+        if self._active_navigation_department_id and _contains(text, CONFIRMATION_HINTS):
+            active_department = self._config.department(self._active_navigation_department_id)
+            mentioned_department = self._config.find_department(text)
+            if mentioned_department is None or mentioned_department.department_id == active_department.department_id:
+                return self._remember_and_return(
+                    text,
+                    "\u6b63\u5728\u5e26\u60a8\u524d\u5f80%s\u3002%s" % (
+                        active_department.name, active_department.directions,
+                    ),
+                    event_type="navigation_already_started",
+                    navigation={
+                        "requested": False,
+                        "status": "already_started",
+                        "message": "\u6b63\u5728\u5e26\u60a8\u524d\u5f80%s\u3002" % active_department.name,
+                        "department": self._department_payload(active_department),
+                    },
+                )
 
         department = self._config.find_department(text)
         if department:
@@ -171,6 +202,7 @@ class HospitalGuideOrchestrator:
             reply = "%s\u5728%s\u3002%s\u9700\u8981\u6211\u5e26\u60a8\u53bb%s\u5417\uff1f" % (
                 department.name, department.floor, department.directions, department.name,
             )
+            self._emit_guide_event("department_matched", department.department_id)
             return self._remember_and_return(text, reply, event_type="department_matched")
 
         evidence = self._knowledge_base.search(text, self._retrieval_limit)
@@ -186,6 +218,7 @@ class HospitalGuideOrchestrator:
                 reply = "%s\u9700\u8981\u6211\u5e26\u60a8\u53bb%s\u5417\uff1f" % (
                     reply.rstrip("\u3002"), self._config.department(department_id).name,
                 )
+                self._emit_guide_event("department_matched", department_id)
         return self._remember_and_return(
             text,
             reply,
@@ -224,6 +257,8 @@ class HospitalGuideOrchestrator:
                 },
             )
         self._pending_department_id = None
+        self._active_navigation_department_id = department.department_id
+        self._emit_guide_event("navigation_started", department.department_id)
         return self._remember_and_return(
             text,
             "\u5df2\u5f00\u59cb\u5e26\u60a8\u524d\u5f80%s\u3002%s" % (department.name, department.directions),
@@ -235,6 +270,19 @@ class HospitalGuideOrchestrator:
                 "department": self._department_payload(department),
             },
         )
+
+    def _emit_guide_event(self, event_type, department_id):
+        if event_type not in {"department_matched", "navigation_started"}:
+            return
+        if not isinstance(department_id, str) or not department_id:
+            return
+        handler = self._on_guide_event
+        if not callable(handler):
+            return
+        try:
+            handler({"type": event_type, "department_id": department_id})
+        except Exception:
+            pass
 
     def _ask_llm(self, text, evidence):
         if not self._llm_client:

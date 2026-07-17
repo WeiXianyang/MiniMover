@@ -1,14 +1,147 @@
-﻿{
+{
   "hospital_name": "MiniMover 示范医院",
   "map_name": "loudao",
   "departments": [
-    {"id": "emergency", "name": "急诊", "aliases": ["急诊科", "急救", "急救中心"], "floor": "一层", "directions": "请沿主走廊前往一层急诊入口。", "navigation": {"enabled": false, "x": 0.0, "y": 0.0, "theta": 0.0}},
-    {"id": "internal_medicine", "name": "内科", "aliases": ["呼吸内科", "消化内科", "心内科"], "floor": "二层", "directions": "请前往二层内科候诊区。", "navigation": {"enabled": false, "x": 0.0, "y": 0.0, "theta": 0.0}},
-    {"id": "surgery", "name": "外科", "aliases": ["普通外科", "骨科", "外科门诊"], "floor": "二层", "directions": "请前往二层外科候诊区。", "navigation": {"enabled": false, "x": 0.0, "y": 0.0, "theta": 0.0}},
-    {"id": "pediatrics", "name": "儿科", "aliases": ["儿童门诊", "小儿科"], "floor": "二层", "directions": "请前往二层儿科候诊区。", "navigation": {"enabled": false, "x": 0.0, "y": 0.0, "theta": 0.0}},
-    {"id": "obstetrics_gynecology", "name": "妇产科", "aliases": ["妇科", "产科"], "floor": "三层", "directions": "请前往三层妇产科候诊区。", "navigation": {"enabled": false, "x": 0.0, "y": 0.0, "theta": 0.0}},
-    {"id": "pharmacy", "name": "药房", "aliases": ["取药", "西药房", "中药房"], "floor": "一层", "directions": "请前往一层药房窗口。", "navigation": {"enabled": false, "x": 0.0, "y": 0.0, "theta": 0.0}},
-    {"id": "laboratory", "name": "检验科", "aliases": ["抽血", "化验", "检验"], "floor": "一层", "directions": "请前往一层检验科采样区。", "navigation": {"enabled": false, "x": 0.0, "y": 0.0, "theta": 0.0}},
-    {"id": "imaging", "name": "影像科", "aliases": ["拍片", "CT", "核磁", "B超"], "floor": "一层", "directions": "请前往一层影像检查区。", "navigation": {"enabled": false, "x": 0.0, "y": 0.0, "theta": 0.0}}
+    {
+      "id": "emergency",
+      "name": "急诊",
+      "aliases": [
+        "急诊科",
+        "急救",
+        "急救中心"
+      ],
+      "floor": "一层",
+      "directions": "请沿主走廊前往一层急诊入口。",
+      "navigation": {
+        "enabled": false,
+        "x": 0.0,
+        "y": 0.0,
+        "theta": 0.0
+      }
+    },
+    {
+      "id": "internal_medicine",
+      "name": "内科",
+      "aliases": [
+        "呼吸内科",
+        "消化内科",
+        "心内科",
+        "头疼",
+        "头痛",
+        "感冒",
+        "咳嗽",
+        "发烧",
+        "发热"
+      ],
+      "floor": "一层",
+      "directions": "请前往前方内科演示点。",
+      "navigation": {
+        "enabled": true,
+        "x": 2.0,
+        "y": 0.0,
+        "theta": 0.0
+      }
+    },
+    {
+      "id": "surgery",
+      "name": "外科",
+      "aliases": [
+        "普通外科",
+        "骨科",
+        "外科门诊"
+      ],
+      "floor": "二层",
+      "directions": "请前往二层外科候诊区。",
+      "navigation": {
+        "enabled": false,
+        "x": 0.0,
+        "y": 0.0,
+        "theta": 0.0
+      }
+    },
+    {
+      "id": "pediatrics",
+      "name": "儿科",
+      "aliases": [
+        "儿童门诊",
+        "小儿科"
+      ],
+      "floor": "二层",
+      "directions": "请前往二层儿科候诊区。",
+      "navigation": {
+        "enabled": false,
+        "x": 0.0,
+        "y": 0.0,
+        "theta": 0.0
+      }
+    },
+    {
+      "id": "obstetrics_gynecology",
+      "name": "妇产科",
+      "aliases": [
+        "妇科",
+        "产科"
+      ],
+      "floor": "三层",
+      "directions": "请前往三层妇产科候诊区。",
+      "navigation": {
+        "enabled": false,
+        "x": 0.0,
+        "y": 0.0,
+        "theta": 0.0
+      }
+    },
+    {
+      "id": "pharmacy",
+      "name": "药房",
+      "aliases": [
+        "取药",
+        "西药房",
+        "中药房"
+      ],
+      "floor": "一层",
+      "directions": "请前往一层药房窗口。",
+      "navigation": {
+        "enabled": false,
+        "x": 0.0,
+        "y": 0.0,
+        "theta": 0.0
+      }
+    },
+    {
+      "id": "laboratory",
+      "name": "检验科",
+      "aliases": [
+        "抽血",
+        "化验",
+        "检验"
+      ],
+      "floor": "一层",
+      "directions": "请前往一层检验科采样区。",
+      "navigation": {
+        "enabled": false,
+        "x": 0.0,
+        "y": 0.0,
+        "theta": 0.0
+      }
+    },
+    {
+      "id": "imaging",
+      "name": "影像科",
+      "aliases": [
+        "拍片",
+        "CT",
+        "核磁",
+        "B超"
+      ],
+      "floor": "一层",
+      "directions": "请前往一层影像检查区。",
+      "navigation": {
+        "enabled": false,
+        "x": 0.0,
+        "y": 0.0,
+        "theta": 0.0
+      }
+    }
   ]
 }

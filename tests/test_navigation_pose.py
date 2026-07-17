@@ -1,4 +1,6 @@
 ﻿import math
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
@@ -86,6 +88,29 @@ def test_robot_pose_uses_short_ttl_cache():
 
     assert first == second
     assert run_ros.call_count == 1
+
+
+def test_robot_pose_queries_are_single_flight_under_concurrent_polling():
+    ros_bridge._pose_cache = (None, 0.0)
+    proc = type('Proc', (), {
+        'returncode': 0,
+        'stdout': "response: GetRobotPose_Response(valid=False, pose=PoseStamped(), source='', message='waiting')",
+        'stderr': '',
+    })()
+    calls = []
+
+    def slow_run_ros(command, timeout):
+        calls.append((command, timeout))
+        time.sleep(0.05)
+        return proc, None
+
+    with patch.object(ros_bridge, '_run_ros', side_effect=slow_run_ros):
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(lambda _index: ros_bridge.get_robot_pose(), range(8)))
+
+    assert len(calls) == 1
+    assert all(result == results[0] for result in results)
+    assert 'timeout --signal=TERM --kill-after=1s 4s ros2 service call' in calls[0][0]
 
 
 def test_pose_endpoint_returns_http_200_for_invalid_localization(monkeypatch):

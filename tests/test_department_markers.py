@@ -136,3 +136,30 @@ def test_marker_specific_javascript_does_not_reference_vehicle_controls():
 
     for forbidden in ('/navigate', '/initial_pose', '/patrol/', 'ros2', 'cmd_vel'):
         assert forbidden not in marker_code
+
+
+def test_repository_contains_fixed_competition_department_markers():
+    original_path = department_markers.MARKERS_PATH
+    try:
+        department_markers.MARKERS_PATH = (
+            __import__('pathlib').Path(__file__).resolve().parents[1]
+            / 'navigation' / 'data' / 'department_markers.json'
+        )
+        assert department_markers.list_markers()['markers'] == [
+            {
+                'department': 'internal_medicine',
+                'label': department_markers.DEPARTMENTS['internal_medicine']['label'],
+                'color': '#2563eb',
+                'x': 2.0,
+                'y': 0.0,
+            },
+            {
+                'department': 'surgery',
+                'label': department_markers.DEPARTMENTS['surgery']['label'],
+                'color': '#f97316',
+                'x': -1.5,
+                'y': 0.0,
+            },
+        ]
+    finally:
+        department_markers.MARKERS_PATH = original_path

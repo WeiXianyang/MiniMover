@@ -66,6 +66,23 @@ class HospitalGuideTests(unittest.TestCase):
         guide.handle("好的")
         car.navigate_to.assert_called_once_with(1.2, -3.4, 0.0)
 
+    def test_repeated_take_me_to_internal_medicine_does_not_reconfirm_or_resubmit(self):
+        car = Mock()
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), Mock(), car,
+        )
+
+        first_reply = guide.handle("\u5e26\u6211\u53bb\u5185\u79d1")
+        confirmation_reply = guide.handle("\u5e26\u6211\u53bb\u5185\u79d1")
+        repeated_reply = guide.handle("\u5e26\u6211\u53bb\u5185\u79d1")
+
+        self.assertIn("\u9700\u8981\u6211\u5e26\u60a8\u53bb\u5185\u79d1\u5417", first_reply)
+        self.assertIn("\u5df2\u5f00\u59cb\u5e26\u60a8\u524d\u5f80\u5185\u79d1", confirmation_reply)
+        self.assertNotIn("\u9700\u8981\u6211\u5e26\u60a8\u53bb\u5185\u79d1\u5417", repeated_reply)
+        self.assertIn("\u6b63\u5728\u5e26\u60a8\u524d\u5f80\u5185\u79d1", repeated_reply)
+        car.navigate_to.assert_called_once_with(1.2, -3.4, 0.0)
+
     def test_rejection_clears_pending_navigation(self):
         car = Mock()
         guide = HospitalGuideOrchestrator(

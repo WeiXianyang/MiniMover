@@ -1,7 +1,9 @@
 import math
+import os
 import re
 import shlex
 import subprocess
+import threading
 import time
 
 from .config import CONTAINER_NAME, CONTAINER_WS, ROS_DOMAIN_ID
@@ -12,6 +14,7 @@ _cache_lock_time = 0.0
 _container_cache = (False, 0.0)  # running, ts
 _ready_cache = (False, 0.0)  # ready, ts
 _pose_cache = (None, 0.0)  # normalized pose, ts
+_pose_query_lock = threading.Lock()
 _POSE_CACHE_TTL = 0.8
 
 
@@ -161,25 +164,36 @@ def _call_trigger(service):
 
 def get_robot_pose(force=False):
     global _pose_cache
-    now = time.time()
-    cached, cached_at = _pose_cache
-    if not force and cached is not None and now - cached_at < _POSE_CACHE_TTL:
-        return cached
+    # Browser pages poll both pose and demo status. Serialize the expensive
+    # docker/ROS query so concurrent HTTP requests share the short-lived cache
+    # instead of spawning overlapping ``docker exec ros2 service call`` jobs.
+    with _pose_query_lock:
+        now = time.time()
+        cached, cached_at = _pose_cache
+        if not force and cached is not None and now - cached_at < _POSE_CACHE_TTL:
+            return cached
 
-    proc, err = _run_ros(
-        'ros2 service call /patrol/get_robot_pose '
-        'yahboomcar_patrol_interfaces/srv/GetRobotPose "{}"',
-        timeout=5)
-    if err:
-        result = _invalid_pose(err.get('message', 'localization service unavailable'), success=False)
-    else:
-        text = _combined_output(proc)
-        if proc.returncode != 0:
-            result = _invalid_pose(_friendly_error(text or 'pose service failed'), success=False)
+        proc, err = _run_ros(
+            'timeout --signal=TERM --kill-after=1s 4s '
+            'ros2 service call /patrol/get_robot_pose '
+            'yahboomcar_patrol_interfaces/srv/GetRobotPose "{}"',
+            timeout=6)
+        if err:
+            result = _invalid_pose(
+                err.get('message', 'localization service unavailable'),
+                success=False,
+            )
         else:
-            result = _parse_robot_pose_response(text)
-    _pose_cache = (result, now)
-    return result
+            text = _combined_output(proc)
+            if proc.returncode != 0:
+                result = _invalid_pose(
+                    _friendly_error(text or 'pose service failed'),
+                    success=False,
+                )
+            else:
+                result = _parse_robot_pose_response(text)
+        _pose_cache = (result, time.time())
+        return result
 
 
 def patrol_services_ready(force=False):
@@ -412,16 +426,217 @@ def patrol_status():
     }
 
 
+
+_DEMO_ACTIVE_GOAL_STATUSES = frozenset({'PENDING', 'ACTIVE'})
+_DEMO_TERMINAL_GOAL_STATUSES = frozenset({'SUCCEEDED', 'FAILED', 'CANCELLED'})
+_demo_goal_lock = threading.RLock()
+_demo_goal = None
+_demo_goal_sequence = 0
+
+
+def _update_demo_goal_from_line(goal_id, line):
+    """Apply a Nav2 CLI output transition for the currently tracked goal only."""
+    text = str(line or '').strip()
+    if not text:
+        return
+    lowered = text.lower()
+    status = None
+    message = text
+    finished = re.search(r'goal finished with status:\s*([A-Za-z_]+)', text, re.IGNORECASE)
+    if finished:
+        reported = finished.group(1).upper()
+        if reported == 'SUCCEEDED':
+            status = 'SUCCEEDED'
+        elif reported in {'CANCELED', 'CANCELLED'}:
+            status = 'CANCELLED'
+        else:
+            status = 'FAILED'
+    elif ('goal canceled' in lowered or 'goal cancelled' in lowered
+          or 'canceled' in lowered or 'cancelled' in lowered):
+        status = 'CANCELLED'
+    elif 'goal accepted' in lowered or 'goal was accepted' in lowered:
+        status = 'ACTIVE'
+    elif 'goal rejected' in lowered or 'goal aborted' in lowered:
+        status = 'FAILED'
+    if status is None:
+        return
+
+    with _demo_goal_lock:
+        goal = _demo_goal
+        if not goal or goal.get('goal_id') != goal_id:
+            return
+        if goal.get('status') in _DEMO_TERMINAL_GOAL_STATUSES:
+            return
+        goal['status'] = status
+        goal['message'] = message
+
+
+def _finish_demo_goal_reader(goal_id, return_code=None, error=None):
+    with _demo_goal_lock:
+        goal = _demo_goal
+        if not goal or goal.get('goal_id') != goal_id:
+            return
+        if goal.get('status') in _DEMO_ACTIVE_GOAL_STATUSES:
+            goal['status'] = 'FAILED'
+            if error:
+                goal['message'] = 'Nav2 goal output reader failed: %s' % error
+            else:
+                goal['message'] = (
+                    'Nav2 goal process exited before reporting success'
+                    + ('' if return_code is None else ' (exit code %s)' % return_code)
+                )
+        goal.pop('_process', None)
+
+
+def _read_demo_goal_output(goal_id, proc):
+    """Follow the Nav2 CLI result stream without deriving completion from HTTP."""
+    try:
+        if proc.stdout is None:
+            raise RuntimeError('Nav2 goal process has no output stream')
+        for line in proc.stdout:
+            _update_demo_goal_from_line(goal_id, line)
+        return_code = proc.wait()
+    except Exception as exc:
+        _finish_demo_goal_reader(goal_id, error=str(exc))
+        return
+    _finish_demo_goal_reader(goal_id, return_code=return_code)
+
+
 def navigate_to(x, y, theta=0.0):
-    if not container_running():
-        return {'success': False, 'message': '容器 %s 未运行' % CONTAINER_NAME}
-    cmd = (
-        '%s && ros2 action send_goal /navigate_to_pose '
-        'nav2_msgs/action/NavigateToPose '
-        '"{pose: {header: {frame_id: map}, pose: {position: {x: %s, y: %s}, '
-        'orientation: {z: %s, w: 1.0}}}}"'
-    ) % (_ros_env_shell(), x, y, theta)
-    subprocess.Popen(
-        _docker_cmd('bash', '-lc', cmd),
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return {'success': True, 'message': '导航到 (%.2f, %.2f)' % (x, y)}
+    """Submit one Nav2 goal and track only the status emitted by Nav2 itself."""
+    global _demo_goal, _demo_goal_sequence
+    try:
+        x = float(x)
+        y = float(y)
+        theta = float(theta)
+    except (TypeError, ValueError):
+        return {'success': False, 'message': 'navigation coordinates must be numeric'}
+    if not all(math.isfinite(value) for value in (x, y, theta)):
+        return {'success': False, 'message': 'navigation coordinates must be finite'}
+
+    with _demo_goal_lock:
+        if _demo_goal and _demo_goal.get('status') in _DEMO_ACTIVE_GOAL_STATUSES:
+            return {
+                'success': False,
+                'message': 'a demo navigation goal is already active',
+                'status': _demo_goal.get('status'),
+            }
+        if not container_running():
+            return {'success': False, 'message': 'container %s is not running' % CONTAINER_NAME}
+
+        z = math.sin(theta / 2.0)
+        w = math.cos(theta / 2.0)
+        goal_yaml = (
+            '{pose: {header: {frame_id: map}, pose: {position: {x: %s, y: %s}, '
+            'orientation: {z: %s, w: %s}}}}'
+        ) % (x, y, z, w)
+        cmd = (
+            '%s && ros2 action send_goal --feedback /navigate_to_pose '
+            'nav2_msgs/action/NavigateToPose %s'
+        ) % (_ros_env_shell(), shlex.quote(goal_yaml))
+        try:
+            proc = subprocess.Popen(
+                _docker_cmd('bash', '-lc', cmd),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+        except (FileNotFoundError, OSError) as exc:
+            return {'success': False, 'message': 'unable to start Nav2 goal: %s' % exc}
+
+        _demo_goal_sequence += 1
+        goal_id = _demo_goal_sequence
+        _demo_goal = {
+            'goal_id': goal_id,
+            'x': x,
+            'y': y,
+            'theta': theta,
+            'status': 'PENDING',
+            'message': 'Nav2 goal submitted; waiting for acceptance',
+            '_process': proc,
+        }
+
+    threading.Thread(
+        target=_read_demo_goal_output,
+        args=(goal_id, proc),
+        daemon=True,
+    ).start()
+    return {
+        'success': True,
+        'message': 'navigation goal submitted (%.2f, %.2f)' % (x, y),
+        'status': 'PENDING',
+        'target': {'x': x, 'y': y, 'theta': theta},
+    }
+
+
+def demo_goal_status(tolerance=0.15):
+    """Trust Nav2 completion while retaining map-pose distance as diagnostics."""
+    try:
+        tolerance = float(tolerance)
+    except (TypeError, ValueError):
+        tolerance = 0.15
+    if not math.isfinite(tolerance) or tolerance < 0:
+        tolerance = 0.15
+
+    with _demo_goal_lock:
+        goal = dict(_demo_goal) if _demo_goal else None
+    if not goal:
+        return {
+            'active': False,
+            'arrived': False,
+            'status': 'IDLE',
+            'message': 'no demo navigation goal',
+            'target': None,
+            'pose': None,
+            'distance_m': None,
+            'tolerance_m': tolerance,
+        }
+
+    try:
+        pose = get_robot_pose()
+    except Exception as exc:
+        pose = _invalid_pose('failed to read robot pose: %s' % exc, success=False)
+
+    distance = None
+    # Nav2's action result is the authority for motion completion. Its goal
+    # checker already applies the configured XY/yaw tolerances and stops the
+    # controller before reporting SUCCEEDED. A stricter HTTP-layer distance
+    # threshold must not leave the demo stuck in NAVIGATING after the car stops.
+    arrived = goal.get('status') == 'SUCCEEDED'
+    if arrived and pose.get('valid') and pose.get('frame_id') == 'map':
+        try:
+            pose_x = float(pose.get('x'))
+            pose_y = float(pose.get('y'))
+            if math.isfinite(pose_x) and math.isfinite(pose_y):
+                distance = math.hypot(pose_x - goal['x'], pose_y - goal['y'])
+        except (TypeError, ValueError):
+            pass
+
+    return {
+        'active': goal.get('status') in _DEMO_ACTIVE_GOAL_STATUSES,
+        'arrived': arrived,
+        'status': goal.get('status', 'FAILED'),
+        'message': goal.get('message', ''),
+        'target': {
+            'x': goal.get('x'),
+            'y': goal.get('y'),
+            'theta': goal.get('theta'),
+        },
+        'pose': pose,
+        'distance_m': distance,
+        'tolerance_m': tolerance,
+    }
+
+
+def cancel_demo_goal():
+    """Remain fail-closed until a real-vehicle Nav2 cancel procedure is verified."""
+    if os.environ.get('MINIMOVER_DEMO_CANCEL_ENABLED') != '1':
+        return {
+            'success': False,
+            'message': 'demo cancel is disabled until verified on the real vehicle',
+        }
+    return {
+        'success': False,
+        'message': 'demo cancel is not available: the Nav2 cancel procedure is not yet verified on the real vehicle',
+    }

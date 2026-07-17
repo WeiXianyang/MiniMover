@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -185,6 +186,65 @@ class AudioTurnSafetyTests(unittest.TestCase):
             format=AudioFormat.WAV_16000HZ_MONO_16BIT,
             workspace="ws-test",
         )
+
+    @patch("dashscope.audio.tts_v2.SpeechSynthesizer")
+    def test_dashscope_tts_retries_one_empty_audio_response(self, synthesizer):
+        from audio import icar_audio
+
+        wav = (
+            b"RIFF" + (36 + 3200).to_bytes(4, "little") + b"WAVEfmt "
+            + (16).to_bytes(4, "little") + (1).to_bytes(2, "little")
+            + (1).to_bytes(2, "little") + (16000).to_bytes(4, "little")
+            + (32000).to_bytes(4, "little") + (2).to_bytes(2, "little")
+            + (16).to_bytes(2, "little") + b"data" + (3200).to_bytes(4, "little")
+            + b"\x00" * 3200
+        )
+        first = Mock()
+        first.call.return_value = b""
+        second = Mock()
+        second.call.return_value = wav
+        synthesizer.side_effect = [first, second]
+        with patch.dict("os.environ", {
+            "MINIMOVER_DASHSCOPE_API_KEY": "test-key",
+        }, clear=False), patch.object(icar_audio, "_load_tts_env"):
+            self.assertEqual(icar_audio._dashscope_tts("test"), wav)
+
+        self.assertEqual(synthesizer.call_count, 2)
+        first.call.assert_called_once_with(text="test")
+        second.call.assert_called_once_with(text="test")
+
+
+    def test_tts_cache_annotations_are_compatible_with_jetson_python_38(self):
+        source = Path("audio/icar_audio.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("bytes | None", source)
+        self.assertIn("Optional[bytes]", source)
+
+    @patch("audio.icar_audio._dashscope_tts")
+    def test_successful_tts_is_persisted_and_reused_without_provider(self, dashscope_tts):
+        from audio import icar_audio
+
+        wav = (
+            b"RIFF" + (36 + 3200).to_bytes(4, "little") + b"WAVEfmt "
+            + (16).to_bytes(4, "little") + (1).to_bytes(2, "little")
+            + (1).to_bytes(2, "little") + (16000).to_bytes(4, "little")
+            + (32000).to_bytes(4, "little") + (2).to_bytes(2, "little")
+            + (16).to_bytes(2, "little") + b"data" + (3200).to_bytes(4, "little")
+            + b"\x00" * 3200
+        )
+        dashscope_tts.return_value = wav
+        with tempfile.TemporaryDirectory() as cache_dir, patch.dict(
+            "os.environ",
+            {"MINIMOVER_TTS_CACHE_DIR": cache_dir},
+            clear=False,
+        ), patch.object(icar_audio._player, "stop"):
+            self.assertEqual(icar_audio.say("cached demo phrase"), wav)
+            dashscope_tts.reset_mock(side_effect=True, return_value=True)
+            dashscope_tts.side_effect = RuntimeError("provider unavailable")
+
+            self.assertEqual(icar_audio.say("cached demo phrase"), wav)
+
+        dashscope_tts.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -236,6 +236,21 @@ def load_saved_route(name):
 def navigate():
     data = request.json or {}
     result = ros_bridge.navigate_to(data.get('x', 0), data.get('y', 0), data.get('theta', 0))
+    if not result.get('success'):
+        return _err(result.get('message', 'navigation goal was not submitted'), 409)
+    return _ok(result, result.get('message', 'ok'))
+
+
+@nav_bp.route('/demo/goal-status', methods=['GET'])
+def demo_goal_status_api():
+    return _ok(ros_bridge.demo_goal_status())
+
+
+@nav_bp.route('/demo/cancel', methods=['POST'])
+def demo_cancel_api():
+    result = ros_bridge.cancel_demo_goal()
+    if not result.get('success'):
+        return _err(result.get('message', 'demo cancel failed'), 409)
     return _ok(result, result.get('message', 'ok'))
 
 

@@ -3,7 +3,7 @@
 Endpoints:   ws://0.0.0.0:PORT/ws/asr      — car audio stream
              ws://0.0.0.0:PORT/ws/monitor  — dashboard view-only
 """
-import asyncio, json, math, os, sys, tempfile
+import asyncio, json, math, os, sys
 
 # Support both ``python -m voice_assistant.pc_asr_server`` and the direct
 # script invocation used by the existing Windows/Jetson launchers.
@@ -17,6 +17,7 @@ import numpy as np
 import websockets
 from websockets.asyncio.server import serve
 
+from voice_assistant.asr_backends import recognize_utterance
 from voice_assistant.audio_turn_safety import normalized_rms
 
 # ═══ 自己加载 .env.* — 永远不依赖外部环境 ═══
@@ -41,89 +42,63 @@ api_key = os.environ.get("MINIMOVER_DASHSCOPE_API_KEY", "")
 if api_key:
     os.environ["DASHSCOPE_API_KEY"] = api_key
 
-# ── DashScope 百炼 ASR 配置 ──
+# DashScope ASR backend configuration.
 _DASHSCOPE_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "")
-_DASHSCOPE_WS = os.environ.get("MINIMOVER_DASHSCOPE_WORKSPACE_ID", "ws-3zyvgtxnitwl1wxh")
-_ASR_MODEL = os.environ.get("MINIMOVER_ASR_MODEL", "paraformer-realtime-v2")
+_DASHSCOPE_WS = os.environ.get("MINIMOVER_DASHSCOPE_WORKSPACE_ID", "").strip()
+_ASR_PROVIDER = os.environ.get("MINIMOVER_ASR_PROVIDER", "paraformer").strip().lower()
+_ASR_FALLBACK_PROVIDER = os.environ.get(
+    "MINIMOVER_ASR_FALLBACK_PROVIDER", ""
+).strip().lower()
+_QWEN3_ASR_MODEL = os.environ.get(
+    "MINIMOVER_QWEN3_ASR_MODEL", "qwen3-asr-flash"
+).strip()
+# Keep MINIMOVER_ASR_MODEL as a compatibility alias for existing deployments.
+_PARAFORMER_ASR_MODEL = os.environ.get(
+    "MINIMOVER_PARAFORMER_ASR_MODEL",
+    os.environ.get("MINIMOVER_ASR_MODEL", "paraformer-realtime-v2"),
+).strip()
+_ASR_LANGUAGE = os.environ.get("MINIMOVER_ASR_LANGUAGE", "zh").strip()
+_QWEN3_ASR_SYSTEM_PROMPT = os.environ.get(
+    "MINIMOVER_QWEN3_ASR_SYSTEM_PROMPT", ""
+).strip()
+_DASHSCOPE_BASE_HTTP_API_URL = os.environ.get(
+    "MINIMOVER_DASHSCOPE_BASE_HTTP_API_URL", ""
+).strip()
 _ASR_SAMPLE_RATE = 16000
 
 if not _DASHSCOPE_API_KEY:
     print("[ASR] FATAL: MINIMOVER_DASHSCOPE_API_KEY not set!", file=sys.stderr, flush=True)
     sys.exit(1)
-print(f"[env] DashScope workspace configured={bool(_DASHSCOPE_WS)}", file=sys.stderr, flush=True)
+print(
+    f"[env] DashScope workspace configured={bool(_DASHSCOPE_WS)} "
+    f"provider={_ASR_PROVIDER} fallback={_ASR_FALLBACK_PROVIDER or 'disabled'}",
+    file=sys.stderr,
+    flush=True,
+)
 
 
 def _dashscope_asr(pcm_samples: np.ndarray) -> str:
-    """Recognize one VAD-delimited, signed-16-bit PCM utterance with Bailian."""
-    if len(pcm_samples) < int(_ASR_SAMPLE_RATE * 0.3):
-        return ""
-
-    from dashscope.audio.asr import Recognition, RecognitionCallback, RecognitionResult
-
-    class _Callback(RecognitionCallback):
-        def __init__(self):
-            self.final_text = ""
-            self.latest_text = ""
-            self.error = None
-
-        def on_event(self, result):
-            sentence = result.get_sentence()
-            if isinstance(sentence, dict):
-                text = str(sentence.get("text") or "").strip()
-                if text:
-                    self.latest_text = text
-                    if RecognitionResult.is_sentence_end(sentence):
-                        self.final_text = text
-
-        def on_error(self, result):
-            self.error = f"{result.code}: {result.message}"
-
-    callback = _Callback()
-    pcm_path = None
-    try:
-        # Recognition's realtime endpoint consumes raw PCM frames. Supplying
-        # PCM avoids treating a WAV container header as speech.
-        with tempfile.NamedTemporaryFile(suffix=".pcm", delete=False) as pcm_file:
-            pcm_path = pcm_file.name
-            pcm_file.write(pcm_samples.astype("<i2", copy=False).tobytes())
-
-        import dashscope
-        dashscope.api_key = _DASHSCOPE_API_KEY
-        recognition = Recognition(
-            model=_ASR_MODEL,
-            callback=callback,
-            format="pcm",
-            sample_rate=_ASR_SAMPLE_RATE,
-            workspace=_DASHSCOPE_WS or None,
-            disfluency_removal_enabled=True,
-        )
-        result = recognition.call(file=pcm_path)
-        sentence = result.get_sentence()
-        result_text = ""
-        if isinstance(sentence, list):
-            result_text = "".join(
-                str(item.get("text") or "") for item in sentence if isinstance(item, dict)
-            ).strip()
-        elif isinstance(sentence, dict):
-            result_text = str(sentence.get("text") or "").strip()
-        text = result_text or callback.final_text or callback.latest_text
-        if callback.error:
-            print(f"[ASR] DashScope callback error: {callback.error}", file=sys.stderr, flush=True)
-        print(
-            f"[ASR] completed dur={len(pcm_samples) / _ASR_SAMPLE_RATE:.2f}s text_len={len(text)}",
-            file=sys.stderr,
-            flush=True,
-        )
-        return text
-    except Exception as exc:
-        print(f"[ASR] DashScope error: {exc}", file=sys.stderr, flush=True)
-        return ""
-    finally:
-        if pcm_path:
-            try:
-                os.unlink(pcm_path)
-            except FileNotFoundError:
-                pass
+    """Recognize one VAD-delimited utterance through the configured backend."""
+    text = recognize_utterance(
+        pcm_samples,
+        provider=_ASR_PROVIDER,
+        fallback_provider=_ASR_FALLBACK_PROVIDER,
+        api_key=_DASHSCOPE_API_KEY,
+        workspace=_DASHSCOPE_WS,
+        qwen3_model=_QWEN3_ASR_MODEL,
+        paraformer_model=_PARAFORMER_ASR_MODEL,
+        language=_ASR_LANGUAGE,
+        system_prompt=_QWEN3_ASR_SYSTEM_PROMPT,
+        sample_rate=_ASR_SAMPLE_RATE,
+        base_http_api_url=_DASHSCOPE_BASE_HTTP_API_URL,
+    )
+    print(
+        f"[ASR] completed provider={_ASR_PROVIDER} "
+        f"dur={len(pcm_samples) / _ASR_SAMPLE_RATE:.2f}s text_len={len(text)}",
+        file=sys.stderr,
+        flush=True,
+    )
+    return text
 
 
 SAMPLE_RATE = 16000
@@ -149,7 +124,7 @@ def _load_vad():
     from silero_vad import load_silero_vad as _lsv, get_speech_timestamps as _gst
     _silero_vad = _lsv(onnx=True)
     _get_speech_ts = _gst
-    print("[ASR] Ready (DashScope paraformer-realtime-v2)", file=sys.stderr, flush=True)
+    print(f"[ASR] Ready (provider={_ASR_PROVIDER})", file=sys.stderr, flush=True)
     return _silero_vad
 
 _monitors = set()
@@ -330,7 +305,7 @@ async def dispatch(ws):
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
-    print(f"PC ASR (DashScope) : ws://0.0.0.0:{port}/ws/asr", file=sys.stderr, flush=True)
+    print(f"PC ASR (DashScope/{_ASR_PROVIDER}) : ws://0.0.0.0:{port}/ws/asr", file=sys.stderr, flush=True)
     print(f"Monitor            : ws://0.0.0.0:{port}/ws/monitor", file=sys.stderr, flush=True)
     _load_vad()
 

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "markers": {
+    "internal_medicine": {
+      "x": 2.0,
+      "y": 0.0
+    },
+    "surgery": {
+      "x": -1.5,
+      "y": 0.0
+    }
+  }
+}

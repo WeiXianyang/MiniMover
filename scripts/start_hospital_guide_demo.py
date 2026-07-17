@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Start the real PC-ASR + Jetson hospital-guide defense demo.
 
 This is a local orchestration helper for Windows. It starts/reuses the real
-PC FunASR WebSocket server, uploads the non-secret Jetson launcher, then runs
+PC ASR WebSocket server, uploads the non-secret Jetson launcher, then runs
 that launcher over SSH. It never creates mock ASR, KB, telemetry, or navigation
 responses.
 """
@@ -35,9 +35,27 @@ DEFAULT_ASR_PORT = 8765
 # being reused after a local hospital-guide change.
 DEMO_RUNTIME_FILES = (
     Path("scripts/start_hospital_guide_demo.sh"),
+    Path("scripts/start_hospital_rgb_camera.sh"),
+    Path("api_server.py"),
+    Path("audio/icar_audio.py"),
+    Path("hospital_guide_bridge.py"),
+    Path("hospital_guide_console.py"),
+    Path("hospital_guide_demo.py"),
+    Path("face/recognition.py"),
+    Path("face/routes.py"),
+    Path("navigation/config.py"),
+    Path("navigation/department_markers.py"),
+    Path("navigation/data/department_markers.json"),
+    Path("navigation/patrol_page.py"),
+    Path("navigation/ros_bridge.py"),
+    Path("navigation/routes.py"),
     Path("voice_assistant/car_client_jetson.py"),
     Path("voice_assistant/audio_turn_safety.py"),
+    Path("voice_assistant/demo_session.py"),
+    Path("voice_assistant/demo_session_client.py"),
+    Path("voice_assistant/hospital_guide.py"),
     Path("voice_assistant/hospital_guide_client.py"),
+    Path("voice_assistant/data/hospital_guide_template.json"),
 )
 
 

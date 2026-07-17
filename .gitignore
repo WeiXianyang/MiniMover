@@ -262,3 +262,10 @@ yahboomcar-nav-src/**/*.room
 # Downloaded medical knowledge snapshot and verification metadata
 /voice_assistant/data/shortmedkg/
 /voice_assistant/data/hospital_guide_runtime.json
+
+# Hospital-guide local credentials and generated field-test artifacts
+/.env.voice
+/asr_debug.log
+/asr_log.txt
+/tmp/
+/.reasonix/autoresearch/

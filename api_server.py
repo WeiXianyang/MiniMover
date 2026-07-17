@@ -35,6 +35,7 @@ from navigation import nav_bp, register_legacy_routes, register_patrol_page
 from face import register_face_routes
 from hospital_guide_console import register_hospital_guide_console
 from hospital_guide_bridge import register_hospital_guide_bridge
+from hospital_guide_demo import HospitalGuideDemoController, register_hospital_guide_demo
 
 app = Flask(__name__)
 CORS(app)
@@ -46,16 +47,26 @@ register_hospital_guide_console(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_runtime.json"),
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_template.json"),
 )
-register_hospital_guide_bridge(
+hospital_guide_bridge = register_hospital_guide_bridge(
     app,
     config_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_template.json"),
     knowledge_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "shortmedkg", "input_v4.jsonl"),
     telemetry_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "voice_assistant", "data", "hospital_guide_runtime.json"),
 )
+hospital_guide_demo = HospitalGuideDemoController(bridge=hospital_guide_bridge)
+hospital_guide_bridge.set_guide_event_handler(hospital_guide_demo.on_guide_event)
+register_hospital_guide_demo(app, hospital_guide_demo)
 register_face_routes(app)
 sensor = iCarSensorDriver()
-bot = Rosmaster(debug=False)
-bot.create_receive_threading()
+_NAV_OWNS_CHASSIS = os.environ.get('MINIMOVER_NAV_OWNS_CHASSIS', '0').strip().lower() in (
+    '1', 'true', 'yes', 'on',
+)
+bot = None
+if not _NAV_OWNS_CHASSIS:
+    bot = Rosmaster(debug=False)
+    bot.create_receive_threading()
+else:
+    print('[api_server] legacy chassis control disabled; Nav2 owns /dev/myserial', flush=True)
 _bot_lock = threading.Lock()
 
 def get_ip():
@@ -64,12 +75,15 @@ def get_ip():
 @app.route('/api/status')
 def get_status():
     ip = get_ip()
-    with _bot_lock:
-        vol = bot.get_battery_voltage()
+    vol = None
+    if bot is not None:
+        with _bot_lock:
+            vol = bot.get_battery_voltage()
     return jsonify({'code':0, 'data':{
         'sensors': sensor.get_data(),
         'battery': round(vol, 1) if vol else 12.0,
-        'ip': ip
+        'ip': ip,
+        'legacy_chassis_control': bot is not None,
     }})
 
 # 底盘访问锁 + 看门狗线程（杜绝 Timer 漏触发导致一直转）
@@ -79,6 +93,10 @@ _stop_deadline_lock = threading.Lock()
 def _stop_if_deadline_elapsed():
     """Stop only when the watchdog deadline is still expired after locking."""
     global _stop_deadline
+    if bot is None:
+        with _stop_deadline_lock:
+            _stop_deadline = 0.0
+        return False
     with _stop_deadline_lock:
         deadline_elapsed = _stop_deadline > 0 and time.monotonic() >= _stop_deadline
     if not deadline_elapsed:
@@ -96,7 +114,7 @@ def _stop_if_deadline_elapsed():
 
 
 def _watchdog():
-    """??????????????? 0.2s ????"""
+    """底盘运动看门狗，每 0.2 秒检查一次。"""
     while True:
         _stop_if_deadline_elapsed()
         time.sleep(0.2)
@@ -114,6 +132,8 @@ def _execute_move(cmd, speed_pct, duration):
     """Apply one validated movement command for both HTTP and TCP control."""
     global _stop_deadline
 
+    if bot is None:
+        raise RuntimeError('legacy movement is disabled while Nav2 owns the chassis')
     if not isinstance(cmd, str) or cmd not in _VALID_MOVE_COMMANDS:
         raise ValueError(f'unsupported movement command: {cmd!r}')
     try:
@@ -159,6 +179,8 @@ def move():
         )
     except ValueError as error:
         return jsonify({'code': -1, 'msg': str(error)}), 400
+    except RuntimeError as error:
+        return jsonify({'code': -1, 'msg': str(error)}), 409
     return jsonify({'code': 0, 'msg': f'{cmd} @ {speed_percent}%'})
 
 @app.route('/api/sensors')
@@ -800,14 +822,17 @@ if __name__ == '__main__':
                                 speed = parts[1] if len(parts) > 1 else 50
                                 duration = parts[2] if len(parts) > 2 else 0.5
                                 _execute_move(command, speed, duration)
-                            except (UnicodeDecodeError, ValueError, IndexError) as error:
+                            except (UnicodeDecodeError, ValueError, RuntimeError, IndexError) as error:
                                 print(f"[tcp-ctrl] parse error: {error} (line={line!r})")
                 print("[tcp-ctrl] disconnected")
         finally:
             sock.close()
             print("[tcp-ctrl] stopped")
 
-    threading.Thread(target=_start_control_server, args=(5001,), daemon=True).start()
+    if _NAV_OWNS_CHASSIS:
+        print('[tcp-ctrl] disabled because Nav2 owns the chassis')
+    else:
+        threading.Thread(target=_start_control_server, args=(5001,), daemon=True).start()
     sensor.start()
     try:
         app.run(

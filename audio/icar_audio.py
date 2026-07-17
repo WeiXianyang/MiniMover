@@ -9,6 +9,7 @@ TTS:
 """
 
 import os
+import hashlib
 import io
 import json
 import subprocess
@@ -20,6 +21,7 @@ import tempfile
 
 from voice_assistant.audio_turn_safety import wav_duration_ms
 from pathlib import Path
+from typing import Optional
 
 # === 配置 ===
 MIC_DEVICE = "hw:2,0"       # 讯飞麦克风阵列
@@ -198,18 +200,24 @@ def _dashscope_tts(text: str, voice: str = "longanhuan", model: str = "cosyvoice
     from dashscope.audio.tts_v2.speech_synthesizer import AudioFormat
     with _DASHSCOPE_TTS_LOCK:
         dashscope.api_key = api_key
-        synth = SpeechSynthesizer(
-            model=m,
-            voice=v,
-            format=AudioFormat.WAV_16000HZ_MONO_16BIT,
-            workspace=ws or None,
-        )
-        audio = synth.call(text=text)
+        audio = b""
+        for attempt in range(2):
+            # A completed/empty DashScope call closes its internal WebSocket.
+            # Retry with a fresh synthesizer rather than reusing that closed socket.
+            synth = SpeechSynthesizer(
+                model=m,
+                voice=v,
+                format=AudioFormat.WAV_16000HZ_MONO_16BIT,
+                workspace=ws or None,
+            )
+            audio = synth.call(text=text)
+            if audio and wav_duration_ms(audio) > 0:
+                return audio
+            if attempt == 0:
+                time.sleep(0.2)
     if not audio:
-        raise RuntimeError("DashScope SDK returned empty audio")
-    if wav_duration_ms(audio) <= 0:
-        raise RuntimeError("DashScope SDK did not return a valid WAV response")
-    return audio
+        raise RuntimeError("DashScope SDK returned empty audio after retry")
+    raise RuntimeError("DashScope SDK did not return a valid WAV response after retry")
 
 
 def _has_espeak() -> bool:
@@ -218,14 +226,67 @@ def _has_espeak() -> bool:
                            stderr=subprocess.DEVNULL) == 0
 
 
+
+def _tts_cache_path(text: str, lang: str) -> Path:
+    cache_root = os.environ.get("MINIMOVER_TTS_CACHE_DIR", "").strip()
+    root = Path(cache_root).expanduser() if cache_root else Path.home() / ".cache" / "minimover" / "tts"
+    cache_identity = json.dumps(
+        {
+            "version": 1,
+            "text": str(text),
+            "lang": str(lang),
+            "model": os.environ.get("MINIMOVER_COSYVOICE_MODEL", "cosyvoice-v3-flash"),
+            "voice": os.environ.get("MINIMOVER_COSYVOICE_VOICE", "longanhuan"),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    ).encode("utf-8")
+    return root / (hashlib.sha256(cache_identity).hexdigest() + ".wav")
+
+
+def _read_tts_cache(text: str, lang: str) -> Optional[bytes]:
+    path = _tts_cache_path(text, lang)
+    try:
+        audio = path.read_bytes()
+        if wav_duration_ms(audio) > 0:
+            return audio
+    except (OSError, ValueError, wave.Error):
+        return None
+    return None
+
+
+def _write_tts_cache(text: str, lang: str, audio: bytes) -> None:
+    try:
+        if wav_duration_ms(audio) <= 0:
+            return
+        path = _tts_cache_path(text, lang)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+        temporary.write_bytes(audio)
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+    except (OSError, ValueError, wave.Error):
+        try:
+            if "temporary" in locals() and temporary.exists():
+                temporary.unlink()
+        except OSError:
+            pass
+
+
 def say(text: str, lang: str = "zh") -> bytes:
     """
     TTS 文本转语音, 返回 WAV 字节。
     优先 DashScope CosyVoice, 不可用时回退 espeak-ng。
     """
     _player.stop()
+    _load_tts_env()
+    cached = _read_tts_cache(text, lang)
+    if cached is not None:
+        return cached
     try:
-        return _dashscope_tts(text)
+        audio = _dashscope_tts(text)
+        _write_tts_cache(text, lang, audio)
+        return audio
     except Exception as exc:
         if os.environ.get("MINIMOVER_TTS_ALLOW_ESPEAK_FALLBACK", "0") != "1":
             raise RuntimeError(f"DashScope TTS failed: {exc}") from exc

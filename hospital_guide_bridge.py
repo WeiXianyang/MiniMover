@@ -141,6 +141,14 @@ class HospitalGuideBridge:
         with self._lock:
             return self.orchestrator.handle(normalized)
 
+    def reset(self):
+        with self._lock:
+            self.orchestrator.reset()
+
+    def set_guide_event_handler(self, handler):
+        with self._lock:
+            self.orchestrator._on_guide_event = handler
+
 
 def register_hospital_guide_bridge(
     app,
@@ -153,6 +161,7 @@ def register_hospital_guide_bridge(
     memory_turns=6,
     retrieval_limit=3,
     reply_max_chars=180,
+    on_guide_event=None,
 ):
     """Register the real-ASR guide endpoint and return its stateful bridge."""
 
@@ -167,6 +176,7 @@ def register_hospital_guide_bridge(
         retrieval_limit=retrieval_limit,
         reply_max_chars=reply_max_chars,
         telemetry=telemetry,
+        on_guide_event=on_guide_event,
     )
     telemetry.publish(
         history=orchestrator.history(),

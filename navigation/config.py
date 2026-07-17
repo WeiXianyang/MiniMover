@@ -1,6 +1,6 @@
-import os
+﻿import os
 
-CONTAINER_NAME = os.environ.get('NAV_CONTAINER', 'ded7')
+CONTAINER_NAME = os.environ.get('NAV_CONTAINER', 'minimover_nav')
 ROS_DOMAIN_ID = os.environ.get('NAV_ROS_DOMAIN_ID', '30')
 
 MAP_HOST_DIR = os.environ.get(

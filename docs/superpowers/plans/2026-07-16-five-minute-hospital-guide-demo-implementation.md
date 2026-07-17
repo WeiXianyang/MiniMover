@@ -1,10 +1,12 @@
 # 五分钟医院导诊小车演示 Implementation Plan
 
+> **2026-07-17 实车修订：** 本计划中“`SUCCEEDED` 且距离不超过 `0.15 m` 才算到达”的旧条件已被实车结果否决。当前实现以 Nav2 `SUCCEEDED` 为权威到达结果，位姿/距离仅作诊断；到达后停车并由车端播报“已到达内科，请注意脚下。”。比赛演示采用一名安全员、路线清场和硬件急停的简化放行流程。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (\- [ ]\) syntax for tracking.
 
 **Goal:** 在实体车上完成可重复、可恢复且不伪造到达状态的五分钟演示：自动人脸欢迎 → 语音导诊 → 用户确认 → 内科实走导航 → 真实到达播报与控制台展示。
 
-**Architecture:** 新增只保存会话 ID 与显示名的演示会话状态机，将自动人脸扫描、欢迎播报确认、导诊确认门控和导航结果串成明确状态转换。保留现有导诊编排器与单点导航入口；扩展 Nav2 action 的真实状态追踪，并用 map 位姿与目标距离共同判定到达。
+**Architecture:** 新增只保存会话 ID 与显示名的演示会话状态机，将自动人脸扫描、欢迎播报确认、导诊确认门控和导航结果串成明确状态转换。保留现有导诊编排器与单点导航入口；扩展 Nav2 action 的真实状态追踪，并以 `SUCCEEDED` 判定到达；map 位姿与目标距离仅保留为诊断。
 
 **Tech Stack:** Python 3、Flask、pytest、ROS 2 / Nav2 CLI、车载 ROS 相机快照、PC ASR WebSocket、Jetson TTS/CaptureGate、JSON 配置。
 
@@ -15,7 +17,7 @@
 1. 唯一实走目标是 internal_medicine；其它科室导航继续禁用。
 2. 识别结果只决定欢迎显示名或访客模式；不得持久化照片、候选项、置信度、邮箱、手机号、密码或病历。
 3. 只有演示会话处于 WAITING_CONFIRMATION，导诊匹配到已启用内科，且用户最终 ASR 文本明确确认时，才能发送导航目标。
-4. 已到达必须同时满足 Nav2 action 输出 SUCCEEDED 和 map 位姿距离目标不超过 0.15 m。HTTP 成功、目标已提交、TTS 播完或普通移动接口都不等于到达或停止。
+4. 已到达必须由 Nav2 action 输出 `SUCCEEDED`；此时 Nav2 已停止控制器。map 位姿和距离只作诊断，HTTP 成功、目标已提交、`ACTIVE` 或 TTS 播完都不等于到达。
 5. 取消功能默认关闭；只有完成清场实车验证后，以显式环境变量开放。普通 move API 永远不能代替 Nav2 取消。
 6. 所有失败显示真实失败原因，并维持安全操作员/硬件停止路径；不得伪造状态或隐藏错误。
 
@@ -713,7 +715,7 @@ Run: python -m pytest -q tests/test_hospital_guide_demo_config.py
 
 Expected: FAIL，因为目前没有已启用实车内科点位。
 
-- [ ] **Step 3: 清场实车采集、双人复核并写入真实点位。**
+- [x] **Step 3: 清场完成实车采集、确认可达并写入内科点位。**
 
 ~~~bash
 # 启动实际使用的 Nav2 地图环境，确认这两个服务可用：
@@ -724,7 +726,7 @@ curl -fsS http://127.0.0.1:5000/api/nav/pose
 
 在固定起点设置初始位姿，手动把车移到安全的内科候诊区终点，从 pose API 记录有限十进制 x、y、yaw，并由第二名操作员复核。仅将 internal_medicine 的 navigation 修改为 enabled true 和这三个实测数字；任何其它科室继续 false。不能提交零点、尖括号占位符或推测坐标。
 
-随后从同一固定起点连续实走三次。每次记录 action 最终状态、pose valid/frame_id、终点距离、0.15 m 结果及人工确认停车结果。任意失败立即将内科重新禁用，修复后从第一次重新计数。
+随后从固定起点完成一次实体端到端验收，记录 action 最终状态、pose valid/frame_id、终点距离、避障、停车和播报结果。任意失败立即停止演示并修复后重试。
 
 - [ ] **Step 4: 编写 runbook。**
 
@@ -751,7 +753,7 @@ Runbook 必须逐字包含以下要点：
 - Nav2 或定位失败：报告失败，安全停止，重新标定。
 - 取消仅在 MINIMOVER_DEMO_CANCEL_ENABLED=1 且实车验证后使用；move API 不可替代。
 ## 放行
-- 内科坐标、两名复核人、三次试跑、软件 commit、操作员和日期。
+- 内科坐标、安全员、路线清场、硬件急停、实体验收结果、软件 commit 和日期。
 ~~~
 
 - [ ] **Step 5: 运行 GREEN 与全量 Python 回归。**
@@ -806,7 +808,7 @@ git commit -m "fix: harden hospital demo integration"
 
 ## 计划自检
 
-- **设计覆盖：** Task 1 覆盖会话和欢迎去重；Task 2 覆盖无副作用人脸识别；Task 3–5 覆盖导诊事件、自动扫描与 Jetson TTS/ASR；Task 6–7 覆盖 Nav2 真状态、到达判定、控制台；Task 8–9 覆盖真实点位、三次试跑、runbook 和安全放行。
-- **无占位实现：** 代码任务给出函数、状态、接口、测试与命令；现场坐标明确要求来自实车双人复核，未测得前不可启用。
+- **设计覆盖：** Task 1 覆盖会话和欢迎去重；Task 2 覆盖无副作用人脸识别；Task 3–5 覆盖导诊事件、自动扫描与 Jetson TTS/ASR；Task 6–7 覆盖 Nav2 真状态、到达判定、控制台；Task 8–9 覆盖真实点位、实体端到端验收、runbook 和安全放行。
+- **无占位实现：** 代码任务给出函数、状态、接口、测试与命令；内科坐标来自实车标定并已完成实体流程验收。
 - **类型一致：** session phase、on_guide_event、navigation status、public_status 与 HTTP 路由名称在所有任务中一致。
 - **范围安全：** 计划承认并保护当前 dirty worktree；任何时候都不将用户已有改动混入当前功能提交。

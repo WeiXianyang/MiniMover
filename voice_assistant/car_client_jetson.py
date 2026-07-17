@@ -16,6 +16,7 @@ import sounddevice as sd
 import websocket
 
 from voice_assistant.audio_turn_safety import CaptureGate
+from voice_assistant.demo_session_client import DemoWelcomePoller
 
 SAMPLE_RATE = 16000
 BLOCK_MS = 100
@@ -25,7 +26,147 @@ ASR_HOST = os.environ.get("MINIMOVER_ASR_HOST", "192.168.137.1")
 ASR_PORT = int(os.environ.get("MINIMOVER_ASR_PORT", "8765"))
 CAR_URL = os.environ.get("MINIMOVER_CAR_URL", "http://127.0.0.1:5000")
 CAR_NAME = os.environ.get("MINIMOVER_CAR_NAME", "")
+HOSPITAL_GUIDE_DEMO_MODE = os.environ.get("MINIMOVER_HOSPITAL_GUIDE_DEMO_MODE") == "1"
+ASR_ONLY = os.environ.get("MINIMOVER_ASR_ONLY") == "1"
 _guide_turn_lock = threading.Lock()
+_demo_state_lock = threading.Lock()
+_demo_listening = not HOSPITAL_GUIDE_DEMO_MODE
+_announced_arrival_sessions = set()
+ARRIVAL_ANNOUNCEMENT = "\u5df2\u5230\u8fbe\u5185\u79d1\uff0c\u8bf7\u6ce8\u610f\u811a\u4e0b\u3002"
+
+
+def _resolve_mic_device(devices=None):
+    """Resolve the USB microphone by stable name instead of ALSA card number."""
+    devices = list(sd.query_devices() if devices is None else devices)
+    capture_devices = [
+        (index, str(device.get("name", "")))
+        for index, device in enumerate(devices)
+        if int(device.get("max_input_channels", 0) or 0) > 0
+    ]
+    if not capture_devices:
+        raise RuntimeError("no audio capture device is available")
+
+    requested = os.environ.get("MINIMOVER_MIC_DEVICE", "").strip()
+    if requested:
+        if requested.isdigit():
+            requested_index = int(requested)
+            if any(index == requested_index for index, _name in capture_devices):
+                return requested_index
+        requested_folded = requested.casefold()
+        matches = [
+            index for index, name in capture_devices
+            if requested_folded in name.casefold()
+        ]
+        if matches:
+            return matches[0]
+        raise RuntimeError("configured microphone was not found: %s" % requested)
+
+    for preferred in ("xfm-dp", "iflytek", "usb audio"):
+        for index, name in capture_devices:
+            if preferred in name.casefold():
+                return index
+    for index, name in capture_devices:
+        if "nvidia" not in name.casefold():
+            return index
+    return capture_devices[0][0]
+
+
+def _demo_start_listening():
+    global _demo_listening
+    with _demo_state_lock:
+        _demo_listening = True
+
+
+def _demo_stop_listening():
+    global _demo_listening
+    with _demo_state_lock:
+        _demo_listening = False
+
+
+def _demo_is_listening():
+    with _demo_state_lock:
+        return _demo_listening
+
+
+def _demo_welcome_poller_enabled():
+    return HOSPITAL_GUIDE_DEMO_MODE
+
+
+def _demo_welcome_loop(poller, capture_gate, send_control, is_connected, pause=time.sleep):
+    """Speak one claimed face welcome, then accept hospital-guide turns."""
+    while is_connected():
+        try:
+            payload = poller.poll_once()
+        except Exception as exc:
+            print(f"HOSPITAL_GUIDE demo welcome poll error: {exc}", file=sys.stderr, flush=True)
+            payload = None
+        if payload:
+            _demo_stop_listening()
+            try:
+                _speak(payload["text"], capture_gate=capture_gate, send_control=send_control)
+            finally:
+                _demo_start_listening()
+        else:
+            status = _read_demo_status(poller)
+            allowed = _sync_demo_listening(poller, status=status)
+            announcement = _claim_demo_arrival_announcement(status)
+            if announcement:
+                if allowed is not False:
+                    _demo_stop_listening()
+                _speak(announcement, capture_gate=capture_gate, send_control=send_control)
+        pause(0.5)
+
+
+def _read_demo_status(poller):
+    reader = getattr(poller, "read_status", None)
+    if not callable(reader):
+        return None
+    try:
+        return reader()
+    except Exception as exc:
+        print(f"HOSPITAL_GUIDE demo status read error: {exc}", file=sys.stderr, flush=True)
+        return None
+
+
+def _sync_demo_listening(poller, status=None):
+    """Align local ASR gating with the server session after reconnect/reset."""
+    try:
+        if status is None:
+            allowed = poller.listening_allowed()
+        else:
+            allowed = poller.listening_allowed(status)
+    except Exception as exc:
+        print(f"HOSPITAL_GUIDE demo status sync error: {exc}", file=sys.stderr, flush=True)
+        return None
+    if allowed is True:
+        _demo_start_listening()
+    elif allowed is False:
+        _demo_stop_listening()
+    return allowed
+
+
+def _claim_demo_arrival_announcement(status):
+    if not isinstance(status, dict):
+        return None
+    session = status.get("session")
+    navigation = status.get("navigation")
+    if not isinstance(session, dict) or not isinstance(navigation, dict):
+        return None
+    session_id = session.get("session_id")
+    if (
+        not isinstance(session_id, str)
+        or not session_id
+        or session.get("phase") != "ARRIVED"
+        or session.get("department_id") != "internal_medicine"
+        or navigation.get("status") != "SUCCEEDED"
+        or navigation.get("arrived") is not True
+    ):
+        return None
+    with _demo_state_lock:
+        if session_id in _announced_arrival_sessions:
+            return None
+        _announced_arrival_sessions.add(session_id)
+    return ARRIVAL_ANNOUNCEMENT
 
 
 def _speak(text, capture_gate=None, send_control=None):
@@ -89,6 +230,12 @@ def _on_message(_ws, raw, capture_gate=None, send_control=None):
     if mtype == "final_text":
         text = msg.get("text", "")
         print(f"ASR: {text}", flush=True)
+        if ASR_ONLY:
+            print("HOSPITAL_GUIDE disabled in ASR-only test mode", flush=True)
+            return
+        if HOSPITAL_GUIDE_DEMO_MODE and not _demo_is_listening():
+            print("HOSPITAL_GUIDE ignored final_text before face welcome", flush=True)
+            return
         threading.Thread(
             target=_handle_hospital_guide,
             args=(text, capture_gate, send_control),
@@ -135,7 +282,13 @@ def _connect_and_stream():
 
     _send_control({"type": "guide_mode", "car_name": CAR_NAME})
     ws.settimeout(0.01)
-    print(f"Mic: hw:2,0 @ {SAMPLE_RATE}Hz", file=sys.stderr, flush=True)
+    mic_device = _resolve_mic_device()
+    mic_name = sd.query_devices(mic_device)["name"]
+    print(
+        f"Mic: {mic_name} [device={mic_device}] @ {SAMPLE_RATE}Hz",
+        file=sys.stderr,
+        flush=True,
+    )
 
     def _audio_cb(indata, _frames, _timestamp, status):
         if status:
@@ -165,13 +318,22 @@ def _connect_and_stream():
                 break
 
     threading.Thread(target=_receive_loop, daemon=True).start()
+    if _demo_welcome_poller_enabled():
+        demo_poller = DemoWelcomePoller(base_url=CAR_URL)
+        _sync_demo_listening(demo_poller)
+        threading.Thread(
+            target=_demo_welcome_loop,
+            args=(demo_poller, capture_gate, _send_control),
+            kwargs={"is_connected": lambda: bool(ws.connected)},
+            daemon=True,
+        ).start()
     try:
         with sd.InputStream(
             samplerate=SAMPLE_RATE,
             channels=1,
             dtype="int16",
             blocksize=BLOCK_SAMPLES,
-            device="hw:2,0",
+            device=mic_device,
             callback=_audio_cb,
         ):
             print("Mic open, listening...", flush=True)
