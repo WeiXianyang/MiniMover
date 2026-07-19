@@ -4,7 +4,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from voice_assistant.hospital_guide import HospitalGuideConfig, HospitalGuideOrchestrator
+from voice_assistant.hospital_guide import (
+    HospitalGuideConfig,
+    HospitalGuideOrchestrator,
+    NavigationRequestError,
+)
 from voice_assistant.medical_knowledge import MedicalKnowledgeBase
 
 
@@ -82,6 +86,22 @@ class HospitalGuideTests(unittest.TestCase):
         self.assertNotIn("\u9700\u8981\u6211\u5e26\u60a8\u53bb\u5185\u79d1\u5417", repeated_reply)
         self.assertIn("\u6b63\u5728\u5e26\u60a8\u524d\u5f80\u5185\u79d1", repeated_reply)
         car.navigate_to.assert_called_once_with(1.2, -3.4, 0.0)
+
+    def test_navigation_rejection_speaks_the_real_safety_reason(self):
+        car = Mock()
+        car.navigate_to.side_effect = NavigationRequestError("\u6ca1\u6709\u6536\u5230\u91cc\u7a0b\u8ba1\u6570\u636e")
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), Mock(), car,
+        )
+
+        guide.handle("\u5e26\u6211\u53bb\u5185\u79d1")
+        reply = guide.handle("\u786e\u8ba4")
+
+        self.assertIn("\u5bfc\u822a\u5b89\u5168\u68c0\u67e5\u672a\u901a\u8fc7", reply)
+        self.assertIn("\u6ca1\u6709\u6536\u5230\u91cc\u7a0b\u8ba1\u6570\u636e", reply)
+        self.assertIn("\u8f66\u8f86\u4e0d\u4f1a\u79fb\u52a8", reply)
+        self.assertNotIn("\u5bfc\u822a\u672a\u542f\u52a8", reply)
 
     def test_rejection_clears_pending_navigation(self):
         car = Mock()

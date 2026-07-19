@@ -6,10 +6,15 @@ import os
 import threading
 from pathlib import Path
 from urllib import request
+from urllib.error import HTTPError, URLError
 
 from flask import jsonify, request as flask_request
 
-from voice_assistant.hospital_guide import HospitalGuideConfig, HospitalGuideOrchestrator
+from voice_assistant.hospital_guide import (
+    HospitalGuideConfig,
+    HospitalGuideOrchestrator,
+    NavigationRequestError,
+)
 from voice_assistant.hospital_guide_telemetry import HospitalGuideTelemetry
 from voice_assistant.medical_knowledge import MedicalKnowledgeBase
 
@@ -38,10 +43,29 @@ class HospitalGuideNavigationClient:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        with request.urlopen(req, timeout=self.timeout) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+        try:
+            with request.urlopen(req, timeout=self.timeout) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            try:
+                payload = json.loads(exc.read().decode("utf-8"))
+            except (OSError, UnicodeDecodeError, ValueError):
+                payload = None
+            reason = payload.get("msg") if isinstance(payload, dict) else None
+            raise NavigationRequestError(
+                reason or "\u5bfc\u822a\u670d\u52a1\u62d2\u7edd\u4e86\u672c\u6b21\u8bf7\u6c42"
+            ) from exc
+        except (URLError, TimeoutError, OSError) as exc:
+            raise NavigationRequestError("\u65e0\u6cd5\u8fde\u63a5\u5bfc\u822a\u670d\u52a1") from exc
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise NavigationRequestError(
+                "\u5bfc\u822a\u670d\u52a1\u8fd4\u56de\u4e86\u65e0\u6548\u54cd\u5e94"
+            ) from exc
         if not isinstance(payload, dict) or payload.get("code") != 0:
-            raise RuntimeError((payload or {}).get("msg", "car navigation failed"))
+            reason = payload.get("msg") if isinstance(payload, dict) else None
+            raise NavigationRequestError(
+                reason or "\u5bfc\u822a\u670d\u52a1\u62d2\u7edd\u4e86\u672c\u6b21\u8bf7\u6c42"
+            )
         return payload
 
 

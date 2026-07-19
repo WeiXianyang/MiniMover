@@ -1,11 +1,15 @@
 ﻿import json
 import unittest
+from io import BytesIO
+from urllib.error import HTTPError
+from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from flask import Flask
 
-from hospital_guide_bridge import register_hospital_guide_bridge
+from hospital_guide_bridge import HospitalGuideNavigationClient, register_hospital_guide_bridge
+from voice_assistant.hospital_guide import NavigationRequestError
 
 
 class RecordingNavigator:
@@ -25,6 +29,26 @@ class RecordingLlm:
         self.contexts.append(context)
         return "这是一般健康教育信息，请结合现场医护意见。"
 
+
+class HospitalGuideNavigationClientTests(unittest.TestCase):
+    def test_http_rejection_preserves_safe_server_reason(self):
+        payload = json.dumps({
+            "code": 1,
+            "msg": "\u6ca1\u6709\u6536\u5230\u91cc\u7a0b\u8ba1\u6570\u636e",
+        }, ensure_ascii=False).encode("utf-8")
+        error = HTTPError(
+            "http://127.0.0.1:5000/api/navigate",
+            409,
+            "Conflict",
+            hdrs=None,
+            fp=BytesIO(payload),
+        )
+
+        with patch("hospital_guide_bridge.request.urlopen", side_effect=error):
+            with self.assertRaises(NavigationRequestError) as caught:
+                HospitalGuideNavigationClient().navigate_to(8.0, 3.0, 0.0)
+
+        self.assertEqual("\u6ca1\u6709\u6536\u5230\u91cc\u7a0b\u8ba1\u6570\u636e", caught.exception.reason)
 
 class HospitalGuideBridgeTests(unittest.TestCase):
     def _write_config(self, directory, enabled=False):

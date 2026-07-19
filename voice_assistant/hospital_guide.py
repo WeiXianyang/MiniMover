@@ -12,6 +12,15 @@ REJECTION_HINTS = ("不用", "不需要", "不要", "不去", "取消", "算了"
 CONFIRMATION_HINTS = ("好的", "好", "需要", "可以", "带我去", "去吧", "确认", "是的", "嗯")
 DEPARTMENT_MARKER = re.compile(r"【导诊科室:([A-Za-z0-9_-]+)】")
 
+class NavigationRequestError(RuntimeError):
+    """A safe user-facing reason that prevented goal submission."""
+
+    def __init__(self, reason="\u5bfc\u822a\u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528"):
+        cleaned = " ".join(str(reason or "").split()).strip()
+        self.reason = (cleaned or "\u5bfc\u822a\u670d\u52a1\u6682\u65f6\u4e0d\u53ef\u7528")[:160]
+        super().__init__(self.reason)
+
+
 
 @dataclass(frozen=True)
 class Department:
@@ -243,11 +252,26 @@ class HospitalGuideOrchestrator:
             )
         try:
             self._car_client.navigate_to(department.x, department.y, department.theta)
+        except NavigationRequestError as exc:
+            self._pending_department_id = None
+            reason = exc.reason.rstrip("\u3002.!\uff01?\uff1f")
+            reply = "\u5bfc\u822a\u5b89\u5168\u68c0\u67e5\u672a\u901a\u8fc7\uff1a%s\u3002\u8f66\u8f86\u4e0d\u4f1a\u79fb\u52a8\uff0c\u8bf7\u8054\u7cfb\u5de5\u4f5c\u4eba\u5458\u3002" % reason
+            return self._remember_and_return(
+                text,
+                reply,
+                event_type="navigation_failed",
+                navigation={
+                    "requested": False,
+                    "status": "failed",
+                    "message": reply,
+                    "department": self._department_payload(department),
+                },
+            )
         except Exception:
             self._pending_department_id = None
             return self._remember_and_return(
                 text,
-                "\u5bfc\u822a\u672a\u542f\u52a8\uff0c\u8bf7\u8054\u7cfb\u5de5\u4f5c\u4eba\u5458\u6216\u7a0d\u540e\u91cd\u8bd5\u3002",
+                "\u5bfc\u822a\u8bf7\u6c42\u5931\u8d25\uff0c\u8f66\u8f86\u4e0d\u4f1a\u79fb\u52a8\uff0c\u8bf7\u8054\u7cfb\u5de5\u4f5c\u4eba\u5458\u6216\u7a0d\u540e\u91cd\u8bd5\u3002",
                 event_type="navigation_failed",
                 navigation={
                     "requested": False,
