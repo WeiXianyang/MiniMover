@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiniMover 医院导诊 · 实时面板</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1923;color:#e0e8f0;min-height:100vh}
+.header{background:#1a2733;padding:12px 20px;display:flex;align-items:center;gap:12px;border-bottom:2px solid #2a7ab5}
+.header h1{font-size:1.2em;color:#4fc3f7}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.dot.on{background:#4caf50;box-shadow:0 0 6px #4caf50}
+.dot.off{background:#f44336}
+.status{font-size:0.85em;color:#8899aa}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;height:calc(100vh - 130px)}
+.panel{background:#1a2733;border-radius:8px;padding:14px;overflow-y:auto}
+.panel h2{font-size:0.95em;color:#4fc3f7;margin-bottom:10px;border-bottom:1px solid #2a3a4a;padding-bottom:6px}
+.event{background:#15202b;border-radius:6px;padding:8px 12px;margin-bottom:6px;border-left:3px solid #2a7ab5;font-size:0.85em}
+.event.wake{border-left-color:#ff9800}
+.event.reply{border-left-color:#4caf50}
+.event.fwder{border-left-color:#9c27b0}
+.ts{color:#8899aa;font-size:0.75em;float:right}
+.text{color:#e0e8f0;word-break:break-all}
+.label{color:#4fc3f7;font-size:0.75em;font-weight:bold}
+.query{margin-top:4px;font-size:0.8em;color:#8899aa}
+.answer{color:#a5d6a7}
+.vad-bar{height:6px;background:#2a3a4a;border-radius:3px;margin-top:4px;overflow:hidden}
+.vad-fill{height:100%;background:#4fc3f7;border-radius:3px;transition:width 0.2s}
+.empty{text-align:center;color:#556;padding:20px;font-size:0.85em}
+.footer{background:#1a2733;padding:8px 20px;display:flex;justify-content:space-between;align-items:center;font-size:0.75em;color:#667;border-top:1px solid #2a3a4a}
+</style>
+</head>
+<body>
+<div class="header">
+  <span id="wsDot" class="dot off"></span>
+  <h1>MiniMover 医院导诊面板</h1>
+  <span id="wsStatus" class="status">连接中...</span>
+</div>
+<div class="grid">
+  <div class="panel" id="asrLog">
+    <h2>🎤 语音输入 (ASR)</h2>
+    <div class="empty">等待语音输入...</div>
+  </div>
+  <div class="panel" id="llmLog">
+    <h2>🧠 LLM 回复 & 知识图谱</h2>
+    <div class="empty">等待交互...</div>
+  </div>
+</div>
+<div class="footer">
+  <span id="vadLabel">VAD: —</span>
+  <span id="rmsLabel">RMS: —</span>
+  <span id="eventCount">事件: 0</span>
+</div>
+<script>
+const monitorHost = location.hostname || '127.0.0.1';
+const ASR_WS = `ws://${monitorHost}:8766/ws/monitor`;
+let count = 0, asrDiv, llmDiv, wsDot, wsStatus, vadLabel, rmsLabel, evtLabel;
+
+function init() {
+  asrDiv = document.getElementById('asrLog');
+  llmDiv = document.getElementById('llmLog');
+  wsDot = document.getElementById('wsDot');
+  wsStatus = document.getElementById('wsStatus');
+  vadLabel = document.getElementById('vadLabel');
+  rmsLabel = document.getElementById('rmsLabel');
+  evtLabel = document.getElementById('eventCount');
+  connect();
+}
+
+function connect() {
+  const ws = new WebSocket(ASR_WS);
+  ws.onopen = () => { wsDot.className = 'dot on'; wsStatus.textContent = '已连接'; };
+  ws.onclose = () => { wsDot.className = 'dot off'; wsStatus.textContent = '断开，5s后重连...'; setTimeout(connect, 5000); };
+  ws.onerror = () => { wsDot.className = 'dot off'; };
+  ws.onmessage = (e) => {
+    try {
+      const m = JSON.parse(e.data);
+      handle(m);
+    } catch(ex) {}
+  };
+}
+
+function now() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' +
+         d.getMinutes().toString().padStart(2,'0') + ':' +
+         d.getSeconds().toString().padStart(2,'0');
+}
+
+function addText(parent, className, value) {
+  const node = document.createElement('span');
+  node.className = className;
+  node.textContent = String(value ?? '');
+  parent.appendChild(node);
+}
+
+function addEvt(div, cls, label, text, details) {
+  const empty = div.querySelector('.empty');
+  if (empty) empty.remove();
+
+  const el = document.createElement('div');
+  el.className = 'event ' + cls;
+  addText(el, 'ts', now());
+  if (label) addText(el, 'label', label + ' ');
+  addText(el, 'text', text);
+
+  if (details) {
+    const query = document.createElement('div');
+    query.className = 'query';
+    query.textContent = 'Q: ' + String(details.query ?? '');
+    el.appendChild(query);
+
+    const answer = document.createElement('div');
+    answer.className = 'answer';
+    answer.textContent = 'A: ' + String(details.reply ?? '');
+    el.appendChild(answer);
+  }
+
+  div.prepend(el);
+  if (div.children.length > 50) div.lastChild.remove();
+}
+
+function handle(m) {
+  count++; evtLabel.textContent = '事件: ' + count;
+  switch(m.type) {
+    case 'vad_status':
+      if (m.speaking) vadLabel.textContent = 'VAD: 🔊 说话中';
+      else vadLabel.textContent = 'VAD: 🔇 静默';
+      break;
+    case 'speech_start':
+      addEvt(asrDiv, '', '🎤', '语音开始');
+      break;
+    case 'speech_end':
+      addEvt(asrDiv, '', '🔇', `语音结束 (${m.duration_ms||'?'}ms)`);
+      break;
+    case 'final_text':
+      addEvt(asrDiv, '', '📝 ASR', m.text);
+      break;
+    case 'wake_detected':
+      addEvt(asrDiv, 'wake', '⚡ 唤醒', m.text);
+      break;
+    case 'llm_reply':
+      addEvt(llmDiv, 'reply', '🤖 LLM', '', {query: m.query, reply: m.reply});
+      break;
+  }
+}
+
+
+init();
+</script>
+</body>
+</html>
