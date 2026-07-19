@@ -87,6 +87,42 @@ class AsrBackendsTests(unittest.TestCase):
         self.assertEqual("ws-test", kwargs["workspace"])
         self.assertEqual({"language": "zh", "enable_itn": False}, kwargs["asr_options"])
 
+    def test_qwen3_omits_language_option_for_automatic_detection(self):
+        response = {
+            "status_code": 200,
+            "output": {"choices": [{"message": {"content": [{"text": "bonjour"}]}}]},
+        }
+        for language in ("auto", " AUTO ", ""):
+            with self.subTest(language=language):
+                dashscope_module = _FakeDashScope(response=response)
+                recognize_qwen3(
+                    self.samples,
+                    api_key="test-key",
+                    language=language,
+                    dashscope_module=dashscope_module,
+                )
+                options = dashscope_module.MultiModalConversation.call.call_args.kwargs[
+                    "asr_options"
+                ]
+                self.assertEqual({"enable_itn": False}, options)
+
+    def test_qwen3_preserves_explicit_french_language_option(self):
+        response = {
+            "status_code": 200,
+            "output": {"choices": [{"message": {"content": [{"text": "bonjour"}]}}]},
+        }
+        dashscope_module = _FakeDashScope(response=response)
+
+        recognize_qwen3(
+            self.samples,
+            api_key="test-key",
+            language=" FR ",
+            dashscope_module=dashscope_module,
+        )
+
+        options = dashscope_module.MultiModalConversation.call.call_args.kwargs["asr_options"]
+        self.assertEqual({"language": "fr", "enable_itn": False}, options)
+
 
     def test_qwen3_sends_optional_hospital_context_as_system_message(self):
         response = {

@@ -8,7 +8,11 @@
       "aliases": [
         "急诊科",
         "急救",
-        "急救中心"
+        "急救中心",
+        "emergency",
+        "emergency department",
+        "urgences",
+        "service des urgences"
       ],
       "floor": "一层",
       "directions": "请沿主走廊前往一层急诊入口。",
@@ -31,14 +35,21 @@
         "感冒",
         "咳嗽",
         "发烧",
-        "发热"
+        "发热",
+        "headache",
+        "internal medicine",
+        "general medicine",
+        "mal à la tête",
+        "médecine interne",
+        "service de médecine interne",
+        "médecine générale"
       ],
       "floor": "一层",
-      "directions": "请前往前方内科演示点。",
+      "directions": "从初始点前进2米，左转前进3米，再右转前进6米即可到达内科演示点。",
       "navigation": {
         "enabled": true,
-        "x": 2.0,
-        "y": 0.0,
+        "x": 8.0,
+        "y": 3.0,
         "theta": 0.0
       }
     },
@@ -48,7 +59,11 @@
       "aliases": [
         "普通外科",
         "骨科",
-        "外科门诊"
+        "外科门诊",
+        "surgery",
+        "surgical department",
+        "chirurgie",
+        "service de chirurgie"
       ],
       "floor": "二层",
       "directions": "请前往二层外科候诊区。",
@@ -64,7 +79,12 @@
       "name": "儿科",
       "aliases": [
         "儿童门诊",
-        "小儿科"
+        "小儿科",
+        "pediatrics",
+        "pediatric department",
+        "pediatrie",
+        "pédiatrie",
+        "service de pédiatrie"
       ],
       "floor": "二层",
       "directions": "请前往二层儿科候诊区。",
@@ -80,7 +100,13 @@
       "name": "妇产科",
       "aliases": [
         "妇科",
-        "产科"
+        "产科",
+        "obstetrics and gynecology",
+        "gynecology",
+        "obstetrics",
+        "gynécologie",
+        "obstétrique",
+        "gynécologie-obstétrique"
       ],
       "floor": "三层",
       "directions": "请前往三层妇产科候诊区。",
@@ -97,7 +123,9 @@
       "aliases": [
         "取药",
         "西药房",
-        "中药房"
+        "中药房",
+        "pharmacy",
+        "pharmacie"
       ],
       "floor": "一层",
       "directions": "请前往一层药房窗口。",
@@ -114,7 +142,10 @@
       "aliases": [
         "抽血",
         "化验",
-        "检验"
+        "检验",
+        "laboratory",
+        "lab",
+        "laboratoire"
       ],
       "floor": "一层",
       "directions": "请前往一层检验科采样区。",
@@ -132,7 +163,11 @@
         "拍片",
         "CT",
         "核磁",
-        "B超"
+        "B超",
+        "medical imaging",
+        "imaging department",
+        "imagerie médicale",
+        "service d’imagerie médicale"
       ],
       "floor": "一层",
       "directions": "请前往一层影像检查区。",

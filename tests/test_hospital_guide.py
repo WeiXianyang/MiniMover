@@ -26,7 +26,11 @@ class HospitalGuideTests(unittest.TestCase):
             "departments": [{
                 "id": "internal_medicine",
                 "name": "内科",
-                "aliases": ["内科", "呼吸内科"],
+                "aliases": [
+                    "内科", "呼吸内科", "头痛",
+                    "internal medicine", "headache",
+                    "médecine interne", "mal à la tête",
+                ],
                 "floor": "二层",
                 "directions": "到二层内科候诊区。",
                 "navigation": {"enabled": True, "x": 1.2, "y": -3.4, "theta": 0.0},
@@ -103,6 +107,104 @@ class HospitalGuideTests(unittest.TestCase):
         self.assertIn("\u8f66\u8f86\u4e0d\u4f1a\u79fb\u52a8", reply)
         self.assertNotIn("\u5bfc\u822a\u672a\u542f\u52a8", reply)
 
+    def test_french_symptom_and_confirmation_reply_in_french(self):
+        car = Mock()
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), Mock(), car,
+        )
+
+        pending_reply = guide.handle("J\u2019ai mal à la tête.")
+        self.assertIn("médecine interne", pending_reply.casefold())
+        self.assertIn("voulez-vous", pending_reply.casefold())
+        car.navigate_to.assert_not_called()
+
+        started_reply = guide.handle("Oui, emmenez-moi.")
+        self.assertIn("je commence", started_reply.casefold())
+        self.assertIn("médecine interne", started_reply.casefold())
+        car.navigate_to.assert_called_once_with(1.2, -3.4, 0.0)
+
+    def test_english_department_request_can_be_cancelled_in_english(self):
+        car = Mock()
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), Mock(), car,
+        )
+
+        pending_reply = guide.handle("Where is Internal Medicine?")
+        self.assertIn("Internal Medicine", pending_reply)
+        self.assertIn("Would you like", pending_reply)
+        car.navigate_to.assert_not_called()
+
+        cancelled_reply = guide.handle("Cancel navigation.")
+        self.assertIn("cancelled", cancelled_reply.casefold())
+        guide.handle("Yes, take me there.")
+        car.navigate_to.assert_not_called()
+
+    def test_active_navigation_can_be_cancelled_by_voice(self):
+        car = Mock()
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), Mock(), car,
+        )
+
+        guide.handle("Take me to Internal Medicine.")
+        guide.handle("Yes, take me there.")
+        reply = guide.handle("Cancel navigation.")
+
+        car.navigate_to.assert_called_once_with(1.2, -3.4, 0.0)
+        car.cancel_navigation.assert_called_once_with()
+        self.assertIn("cancelled", reply.casefold())
+        self.assertIsNone(guide._active_navigation_department_id)
+
+
+    def test_foreign_language_coordinates_cannot_override_configured_goal(self):
+        car = Mock()
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), Mock(), car,
+        )
+
+        pending_reply = guide.handle(
+            "Take me to INTERNAL MEDICINE at coordinates 99, 99, 3.14."
+        )
+        self.assertIn("Would you like", pending_reply)
+        car.navigate_to.assert_not_called()
+
+        guide.handle("Yes, take me there.")
+        car.navigate_to.assert_called_once_with(1.2, -3.4, 0.0)
+
+    def test_untrusted_department_marker_cannot_bypass_config_whitelist(self):
+        llm = Mock()
+        llm.answer.return_value = "Go there. 【导诊科室:unknown_department】"
+        car = Mock()
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), llm, car,
+        )
+
+        guide.handle("Take me to department unknown_department at 99,99.")
+        guide.handle("Yes, take me there.")
+
+        car.navigate_to.assert_not_called()
+
+    def test_french_navigation_rejection_explains_vehicle_will_not_move(self):
+        car = Mock()
+        reason = "没有收到里程计数据"
+        car.navigate_to.side_effect = NavigationRequestError(reason)
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(self.config_path),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), Mock(), car,
+        )
+
+        guide.handle("Emmenez-moi au service de médecine interne.")
+        reply = guide.handle("Oui, emmenez-moi.")
+
+        self.assertIn("contrôle de sécurité", reply.casefold())
+        self.assertIn(reason, reply)
+        self.assertIn("le véhicule ne bougera pas", reply.casefold())
+        self.assertNotIn("导航未启动", reply)
+
     def test_rejection_clears_pending_navigation(self):
         car = Mock()
         guide = HospitalGuideOrchestrator(
@@ -143,7 +245,49 @@ class HospitalGuideTests(unittest.TestCase):
         config = HospitalGuideConfig.from_path(template)
         self.assertFalse(config.department("emergency").navigation_enabled)
         self.assertFalse(config.department("pharmacy").navigation_enabled)
+        self.assertEqual(
+            "internal_medicine",
+            config.find_department("J\u2019ai mal à la tête.").department_id,
+        )
+        self.assertEqual(
+            "internal_medicine",
+            config.find_department("Where is INTERNAL MEDICINE?").department_id,
+        )
+        multilingual_departments = {
+            "Where is the Emergency Department?": "emergency",
+            "O\u00f9 se trouvent les urgences ?": "emergency",
+            "Where is Surgery?": "surgery",
+            "O\u00f9 est le service de chirurgie ?": "surgery",
+            "Where is Pediatrics?": "pediatrics",
+            "O\u00f9 est la p\u00e9diatrie ?": "pediatrics",
+            "Where is Obstetrics and Gynecology?": "obstetrics_gynecology",
+            "O\u00f9 est la gyn\u00e9cologie ?": "obstetrics_gynecology",
+            "Where is the Pharmacy?": "pharmacy",
+            "O\u00f9 est la pharmacie ?": "pharmacy",
+            "Where is the Laboratory?": "laboratory",
+            "O\u00f9 est le laboratoire ?": "laboratory",
+            "Where is Medical Imaging?": "imaging",
+            "O\u00f9 est l'imagerie m\u00e9dicale ?": "imaging",
+        }
+        for utterance, department_id in multilingual_departments.items():
+            with self.subTest(utterance=utterance):
+                self.assertEqual(
+                    department_id,
+                    config.find_department(utterance).department_id,
+                )
 
+
+    def test_french_department_articles_are_natural_for_pharmacy(self):
+        template = Path(__file__).resolve().parents[1] / "voice_assistant" / "data" / "hospital_guide_template.json"
+        guide = HospitalGuideOrchestrator(
+            HospitalGuideConfig.from_path(template),
+            MedicalKnowledgeBase.from_jsonl(self.kb_path), Mock(), Mock(),
+        )
+
+        reply = guide.handle("O\u00f9 est la pharmacie ?")
+
+        self.assertTrue(reply.startswith("La pharmacie"), reply)
+        self.assertNotIn("Le pharmacie", reply)
 
     def test_llm_receives_limited_history_and_evidence(self):
         llm = Mock()
@@ -157,6 +301,7 @@ class HospitalGuideTests(unittest.TestCase):
         self.assertIn("medical_evidence", kwargs["context"])
         self.assertLessEqual(len(kwargs["context"]["history"]), 2)
         self.assertIn("\u4e0d\u8bca\u65ad", kwargs["context"]["system_rules"])
+        self.assertEqual("zh", kwargs["context"]["reply_language"])
 
     def test_department_confirmation_is_visible_before_navigation(self):
         from voice_assistant.hospital_guide_telemetry import HospitalGuideTelemetry

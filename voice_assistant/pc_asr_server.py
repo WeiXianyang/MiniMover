@@ -57,7 +57,7 @@ _PARAFORMER_ASR_MODEL = os.environ.get(
     "MINIMOVER_PARAFORMER_ASR_MODEL",
     os.environ.get("MINIMOVER_ASR_MODEL", "paraformer-realtime-v2"),
 ).strip()
-_ASR_LANGUAGE = os.environ.get("MINIMOVER_ASR_LANGUAGE", "zh").strip()
+_ASR_LANGUAGE = os.environ.get("MINIMOVER_ASR_LANGUAGE", "auto").strip()
 _QWEN3_ASR_SYSTEM_PROMPT = os.environ.get(
     "MINIMOVER_QWEN3_ASR_SYSTEM_PROMPT", ""
 ).strip()

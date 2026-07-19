@@ -75,8 +75,9 @@ def recognize_qwen3(
     ).decode("ascii")
 
     asr_options = {"enable_itn": False}
-    if language:
-        asr_options["language"] = language
+    normalized_language = str(language or "").strip().lower()
+    if normalized_language and normalized_language != "auto":
+        asr_options["language"] = normalized_language
     messages = [{"role": "user", "content": [{"audio": audio_data}]}]
     if system_prompt.strip():
         messages.insert(

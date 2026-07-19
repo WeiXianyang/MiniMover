@@ -8,7 +8,12 @@ from tempfile import TemporaryDirectory
 
 from flask import Flask
 
-from hospital_guide_bridge import HospitalGuideNavigationClient, register_hospital_guide_bridge
+from hospital_guide_bridge import (
+    HospitalGuideNavigationClient,
+    KnowledgeOnlyGuideLlm,
+    OpenAICompatibleGuideLlm,
+    register_hospital_guide_bridge,
+)
 from voice_assistant.hospital_guide import NavigationRequestError
 
 
@@ -30,6 +35,67 @@ class RecordingLlm:
         return "这是一般健康教育信息，请结合现场医护意见。"
 
 
+class GuideLlmLocalizationTests(unittest.TestCase):
+    def test_knowledge_only_fallback_uses_requested_french(self):
+        reply = KnowledgeOnlyGuideLlm().answer(
+            "J'ai mal \u00e0 la t\u00eate.",
+            context={"reply_language": "fr", "medical_evidence": []},
+        )
+
+        self.assertIn("personnel m\u00e9dical", reply.casefold())
+        self.assertNotIn("\u6211\u6682\u672a", reply)
+
+    def test_foreign_language_fallback_does_not_read_chinese_evidence_aloud(self):
+        reply = KnowledgeOnlyGuideLlm().answer(
+            "I have a headache.",
+            context={
+                "reply_language": "en",
+                "medical_evidence": ["\u8fd9\u662f\u4e2d\u6587\u533b\u7597\u77e5\u8bc6"],
+            },
+        )
+
+        self.assertIn("medical staff", reply.casefold())
+        self.assertNotIn("\u8fd9\u662f\u4e2d\u6587\u533b\u7597\u77e5\u8bc6", reply)
+
+    def test_openai_prompt_requires_same_language_and_controlled_departments(self):
+        captured = {}
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            @staticmethod
+            def read():
+                return json.dumps({
+                    "choices": [{"message": {"content": "Bonjour"}}],
+                }).encode("utf-8")
+
+        def open_request(req, timeout):
+            captured["body"] = json.loads(req.data.decode("utf-8"))
+            captured["timeout"] = timeout
+            return Response()
+
+        llm = OpenAICompatibleGuideLlm("https://example.test/v1", "key", "model")
+        with patch("hospital_guide_bridge.request.urlopen", side_effect=open_request):
+            reply = llm.answer(
+                "Bonjour",
+                context={
+                    "reply_language": "fr",
+                    "departments": [{"id": "internal_medicine", "name": "\u5185\u79d1"}],
+                },
+            )
+
+        system = captured["body"]["messages"][0]["content"]
+        self.assertEqual("Bonjour", reply)
+        self.assertIn("reply_language", system)
+        self.assertIn("same language", system.casefold())
+        self.assertIn("configured department IDs", system)
+        self.assertIn("never output coordinates", system.casefold())
+
+
 class HospitalGuideNavigationClientTests(unittest.TestCase):
     def test_http_rejection_preserves_safe_server_reason(self):
         payload = json.dumps({
@@ -49,6 +115,27 @@ class HospitalGuideNavigationClientTests(unittest.TestCase):
                 HospitalGuideNavigationClient().navigate_to(8.0, 3.0, 0.0)
 
         self.assertEqual("\u6ca1\u6709\u6536\u5230\u91cc\u7a0b\u8ba1\u6570\u636e", caught.exception.reason)
+
+    def test_cancel_navigation_posts_to_demo_cancel_endpoint(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            @staticmethod
+            def read():
+                return b'{"code": 0, "data": {"status": "CANCELLED"}}'
+
+        with patch("hospital_guide_bridge.request.urlopen", return_value=Response()) as open_url:
+            payload = HospitalGuideNavigationClient().cancel_navigation()
+
+        req = open_url.call_args.args[0]
+        self.assertEqual("POST", req.method)
+        self.assertTrue(req.full_url.endswith("/api/nav/demo/cancel"))
+        self.assertEqual("CANCELLED", payload["data"]["status"])
+
 
 class HospitalGuideBridgeTests(unittest.TestCase):
     def _write_config(self, directory, enabled=False):

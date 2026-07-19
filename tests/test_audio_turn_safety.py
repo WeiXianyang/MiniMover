@@ -79,6 +79,18 @@ class AudioTurnSafetyTests(unittest.TestCase):
         self.assertEqual(wav_duration_ms(wav), 1000)
 
 
+    def test_pc_asr_defaults_to_automatic_language_detection(self):
+        source = Path("voice_assistant/pc_asr_server.py").read_text(encoding="utf-8")
+
+        self.assertIn(
+            'os.environ.get("MINIMOVER_ASR_LANGUAGE", "auto").strip()',
+            source,
+        )
+        self.assertNotIn(
+            'os.environ.get("MINIMOVER_ASR_LANGUAGE", "zh").strip()',
+            source,
+        )
+
     def test_hospital_guide_demo_has_no_legacy_wake_or_motion_path(self):
         client = Path("voice_assistant/car_client_jetson.py").read_text(encoding="utf-8")
         launcher = Path("scripts/start_hospital_guide_demo.sh").read_text(encoding="utf-8")
