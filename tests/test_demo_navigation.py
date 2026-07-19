@@ -90,6 +90,36 @@ def test_active_goal_never_claims_arrived():
     assert status["arrived"] is False
 
 
+def test_goal_status_reports_recovery_required_when_goal_client_survives_api_restart():
+    with patch.object(
+            ros_bridge, "_demo_goal_client_running", return_value=True):
+        status = ros_bridge.demo_goal_status()
+
+    assert status["active"] is True
+    assert status["arrived"] is False
+    assert status["status"] == "RECOVERY_REQUIRED"
+    assert "API restart" in status["message"]
+
+
+def test_goal_client_probe_fails_closed_when_docker_exec_times_out():
+    with patch.object(ros_bridge, "container_running", return_value=True), \
+            patch.object(
+                ros_bridge.subprocess, "run",
+                side_effect=ros_bridge.subprocess.TimeoutExpired("docker", 3)):
+        assert ros_bridge._demo_goal_client_running() is True
+
+
+def test_goal_client_probe_reports_no_orphan_when_pgrep_has_no_match():
+    response = type("Result", (), {
+        "returncode": 1,
+        "stdout": "",
+        "stderr": "",
+    })()
+    with patch.object(ros_bridge, "container_running", return_value=True), \
+            patch.object(ros_bridge.subprocess, "run", return_value=response):
+        assert ros_bridge._demo_goal_client_running() is False
+
+
 def test_goal_output_is_the_only_source_of_active_and_success_states():
     _set_goal("PENDING", "Goal submitted; waiting for Nav2 acceptance")
 
@@ -119,6 +149,7 @@ def test_navigate_starts_one_pending_goal_with_feedback_and_rejects_a_second_goa
 
     process = type("Process", (), {"stdout": io.StringIO("")})()
     with patch.object(ros_bridge, "container_running", return_value=True), \
+            patch.object(ros_bridge, "_demo_goal_client_running", return_value=False), \
             patch.object(ros_bridge, "_demo_navigation_health", return_value={"success": True}), \
             patch.object(ros_bridge.subprocess, "Popen", return_value=process) as popen, \
             patch.object(ros_bridge.threading, "Thread", RecordingThread):
@@ -138,6 +169,7 @@ def test_navigate_starts_one_pending_goal_with_feedback_and_rejects_a_second_goa
 
 def test_navigate_fails_closed_when_chassis_health_is_bad():
     with patch.object(ros_bridge, "container_running", return_value=True), \
+            patch.object(ros_bridge, "_demo_goal_client_running", return_value=False), \
             patch.object(ros_bridge, "_demo_navigation_health", return_value={
                 "success": False,
                 "message": "IMU acceleration is unavailable",
@@ -150,12 +182,27 @@ def test_navigate_fails_closed_when_chassis_health_is_bad():
     popen.assert_not_called()
 
 
+def test_navigate_rejects_goal_client_left_running_by_api_restart():
+    with patch.object(
+            ros_bridge, "_demo_goal_client_running", return_value=True), \
+            patch.object(ros_bridge, "_demo_navigation_health") as health, \
+            patch.object(ros_bridge.subprocess, "Popen") as popen:
+        result = ros_bridge.navigate_to(1.0, 2.0, 0.0)
+
+    assert result["success"] is False
+    assert result["status"] == "RECOVERY_REQUIRED"
+    assert "cancel" in result["message"].lower()
+    health.assert_not_called()
+    popen.assert_not_called()
+
+
 def test_navigate_rechecks_active_goal_after_health_check():
     def health_check_with_competing_goal():
         _set_goal("ACTIVE", "concurrent goal")
         return {"success": True}
 
-    with patch.object(ros_bridge, "_demo_navigation_health", side_effect=health_check_with_competing_goal), \
+    with patch.object(ros_bridge, "_demo_goal_client_running", return_value=False), \
+            patch.object(ros_bridge, "_demo_navigation_health", side_effect=health_check_with_competing_goal), \
             patch.object(ros_bridge.subprocess, "Popen") as popen:
         result = ros_bridge.navigate_to(1.0, 2.0, 0.0)
 
@@ -271,7 +318,8 @@ def test_cancel_active_goal_uses_nav2_cancel_service_and_clears_state():
         "stdout": "return_code=0, goals_canceling=[goal_info]",
         "stderr": "",
     })()
-    with patch.object(ros_bridge, "_run_ros", return_value=(response, None)) as run_ros:
+    with patch.object(ros_bridge, "_demo_goal_client_running", return_value=False), \
+            patch.object(ros_bridge, "_run_ros", return_value=(response, None)) as run_ros:
         result = ros_bridge.cancel_demo_goal()
 
     assert result["success"] is True
@@ -284,10 +332,32 @@ def test_cancel_active_goal_uses_nav2_cancel_service_and_clears_state():
 
 
 def test_cancel_is_idempotent_when_no_goal_is_active():
-    result = ros_bridge.cancel_demo_goal()
+    with patch.object(
+            ros_bridge, "_demo_goal_client_running", return_value=False):
+        result = ros_bridge.cancel_demo_goal()
 
     assert result["success"] is True
     assert result["status"] == "IDLE"
+
+
+def test_cancel_after_api_restart_cancels_nav2_and_stops_orphan_client():
+    response = type("Result", (), {
+        "returncode": 0,
+        "stdout": "return_code=0, goals_canceling=[goal_info]",
+        "stderr": "",
+    })()
+    with patch.object(
+            ros_bridge, "_demo_goal_client_running", return_value=True), \
+            patch.object(ros_bridge, "_run_ros", return_value=(response, None)) as run_ros, \
+            patch.object(
+                ros_bridge, "_terminate_demo_goal_clients", return_value=True) as terminate:
+        result = ros_bridge.cancel_demo_goal()
+
+    assert result["success"] is True
+    assert result["status"] == "CANCELLED"
+    assert "API restart" in result["message"]
+    assert "/navigate_to_pose/_action/cancel_goal" in run_ros.call_args.args[0]
+    terminate.assert_called_once_with()
 
 
 def test_demo_goal_status_and_cancel_routes_are_http_safe(monkeypatch):

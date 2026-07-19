@@ -428,10 +428,54 @@ def patrol_status():
 
 _DEMO_ACTIVE_GOAL_STATUSES = frozenset({'PENDING', 'ACTIVE'})
 _DEMO_TERMINAL_GOAL_STATUSES = frozenset({'SUCCEEDED', 'FAILED', 'CANCELLED'})
+_DEMO_GOAL_CLIENT_PATTERN = (
+    r'^/usr/bin/python3 /opt/ros/foxy/bin/ros2 action send_goal '
+    r'--feedback /navigate_to_pose '
+)
 _MIN_IMU_ACCELERATION_NORM = 0.5
 _demo_goal_lock = threading.RLock()
 _demo_goal = None
 _demo_goal_sequence = 0
+
+
+def _demo_goal_client_running():
+    """Fail closed when a NavigateToPose CLI survives an API process restart."""
+    if not container_running(force=True):
+        return False
+    try:
+        proc = subprocess.run(
+            _docker_cmd('pgrep', '-f', _DEMO_GOAL_CLIENT_PATTERN),
+            capture_output=True, text=True, timeout=3)
+    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return True
+    if proc.returncode == 1:
+        return False
+    if proc.returncode != 0:
+        return True
+    return bool((proc.stdout or '').strip())
+
+
+def _terminate_demo_goal_clients():
+    """Stop cancelled ros2 goal clients that are no longer owned by this API."""
+    if not container_running(force=True):
+        return True
+    for signal_name in ('TERM', 'KILL'):
+        try:
+            proc = subprocess.run(
+                _docker_cmd(
+                    'pkill', '-%s' % signal_name, '-f',
+                    _DEMO_GOAL_CLIENT_PATTERN),
+                capture_output=True, text=True, timeout=3)
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return False
+        if proc.returncode not in (0, 1):
+            return False
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            if not _demo_goal_client_running():
+                return True
+            time.sleep(0.2)
+    return not _demo_goal_client_running()
 
 
 def _parse_imu_acceleration(text):
@@ -581,6 +625,16 @@ def navigate_to(x, y, theta=0.0):
                 'status': _demo_goal.get('status'),
             }
 
+    if _demo_goal_client_running():
+        return {
+            'success': False,
+            'status': 'RECOVERY_REQUIRED',
+            'message': (
+                'an untracked Nav2 goal client survived an API restart; '
+                'cancel navigation before submitting another goal'
+            ),
+        }
+
     # Sensor probes can block for several seconds. Keep them outside the goal
     # lock so status and cancel requests remain responsive during preflight.
     health = _demo_navigation_health()
@@ -658,6 +712,20 @@ def demo_goal_status(tolerance=0.15):
     with _demo_goal_lock:
         goal = dict(_demo_goal) if _demo_goal else None
     if not goal:
+        if _demo_goal_client_running():
+            return {
+                'active': True,
+                'arrived': False,
+                'status': 'RECOVERY_REQUIRED',
+                'message': (
+                    'an untracked Nav2 goal client survived an API restart; '
+                    'cancel navigation before continuing'
+                ),
+                'target': None,
+                'pose': None,
+                'distance_m': None,
+                'tolerance_m': tolerance,
+            }
         return {
             'active': False,
             'arrived': False,
@@ -717,23 +785,26 @@ def mark_demo_goal_cancelled(message):
 
 
 def cancel_demo_goal():
-    """Cancel all NavigateToPose goals through the ROS 2 action cancel service."""
+    """Cancel tracked or restart-orphaned NavigateToPose goals through Nav2."""
     with _demo_goal_lock:
         goal = _demo_goal
-        if not goal:
-            return {
-                'success': True,
-                'status': 'IDLE',
-                'message': 'no active demo navigation goal',
-            }
-        status = goal.get('status')
-        process = goal.get('_process')
-        if status not in _DEMO_ACTIVE_GOAL_STATUSES:
+        status = goal.get('status') if goal else None
+        process = goal.get('_process') if goal else None
+        tracked_active = status in _DEMO_ACTIVE_GOAL_STATUSES
+
+    client_running = _demo_goal_client_running()
+    if not tracked_active and not client_running:
+        if goal:
             return {
                 'success': True,
                 'status': status,
                 'message': 'demo navigation goal is already terminal',
             }
+        return {
+            'success': True,
+            'status': 'IDLE',
+            'message': 'no active demo navigation goal',
+        }
 
     zero_uuid = ', '.join(['0'] * 16)
     request = (
@@ -754,14 +825,27 @@ def cancel_demo_goal():
             'message': _friendly_error(output or 'Nav2 cancel request failed'),
         }
 
-    mark_demo_goal_cancelled('Nav2 navigation goal cancelled')
+    recovery_cancel = not tracked_active and client_running
+    message = 'Nav2 navigation goal cancelled'
+    if recovery_cancel:
+        message += ' after API restart recovery'
+    mark_demo_goal_cancelled(message)
     if process is not None and hasattr(process, 'terminate'):
         try:
             process.terminate()
         except OSError:
             pass
+    if client_running and not _terminate_demo_goal_clients():
+        return {
+            'success': False,
+            'status': 'CANCELLED',
+            'message': (
+                message + '; stale goal client cleanup could not be verified; '
+                'keep the hardware emergency stop engaged'
+            ),
+        }
     return {
         'success': True,
         'status': 'CANCELLED',
-        'message': 'Nav2 navigation goal cancelled',
+        'message': message,
     }
