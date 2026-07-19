@@ -1,6 +1,7 @@
 """Automatic face welcome and session-gated hospital guide demo APIs."""
 
 import threading
+from collections import deque
 import time
 from urllib import request
 
@@ -49,12 +50,20 @@ class HospitalGuideDemoController:
         self._scanner_session_id = None
         self._replacement_session_id = None
         self._scan_started_at = None
+        self._seen_identity_keys = set()
+        self._welcome_queue = deque()
+        self._claimed_extra_welcome = None
+        self._welcome_sequence = 0
 
     def start(self):
         self._bridge.reset()
         with self._scanner_lock:
             started = self._session.start()
             self._scan_started_at = time.monotonic()
+            self._seen_identity_keys.clear()
+            self._welcome_queue.clear()
+            self._claimed_extra_welcome = None
+            self._welcome_sequence = 0
             self._start_scanner_locked(started["session_id"])
             return started
 
@@ -104,41 +113,97 @@ class HospitalGuideDemoController:
         return False
 
     def claim_welcome(self):
-        return self._session.claim_welcome()
+        with self._scanner_lock:
+            initial = self._session.claim_welcome()
+            if initial is not None:
+                return initial
+            if self._claimed_extra_welcome is not None or not self._welcome_queue:
+                return None
+            queued = self._welcome_queue.popleft()
+            self._claimed_extra_welcome = queued
+            self._session.record_identity(queued["display_name"])
+            return {
+                "session_id": queued["session_id"],
+                "welcome_id": queued["welcome_id"],
+                "text": queued["text"],
+            }
 
     def acknowledge_welcome(self, session_id):
-        return self._session.acknowledge_welcome(session_id)
+        with self._scanner_lock:
+            if self._session.acknowledge_welcome(session_id):
+                return True
+            claimed = self._claimed_extra_welcome
+            snapshot = self._session.snapshot()
+            if (
+                claimed is None
+                or claimed["session_id"] != session_id
+                or snapshot["session_id"] != session_id
+            ):
+                return False
+            self._claimed_extra_welcome = None
+            return True
 
     def scan_once(self, expected_session_id=None):
-        """Try one face scan; failures become a guest welcome only after timeout."""
+        """Try one face scan and enqueue each distinct identity once per session."""
         with self._scanner_lock:
             snapshot = self._session.snapshot()
             session_id = expected_session_id or snapshot["session_id"]
-            if (
-                snapshot["session_id"] != session_id
-                or snapshot["phase"] != DemoPhase.SCANNING.value
-            ):
+            if not self._scan_is_active(snapshot, session_id):
                 return False
 
             display_name = None
+            identity_key = None
             try:
                 payload, status = self._recognizer(self._snapshot_fetcher())
                 if self._is_confident_identity(payload, status):
-                    display_name = payload["identity"]
+                    display_name = payload["identity"].strip()
+                    identity_key = self._identity_key(payload, display_name)
             except Exception:
                 display_name = None
+                identity_key = None
 
             current = self._session.snapshot()
-            if (
-                current["session_id"] != session_id
-                or current["phase"] != DemoPhase.SCANNING.value
-            ):
+            if not self._scan_is_active(current, session_id):
                 return False
-            if display_name:
-                return self._session.set_welcome(display_name)
-            if self._scan_has_timed_out():
+            if display_name and identity_key:
+                if identity_key in self._seen_identity_keys:
+                    return False
+                self._seen_identity_keys.add(identity_key)
+                if current["phase"] == DemoPhase.SCANNING.value:
+                    return self._session.set_welcome(display_name)
+                self._enqueue_welcome(session_id, display_name)
+                return True
+            if (
+                current["phase"] == DemoPhase.SCANNING.value
+                and self._scan_has_timed_out()
+            ):
                 return self._session.set_welcome(None)
             return False
+
+    @staticmethod
+    def _scan_is_active(snapshot, session_id):
+        return (
+            snapshot.get("session_id") == session_id
+            and snapshot.get("phase") != DemoPhase.READY.value
+        )
+
+    @staticmethod
+    def _identity_key(payload, display_name):
+        user = payload.get("user")
+        user_id = user.get("id") if isinstance(user, dict) else None
+        if user_id is not None and str(user_id).strip():
+            return "id:" + str(user_id).strip()
+        return "name:" + display_name.casefold()
+
+    def _enqueue_welcome(self, session_id, display_name):
+        self._welcome_sequence += 1
+        self._welcome_queue.append({
+            "session_id": session_id,
+            "welcome_id": "%s:%d" % (session_id, self._welcome_sequence),
+            "display_name": display_name,
+            "text": "\u4f60\u597d\uff0c%s\u3002\u6b22\u8fce\u6765\u5230\u533b\u9662\u3002" % display_name,
+        })
+
 
     def on_guide_event(self, event):
         if not isinstance(event, dict) or event.get("department_id") != INTERNAL_MEDICINE_ID:
@@ -197,17 +262,11 @@ class HospitalGuideDemoController:
         try:
             while True:
                 snapshot = self._session.snapshot()
-                if (
-                    snapshot["session_id"] != session_id
-                    or snapshot["phase"] != DemoPhase.SCANNING.value
-                ):
+                if not self._scan_is_active(snapshot, session_id):
                     return
                 self.scan_once(expected_session_id=session_id)
                 snapshot = self._session.snapshot()
-                if (
-                    snapshot["session_id"] != session_id
-                    or snapshot["phase"] != DemoPhase.SCANNING.value
-                ):
+                if not self._scan_is_active(snapshot, session_id):
                     return
                 time.sleep(self._scan_interval_s)
         finally:

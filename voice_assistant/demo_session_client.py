@@ -28,8 +28,12 @@ class DemoWelcomePoller:
         if not isinstance(payload, dict):
             return None
         session_id = payload.get("session_id")
+        welcome_id = payload.get("welcome_id")
         text = payload.get("text")
-        if not isinstance(session_id, str) or not session_id or session_id in self._seen:
+        if not isinstance(session_id, str) or not session_id:
+            return None
+        dedupe_id = welcome_id if isinstance(welcome_id, str) and welcome_id else session_id
+        if dedupe_id in self._seen:
             return None
         if not isinstance(text, str) or not text.strip():
             return None
@@ -39,8 +43,11 @@ class DemoWelcomePoller:
             return None
         if not acknowledged:
             return None
-        self._seen.add(session_id)
-        return {"session_id": session_id, "text": text}
+        self._seen.add(dedupe_id)
+        result = {"session_id": session_id, "text": text}
+        if dedupe_id != session_id:
+            result["welcome_id"] = dedupe_id
+        return result
 
 
     def read_status(self):

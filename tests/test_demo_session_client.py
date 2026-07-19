@@ -37,3 +37,19 @@ def test_listening_allowed_is_unknown_when_status_cannot_be_read():
     poller = DemoWelcomePoller(status=lambda: None)
 
     assert poller.listening_allowed() is None
+
+
+def test_distinct_welcome_ids_in_one_session_are_each_spoken_once():
+    claims = iter([
+        {"session_id": "s1", "welcome_id": "s1:1", "text": "hello one"},
+        {"session_id": "s1", "welcome_id": "s1:2", "text": "hello two"},
+    ])
+    calls = []
+    poller = DemoWelcomePoller(
+        claim=lambda: next(claims),
+        ack=lambda ident: calls.append(ident) or True,
+    )
+
+    assert poller.poll_once()["welcome_id"] == "s1:1"
+    assert poller.poll_once()["welcome_id"] == "s1:2"
+    assert calls == ["s1", "s1"]

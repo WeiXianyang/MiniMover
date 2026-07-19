@@ -12,6 +12,12 @@ DB_PATH = BASE_DIR / 'face' / 'face_users.db'
 
 _lock = threading.Lock()
 
+DEMO_USERNAME_MIGRATIONS = (
+    ("\u9b4f\u8d24\u7080", "\u5f20\u4e09"),
+    ("\u9ec4\u7231\u96f7", "\u674e\u56db"),
+)
+
+
 
 def _hash_password(password):
     return hashlib.sha256(password.encode('utf-8')).hexdigest()
@@ -58,6 +64,37 @@ def init_db():
         finally:
             conn.close()
 
+
+def migrate_demo_usernames(migrations=DEMO_USERNAME_MIGRATIONS):
+    """Rename legacy demo display names without changing local or cloud IDs."""
+    with _lock:
+        conn = _conn()
+        changed = 0
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            for old_name, new_name in migrations:
+                old_row = conn.execute(
+                    "SELECT id FROM users WHERE username=?", (old_name,)
+                ).fetchone()
+                if old_row is None:
+                    continue
+                target_row = conn.execute(
+                    "SELECT id FROM users WHERE username=?", (new_name,)
+                ).fetchone()
+                if target_row is not None and target_row["id"] != old_row["id"]:
+                    raise ValueError("target username already exists: %s" % new_name)
+                conn.execute(
+                    "UPDATE users SET username=? WHERE id=?",
+                    (new_name, old_row["id"]),
+                )
+                changed += 1
+            conn.commit()
+            return changed
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
 def get_user_by_username(username):
     conn = _conn()

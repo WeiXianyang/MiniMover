@@ -68,6 +68,16 @@ class DemoSession:
             self._phase = DemoPhase.LISTENING
             return True
 
+    def record_identity(self, display_name):
+        with self._lock:
+            if self._phase is DemoPhase.READY:
+                return False
+            cleaned = str(display_name or "").strip()
+            if not cleaned:
+                return False
+            self._display_name = cleaned
+            return True
+
     def mark_waiting_confirmation(self, department_id):
         with self._lock:
             if self._phase is not DemoPhase.LISTENING:

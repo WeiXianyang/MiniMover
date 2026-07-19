@@ -15,6 +15,7 @@ PAGE_PATH = Path(__file__).resolve().parent / 'page.html'
 
 def register_face_routes(app):
     store.init_db()
+    store.migrate_demo_usernames()
     app.register_blueprint(face_bp)
 
 

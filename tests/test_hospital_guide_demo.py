@@ -172,3 +172,56 @@ def test_public_status_exposes_only_demo_session_and_navigation_evidence():
     assert set(status) == {"session", "navigation"}
     assert status["session"]["phase"] == "READY"
     assert status["navigation"]["status"] == "IDLE"
+
+
+def test_scanner_welcomes_two_distinct_people_once_in_one_session():
+    recognitions = iter([
+        ({"ok": True, "identity": "\u5f20\u4e09", "confidence": 0.99, "user": {"id": "101"}}, 200),
+        ({"ok": True, "identity": "\u5f20\u4e09", "confidence": 0.99, "user": {"id": "101"}}, 200),
+        ({"ok": True, "identity": "\u674e\u56db", "confidence": 0.99, "user": {"id": "202"}}, 200),
+    ])
+    controller = HospitalGuideDemoController(
+        bridge=RecordingBridge(),
+        snapshot_fetcher=lambda: b"image",
+        recognizer=lambda _: next(recognitions),
+        scan_timeout_s=60.0,
+    )
+    controller._start_scanner_locked = lambda _session_id: None
+
+    started = controller.start()
+    assert controller.scan_once() is True
+    first = controller.claim_welcome()
+    assert "\u5f20\u4e09" in first["text"]
+    assert controller.acknowledge_welcome(started["session_id"]) is True
+
+    assert controller.scan_once() is False
+    assert controller.claim_welcome() is None
+    assert controller.scan_once() is True
+    second = controller.claim_welcome()
+    assert second["session_id"] == started["session_id"]
+    assert second["welcome_id"] != started["session_id"]
+    assert "\u674e\u56db" in second["text"]
+    assert controller.status()["display_name"] == "\u674e\u56db"
+
+
+def test_reset_clears_face_deduplication():
+    payload = {"ok": True, "identity": "\u5f20\u4e09", "confidence": 0.99, "user": {"id": "101"}}
+    controller = HospitalGuideDemoController(
+        bridge=RecordingBridge(),
+        snapshot_fetcher=lambda: b"image",
+        recognizer=lambda _: (payload, 200),
+        scan_timeout_s=60.0,
+    )
+    controller._start_scanner_locked = lambda _session_id: None
+
+    first = controller.start()
+    assert controller.scan_once() is True
+    controller.claim_welcome()
+    controller.acknowledge_welcome(first["session_id"])
+    assert controller.scan_once() is False
+
+    second = controller.reset()
+    assert controller.scan_once() is True
+    welcome = controller.claim_welcome()
+    assert welcome["session_id"] == second["session_id"]
+    assert "\u5f20\u4e09" in welcome["text"]
