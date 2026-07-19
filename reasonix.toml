@@ -1,2 +1,2 @@
 [permissions]
-allow = ["task", "explore"]
+allow = ["task", "explore", "Bash(ssh -o ConnectTimeout=5 jetson@192.168.202.171 \"hostname && uname -a\" 2>&1 || echo \"SSH_FAILED\")"]
