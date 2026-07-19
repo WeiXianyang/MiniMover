@@ -1,5 +1,7 @@
 import importlib.util
+import json
 import socket
+import sys
 from pathlib import Path
 
 import pytest
@@ -41,10 +43,41 @@ def test_launchers_use_real_components_and_no_credentials():
     assert "sk-" not in local
     assert "MINIMOVER_SSH_PASSWORD" in local
 
+def test_local_voice_env_loads_missing_password_without_printing(tmp_path, capsys):
+    env_path = tmp_path / ".env.voice"
+    env_path.write_text(
+        "# local launcher settings\n"
+        "MINIMOVER_SSH_PASSWORD=factory-default\n"
+        "MINIMOVER_ASR_LANGUAGE=auto\n",
+        encoding="utf-8",
+    )
+    environment = {}
+
+    loaded = launcher._load_local_env(env_path, environment=environment)
+
+    assert environment["MINIMOVER_SSH_PASSWORD"] == "factory-default"
+    assert environment["MINIMOVER_ASR_LANGUAGE"] == "auto"
+    assert loaded == {"MINIMOVER_SSH_PASSWORD", "MINIMOVER_ASR_LANGUAGE"}
+    assert capsys.readouterr().out == ""
+    assert capsys.readouterr().err == ""
+
+
+def test_local_voice_env_does_not_override_existing_environment(tmp_path):
+    env_path = tmp_path / ".env.voice"
+    env_path.write_text("MINIMOVER_SSH_PASSWORD=file-value\n", encoding="utf-8")
+    environment = {"MINIMOVER_SSH_PASSWORD": "environment-value"}
+
+    loaded = launcher._load_local_env(env_path, environment=environment)
+
+    assert environment["MINIMOVER_SSH_PASSWORD"] == "environment-value"
+    assert loaded == set()
+
+
 def test_demo_runtime_sync_is_dedicated_to_hospital_guide():
     assert launcher.DEMO_RUNTIME_FILES == (
         Path("scripts/start_hospital_guide_demo.sh"),
         Path("scripts/start_hospital_rgb_camera.sh"),
+        Path("scripts/check_hospital_guide_preflight.sh"),
         Path("api_server.py"),
         Path("audio/icar_audio.py"),
         Path("hospital_guide_bridge.py"),
@@ -52,6 +85,7 @@ def test_demo_runtime_sync_is_dedicated_to_hospital_guide():
         Path("hospital_guide_demo.py"),
         Path("face/recognition.py"),
         Path("face/routes.py"),
+        Path("face/store.py"),
         Path("navigation/config.py"),
         Path("navigation/department_markers.py"),
         Path("navigation/data/department_markers.json"),
@@ -84,7 +118,9 @@ def test_launcher_reports_calibrated_internal_medicine_point_truthfully():
     source = Path("scripts/start_hospital_guide_demo.sh").read_text(encoding="utf-8")
 
     assert "当前未审核的科室点位保持禁用" not in source
-    assert "内科演示点已通过 Nav2 路径规划校验" in source
+    assert "内科新标定目标: (8.0, 3.0, 0.0)" in source
+    assert "传感器健康检查通过前禁止释放急停" in source
+    assert "已通过 Nav2 路径规划校验" not in source
     assert "实体移动前请清空场地" in source
 
 
@@ -105,6 +141,60 @@ def test_hospital_camera_launcher_uses_only_real_rgb_and_fails_closed():
     assert "astra_camera" not in source
     assert "mock" not in source.lower()
 
+    restart = source.index('docker restart "$CAM_CONTAINER"')
+    capability_probe = source.index('docker exec "$CAM_CONTAINER" v4l2-ctl')
+    assert restart < capability_probe
+
     jetson = (ROOT / "scripts" / "start_hospital_guide_demo.sh").read_text(encoding="utf-8")
     assert "start_hospital_rgb_camera.sh" in jetson
     assert jetson.index("start_hospital_rgb_camera.sh") < jetson.index("/api/face/snapshot")
+
+
+def _write_demo_target_fixture(root, navigation, marker):
+    guide_path = root / "voice_assistant" / "data" / "hospital_guide_template.json"
+    marker_path = root / "navigation" / "data" / "department_markers.json"
+    guide_path.parent.mkdir(parents=True)
+    marker_path.parent.mkdir(parents=True)
+    guide_path.write_text(json.dumps({
+        "departments": [{
+            "id": "internal_medicine",
+            "navigation": navigation,
+        }],
+    }), encoding="utf-8")
+    marker_path.write_text(json.dumps({
+        "markers": {"internal_medicine": marker},
+    }), encoding="utf-8")
+
+
+def test_launcher_validates_runtime_target_matches_display_marker(tmp_path):
+    navigation = {"enabled": True, "x": 8.0, "y": 3.0, "theta": 0.0}
+    _write_demo_target_fixture(tmp_path, navigation, {"x": 8.0, "y": 3.0})
+
+    assert launcher._validate_demo_target_consistency(tmp_path) == (8.0, 3.0, 0.0)
+
+
+def test_main_validates_demo_target_before_starting_services(monkeypatch):
+    monkeypatch.setattr(sys, "argv", [str(MODULE_PATH)])
+    monkeypatch.setattr(launcher, "_load_local_env", lambda *args, **kwargs: set())
+    monkeypatch.setattr(launcher, "_local_ip_for", lambda host: "192.0.2.10")
+    monkeypatch.setattr(
+        launcher,
+        "_validate_demo_target_consistency",
+        lambda project_dir: (_ for _ in ()).throw(ValueError("unsafe demo target")),
+    )
+    monkeypatch.setattr(
+        launcher,
+        "_start_pc_asr",
+        lambda *args, **kwargs: pytest.fail("ASR must not start before target validation"),
+    )
+
+    with pytest.raises(ValueError, match="unsafe demo target"):
+        launcher.main()
+
+
+def test_launcher_rejects_mismatched_runtime_target_and_display_marker(tmp_path):
+    navigation = {"enabled": True, "x": 8.0, "y": 3.0, "theta": 0.0}
+    _write_demo_target_fixture(tmp_path, navigation, {"x": 2.0, "y": 0.0})
+
+    with pytest.raises(ValueError, match="target coordinates do not match"):
+        launcher._validate_demo_target_consistency(tmp_path)

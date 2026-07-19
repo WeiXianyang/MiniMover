@@ -285,4 +285,4 @@ printf '地图选点: http://%s:5000/nav/patrol\n' "$JETSON_IP"
 printf '车端日志: %s\n' "$CAR_LOG"
 printf '停止车端: kill %s\n' "$(cat "$CAR_PID_FILE" 2>/dev/null || echo '?')"
 printf '演示流程: 直接说导诊问题，例如：头疼应该挂什么科？\n'
-printf '说明: 内科演示点已通过 Nav2 路径规划校验；实体移动前请清空场地并由安全员监护。\n'
+printf '说明: 内科新标定目标: (8.0, 3.0, 0.0)；传感器健康检查通过前禁止释放急停；实体移动前请清空场地并由安全员监护。\n'

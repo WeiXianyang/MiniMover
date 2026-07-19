@@ -150,8 +150,8 @@ def test_repository_contains_fixed_competition_department_markers():
                 'department': 'internal_medicine',
                 'label': department_markers.DEPARTMENTS['internal_medicine']['label'],
                 'color': '#2563eb',
-                'x': 2.0,
-                'y': 0.0,
+                'x': 8.0,
+                'y': 3.0,
             },
             {
                 'department': 'surgery',

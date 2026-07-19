@@ -19,6 +19,7 @@ def test_preflight_script_allows_only_read_only_control_surfaces():
     assert "GET" in source
     assert "/api/nav/stack/status" in source
     assert "/api/nav/pose" in source
+    assert "/api/nav/demo/health" in source
     assert "/api/hospital-guide/demo/status" in source
     assert 'ros2 "$@"' in source
     assert "ros_query node list" in source
@@ -44,6 +45,14 @@ def _passing_bodies() -> dict[str, dict]:
     return {
         "stack": {"code": 0, "data": {"stack_ready": True}},
         "pose": {"code": 0, "data": {"valid": True, "frame_id": "map"}},
+        "health": {
+            "code": 0,
+            "data": {
+                "success": True,
+                "message": "navigation sensor health check passed",
+                "imu_acceleration_norm": 9.8,
+            },
+        },
         "demo": {"code": 0, "data": {"session": {"phase": "READY"}}},
     }
 
@@ -79,7 +88,7 @@ def _run_preflight(
     } if ros_outputs is None else ros_outputs
 
     body_paths = {}
-    for name in ("stack", "pose", "demo"):
+    for name in ("stack", "pose", "health", "demo"):
         body_path = tmp_path / f"{name}.json"
         body = curl_bodies[name]
         body_path.write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
@@ -128,6 +137,7 @@ esac
         "PREFLIGHT_API_BASE": api_base.rstrip("/"),
         "CURL_STACK_BODY": str(body_paths["stack"]),
         "CURL_POSE_BODY": str(body_paths["pose"]),
+        "CURL_HEALTH_BODY": str(body_paths["health"]),
         "CURL_DEMO_BODY": str(body_paths["demo"]),
         "ROS_LOG": str(ros_log),
         "ROS_NODE_OUTPUT": str(output_paths["node"]),
@@ -159,14 +169,32 @@ def test_preflight_uses_only_get_fixed_urls_and_anonymous_output(tmp_path):
     assert "[PENDING] release_gate:" in completed.stdout
     assert "Alice" not in completed.stdout
     assert "private" not in completed.stdout
-    assert curl_log.count("--request GET") == 3
+    assert curl_log.count("--request GET") == 4
     assert "/api/nav/stack/status" in curl_log
     assert "/api/nav/pose" in curl_log
+    assert "/api/nav/demo/health" in curl_log
     assert "/api/hospital-guide/demo/status" in curl_log
     assert "POST" not in curl_log and "start" not in curl_log and "stop" not in curl_log
     assert ros_log.splitlines() == [
         "30|node list", "30|action list -t", "30|topic list -t"
     ]
+
+
+def test_preflight_fails_closed_when_navigation_sensor_health_fails(tmp_path):
+    bodies = _passing_bodies()
+    bodies["health"] = {
+        "code": 0,
+        "data": {
+            "success": False,
+            "message": "/dev/myserial is unavailable inside the navigation container",
+        },
+    }
+
+    completed, _, _ = _run_preflight(tmp_path, curl_bodies=bodies)
+
+    assert completed.returncode == 1
+    assert "[FAIL] api.nav_health: ready=false" in completed.stdout
+    assert "/dev/myserial" not in completed.stdout
 
 
 def test_preflight_fails_closed_for_bad_pose_and_missing_navigation_action(tmp_path):

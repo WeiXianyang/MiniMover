@@ -246,6 +246,12 @@ def demo_goal_status_api():
     return _ok(ros_bridge.demo_goal_status())
 
 
+@nav_bp.route('/demo/health', methods=['GET'])
+def demo_navigation_health_api():
+    """Run read-only sensor and feedback probes without submitting a goal."""
+    return _ok(ros_bridge._demo_navigation_health())
+
+
 @nav_bp.route('/demo/cancel', methods=['POST'])
 def demo_cancel_api():
     result = ros_bridge.cancel_demo_goal()
@@ -294,6 +300,8 @@ def stack_start():
 def stack_stop():
     """立即返回，后台停止；不再因 docker 超时而 400"""
     result = stack_manager.stop_stack_async()
+    if result.get('success') or result.get('accepted'):
+        ros_bridge.mark_demo_goal_cancelled('navigation stack stop requested')
     return _ok(result, result.get('message', 'ok'))
 
 

@@ -23,6 +23,12 @@ command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v file >/dev/null 2>&1 || fail "file is required"
 docker inspect "$CAM_CONTAINER" >/dev/null 2>&1 || fail "camera container not found: $CAM_CONTAINER"
 
+# The capability probe runs inside the camera container, so it must be running
+# before docker exec is used. Restarting also releases stale camera descriptors
+# without touching Nav2, lidar, chassis serial, API, or microphone.
+docker restart "$CAM_CONTAINER" >/dev/null
+sleep 2
+
 # Select an actual Orbbec RGB UVC capture node. Both vendor/product checks and
 # a YUYV 640x480 capability check are required so a stale /dev/video number is
 # never trusted after USB re-enumeration.
@@ -40,11 +46,6 @@ for candidate in /dev/video*; do
 done
 [ -n "$video_device" ] || fail "real Orbbec RGB device 2bc5:050f with YUYV 640x480 is unavailable"
 echo "[OK] real hospital RGB device: $video_device"
-
-# Restart only the dedicated camera container. This releases stale camera file
-# descriptors without touching Nav2, lidar, chassis serial, API, or microphone.
-docker restart "$CAM_CONTAINER" >/dev/null
-sleep 2
 
 docker exec "$CAM_CONTAINER" test -r "$ROS_SETUP" || fail "ROS camera workspace is unavailable"
 

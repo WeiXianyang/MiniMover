@@ -2,8 +2,8 @@
   "version": 1,
   "markers": {
     "internal_medicine": {
-      "x": 2.0,
-      "y": 0.0
+      "x": 8.0,
+      "y": 3.0
     },
     "surgery": {
       "x": -1.5,

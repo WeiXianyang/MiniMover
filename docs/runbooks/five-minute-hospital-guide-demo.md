@@ -1,6 +1,6 @@
 # 五分钟医院导诊小车演示 Runbook
 
-> **当前比赛演示基线（2026-07-17）：** 仅启用内科导航点 `internal_medicine`，坐标为 `(2.0, 0.0, 0.0)`；外科只在地图上显示，导航保持禁用。本演示采用简化现场流程，不再要求双人复核或连续三次试跑，但必须保留一名安全员、硬件急停和路线清场。
+> **当前比赛演示基线（2026-07-19）：** 仅启用内科导航点 `internal_medicine`，坐标为 `(8.0, 3.0, 0.0)`；外科只在地图上显示，导航保持禁用。本演示采用简化现场流程，不再要求双人复核或连续三次试跑，但必须保留一名安全员、硬件急停和路线清场。
 
 ## 适用范围与安全规则
 
@@ -10,7 +10,7 @@
 - `ACTIVE`、HTTP 200、目标已提交和 TTS 播完都不代表到达。
 - **到达判定以 Nav2 action 最终状态为准：`SUCCEEDED` 即 `arrived=true`。** Nav2 goal checker 已应用自身位置/角度容差，并在返回成功前停止控制器。`map` 位姿、终点距离和 `0.15 m` 仅保留为诊断信息，不得再次否决 Nav2 成功状态。
 - 到达后车辆必须保持停止，并由车端只播报一次：**“已到达内科，请注意脚下。”**
-- 硬件急停和现场安全员优先于任何软件状态。软件取消接口尚未完成实车放行，不能替代硬件急停。
+- 硬件急停和现场安全员优先于任何软件状态。软件取消接口已接入 Nav2 action cancel，但截至 2026-07-19 尚未完成实车验证，不能替代硬件急停。
 
 ## 演示前检查
 
@@ -20,9 +20,10 @@
    ```bash
    curl -fsS http://127.0.0.1:5000/api/nav/stack/status
    curl -fsS http://127.0.0.1:5000/api/nav/pose
+   curl -fsS http://127.0.0.1:5000/api/nav/demo/health
    curl -fsS http://127.0.0.1:5000/api/hospital-guide/demo/status
    ```
-4. 导航栈要求：`container_running=true`、`stack_ready=true`、`patrol_ready=true`；定位要求 `pose.valid=true`、`pose.frame_id=map`。
+4. 导航栈要求：`container_running=true`、`stack_ready=true`、`patrol_ready=true`；定位要求 `pose.valid=true`、`pose.frame_id=map`；只读健康接口要求 `success=true`，确认容器内底盘串口可见、IMU 非零且 `/odom` 有实时反馈。
 5. 确认内科已启用、外科未启用；不要在本次演示中临时改写正式内科坐标。
 
 ### 只读现场预检（不是放行门槛）
@@ -30,10 +31,11 @@
 ```bash
 bash scripts/check_hospital_guide_preflight.sh \
   --api-base http://127.0.0.1:5000 \
-  --ros-domain 30
+  --ros-domain 30 \
+  --timeout-seconds 10
 ```
 
-预检只检查 API 和 ROS 图，不发送导航目标；预检通过不等于实车放行，也不能替代现场清场、急停和安全员确认。
+预检只读取 API、传感器反馈和 ROS 图，不启动或停止导航栈，也不发送导航目标；预检通过不等于实车放行，也不能替代现场清场、急停和安全员确认。
 
 ## 五分钟演示脚本
 
@@ -74,7 +76,7 @@ curl -fsS http://127.0.0.1:5000/api/nav/demo/goal-status
 
 - 演示日期/时间：
 - 固定起点：
-- 内科目标：`x=2.0, y=0.0, theta=0.0`
+- 内科目标：`x=8.0, y=3.0, theta=0.0`
 - 安全员：
 - 急停确认：是 / 否
 - Nav2 最终状态：

@@ -138,6 +138,11 @@ elif kind == "pose":
     ):
         raise ValueError("missing or unsafe pose safety fields")
     print(f"pose\t{str(valid).lower()}\t{frame_id}")
+elif kind == "health":
+    ready = data.get("success")
+    if not isinstance(ready, bool):
+        raise ValueError("missing navigation health boolean")
+    print(f"health\t{str(ready).lower()}")
 elif kind == "demo":
     session = data.get("session")
     phase = session.get("phase") if isinstance(session, dict) else None
@@ -175,6 +180,17 @@ PY
         pass "api.${name}: valid=true frame_id=map"
       else
         fail "api.${name}: valid=${second} frame_id=${third}"
+      fi
+      ;;
+    health)
+      [ "$first" = 'health' ] && { [ "$second" = 'true' ] || [ "$second" = 'false' ]; } || {
+        unavailable "api.${name}: invalid anonymous JSON status"
+        return
+      }
+      if [ "$second" = 'true' ]; then
+        pass "api.${name}: ready=true"
+      else
+        fail "api.${name}: ready=false"
       fi
       ;;
     demo)
@@ -247,6 +263,7 @@ probe_ros_graph() {
 
 probe_get nav_stack /api/nav/stack/status stack
 probe_get nav_pose /api/nav/pose pose
+probe_get nav_health /api/nav/demo/health health
 probe_get demo_status /api/hospital-guide/demo/status demo
 probe_ros_graph
 printf '[PENDING] release_gate: safety officer, hardware emergency stop, and route clearance must be confirmed\n'

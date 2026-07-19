@@ -1,5 +1,4 @@
 import math
-import os
 import re
 import shlex
 import subprocess
@@ -429,9 +428,69 @@ def patrol_status():
 
 _DEMO_ACTIVE_GOAL_STATUSES = frozenset({'PENDING', 'ACTIVE'})
 _DEMO_TERMINAL_GOAL_STATUSES = frozenset({'SUCCEEDED', 'FAILED', 'CANCELLED'})
+_MIN_IMU_ACCELERATION_NORM = 0.5
 _demo_goal_lock = threading.RLock()
 _demo_goal = None
 _demo_goal_sequence = 0
+
+
+def _parse_imu_acceleration(text):
+    match = re.search(
+        r"linear_acceleration:\s*x:\s*(%s)\s*y:\s*(%s)\s*z:\s*(%s)"
+        % (_NUMBER_RE, _NUMBER_RE, _NUMBER_RE),
+        str(text or ""),
+        re.DOTALL,
+    )
+    if not match:
+        return None
+    return tuple(float(match.group(index)) for index in (1, 2, 3))
+
+
+def _demo_navigation_health():
+    """Fail closed unless chassis, localization, odometry, and IMU are observable."""
+    if not container_running(force=True):
+        return {"success": False, "message": "navigation container is not running"}
+    if not patrol_services_ready(force=True):
+        return {"success": False, "message": "navigation stack is not ready"}
+
+    pose = get_robot_pose(force=True)
+    if not pose.get("valid") or pose.get("frame_id") != "map":
+        return {"success": False, "message": "fresh map-frame localization is unavailable"}
+
+    imu_command = (
+        "serial=$(readlink -f /dev/myserial 2>/dev/null || true); "
+        "if [ -z \"$serial\" ] || [ ! -c \"$serial\" ]; then "
+        "echo __SERIAL_UNAVAILABLE__; exit 41; fi; "
+        "timeout 4 ros2 topic echo --once /imu/data_raw sensor_msgs/msg/Imu"
+    )
+    imu_proc, imu_error = _run_ros(imu_command, timeout=7)
+    if imu_error:
+        return {"success": False, "message": imu_error.get("message", "IMU health check failed")}
+    imu_output = _combined_output(imu_proc)
+    if imu_proc.returncode != 0:
+        if "__SERIAL_UNAVAILABLE__" in imu_output:
+            return {"success": False, "message": "/dev/myserial is unavailable inside the navigation container"}
+        return {"success": False, "message": "IMU data is unavailable"}
+
+    acceleration = _parse_imu_acceleration(imu_output)
+    if acceleration is None:
+        return {"success": False, "message": "IMU acceleration could not be parsed"}
+    gravity_norm = math.sqrt(sum(value * value for value in acceleration))
+    if not math.isfinite(gravity_norm) or gravity_norm < _MIN_IMU_ACCELERATION_NORM:
+        return {"success": False, "message": "IMU reports free fall or zero acceleration"}
+
+    odom_proc, odom_error = _run_ros(
+        "timeout 4 ros2 topic echo --once /odom nav_msgs/msg/Odometry", timeout=7)
+    if odom_error:
+        return {"success": False, "message": odom_error.get("message", "odometry health check failed")}
+    if odom_proc.returncode != 0 or not _combined_output(odom_proc):
+        return {"success": False, "message": "odometry feedback is unavailable"}
+
+    return {
+        "success": True,
+        "message": "navigation sensor health check passed",
+        "imu_acceleration_norm": gravity_norm,
+    }
 
 
 def _update_demo_goal_from_line(goal_id, line):
@@ -521,8 +580,25 @@ def navigate_to(x, y, theta=0.0):
                 'message': 'a demo navigation goal is already active',
                 'status': _demo_goal.get('status'),
             }
-        if not container_running():
-            return {'success': False, 'message': 'container %s is not running' % CONTAINER_NAME}
+
+    # Sensor probes can block for several seconds. Keep them outside the goal
+    # lock so status and cancel requests remain responsive during preflight.
+    health = _demo_navigation_health()
+    if not health.get('success'):
+        return {
+            'success': False,
+            'message': 'navigation health check failed: %s' % health.get('message', 'unknown failure'),
+        }
+
+    with _demo_goal_lock:
+        # Another request may have submitted a goal while health was checked.
+        # Recheck under the lock before spawning the only Nav2 goal process.
+        if _demo_goal and _demo_goal.get('status') in _DEMO_ACTIVE_GOAL_STATUSES:
+            return {
+                'success': False,
+                'message': 'a demo navigation goal is already active',
+                'status': _demo_goal.get('status'),
+            }
 
         z = math.sin(theta / 2.0)
         w = math.cos(theta / 2.0)
@@ -629,14 +705,63 @@ def demo_goal_status(tolerance=0.15):
     }
 
 
+def mark_demo_goal_cancelled(message):
+    """Clear local ACTIVE/PENDING state after a verified cancel or stack stop."""
+    with _demo_goal_lock:
+        goal = _demo_goal
+        if not goal or goal.get('status') not in _DEMO_ACTIVE_GOAL_STATUSES:
+            return False
+        goal['status'] = 'CANCELLED'
+        goal['message'] = str(message)
+        return True
+
+
 def cancel_demo_goal():
-    """Remain fail-closed until a real-vehicle Nav2 cancel procedure is verified."""
-    if os.environ.get('MINIMOVER_DEMO_CANCEL_ENABLED') != '1':
+    """Cancel all NavigateToPose goals through the ROS 2 action cancel service."""
+    with _demo_goal_lock:
+        goal = _demo_goal
+        if not goal:
+            return {
+                'success': True,
+                'status': 'IDLE',
+                'message': 'no active demo navigation goal',
+            }
+        status = goal.get('status')
+        process = goal.get('_process')
+        if status not in _DEMO_ACTIVE_GOAL_STATUSES:
+            return {
+                'success': True,
+                'status': status,
+                'message': 'demo navigation goal is already terminal',
+            }
+
+    zero_uuid = ', '.join(['0'] * 16)
+    request = (
+        '{goal_info: {goal_id: {uuid: [%s]}, '
+        'stamp: {sec: 0, nanosec: 0}}}' % zero_uuid
+    )
+    command = (
+        'ros2 service call /navigate_to_pose/_action/cancel_goal '
+        'action_msgs/srv/CancelGoal %s' % shlex.quote(request)
+    )
+    proc, error = _run_ros(command, timeout=8)
+    if error:
+        return error
+    output = _combined_output(proc)
+    if proc.returncode != 0 or not re.search(r'return_code\s*[:=]\s*0', output):
         return {
             'success': False,
-            'message': 'demo cancel is disabled until verified on the real vehicle',
+            'message': _friendly_error(output or 'Nav2 cancel request failed'),
         }
+
+    mark_demo_goal_cancelled('Nav2 navigation goal cancelled')
+    if process is not None and hasattr(process, 'terminate'):
+        try:
+            process.terminate()
+        except OSError:
+            pass
     return {
-        'success': False,
-        'message': 'demo cancel is not available: the Nav2 cancel procedure is not yet verified on the real vehicle',
+        'success': True,
+        'status': 'CANCELLED',
+        'message': 'Nav2 navigation goal cancelled',
     }

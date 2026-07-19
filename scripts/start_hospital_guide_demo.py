@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import argparse
 import getpass
+import json
+import math
 import os
 import socket
 import subprocess
@@ -30,12 +32,44 @@ DEFAULT_JETSON_HOST = "192.168.202.171"
 DEFAULT_JETSON_USER = "jetson"
 DEFAULT_ASR_PORT = 8765
 
+
+def _load_local_env(path: Path, environment=None) -> set[str]:
+    """Load ignored MINIMOVER_* settings without overriding process values."""
+    environment = os.environ if environment is None else environment
+    try:
+        lines = Path(path).read_text(encoding="utf-8-sig").splitlines()
+    except OSError:
+        return set()
+
+    loaded = set()
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if not key.startswith("MINIMOVER_") or not key.replace("_", "").isalnum():
+            continue
+        if key in environment:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        environment[key] = value
+        loaded.add(key)
+    return loaded
+
 # These are the only Python modules executed by the Jetson-side microphone
 # client. Uploading them before every run prevents stale legacy clients from
 # being reused after a local hospital-guide change.
 DEMO_RUNTIME_FILES = (
     Path("scripts/start_hospital_guide_demo.sh"),
     Path("scripts/start_hospital_rgb_camera.sh"),
+    Path("scripts/check_hospital_guide_preflight.sh"),
     Path("api_server.py"),
     Path("audio/icar_audio.py"),
     Path("hospital_guide_bridge.py"),
@@ -43,6 +77,7 @@ DEMO_RUNTIME_FILES = (
     Path("hospital_guide_demo.py"),
     Path("face/recognition.py"),
     Path("face/routes.py"),
+    Path("face/store.py"),
     Path("navigation/config.py"),
     Path("navigation/department_markers.py"),
     Path("navigation/data/department_markers.json"),
@@ -57,6 +92,36 @@ DEMO_RUNTIME_FILES = (
     Path("voice_assistant/hospital_guide_client.py"),
     Path("voice_assistant/data/hospital_guide_template.json"),
 )
+
+
+def _validate_demo_target_consistency(project_dir: Path) -> tuple[float, float, float]:
+    """Fail before launch when the driving target and map marker disagree."""
+    guide_path = project_dir / "voice_assistant" / "data" / "hospital_guide_template.json"
+    markers_path = project_dir / "navigation" / "data" / "department_markers.json"
+    guide = json.loads(guide_path.read_text(encoding="utf-8-sig"))
+    markers = json.loads(markers_path.read_text(encoding="utf-8-sig"))
+
+    enabled = [
+        department
+        for department in guide.get("departments", [])
+        if department.get("navigation", {}).get("enabled") is True
+    ]
+    if [department.get("id") for department in enabled] != ["internal_medicine"]:
+        raise ValueError("only the internal_medicine demo target may be enabled")
+
+    navigation = enabled[0]["navigation"]
+    target = tuple(float(navigation[key]) for key in ("x", "y", "theta"))
+    if not all(math.isfinite(value) for value in target):
+        raise ValueError("internal_medicine target coordinates must be finite")
+
+    marker_data = markers.get("markers", {}).get("internal_medicine", {})
+    marker = tuple(float(marker_data[key]) for key in ("x", "y"))
+    if marker != target[:2]:
+        raise ValueError(
+            "internal_medicine target coordinates do not match the map marker: "
+            f"navigation={target[:2]}, marker={marker}"
+        )
+    return target
 
 
 def _port_listening(port: int) -> bool:
@@ -182,6 +247,9 @@ def _upload_demo_runtime(
 
 
 def main() -> int:
+    project_dir = Path(__file__).resolve().parents[1]
+    _load_local_env(project_dir / ".env.voice")
+
     parser = argparse.ArgumentParser(description="MiniMover hospital-guide live demo launcher")
     parser.add_argument("--jetson-host", default=os.getenv("MINIMOVER_JETSON_HOST", DEFAULT_JETSON_HOST))
     parser.add_argument("--jetson-user", default=os.getenv("MINIMOVER_JETSON_USER", DEFAULT_JETSON_USER))
@@ -190,17 +258,18 @@ def main() -> int:
     parser.add_argument("--force-pc-asr", action="store_true", help="拒绝复用已占用端口；不会自动杀进程")
     args = parser.parse_args()
 
-    project_dir = Path(__file__).resolve().parents[1]
     launcher = project_dir / "scripts" / "start_hospital_guide_demo.sh"
     if not launcher.is_file():
         raise FileNotFoundError(launcher)
     if args.asr_port <= 0 or args.asr_port > 65535:
         raise ValueError("ASR port must be between 1 and 65535")
 
+    target = _validate_demo_target_consistency(project_dir)
     asr_host = args.asr_host or _local_ip_for(args.jetson_host)
     print("=== MiniMover 医院导诊现场启动 ===")
     print(f"Jetson: {args.jetson_user}@{args.jetson_host}")
     print(f"PC ASR: {asr_host}:{args.asr_port}")
+    print(f"内科目标: ({target[0]:.1f}, {target[1]:.1f}, {target[2]:.1f})")
     _start_pc_asr(project_dir, args.asr_port, args.force_pc_asr)
 
     password = os.getenv("MINIMOVER_SSH_PASSWORD") or getpass.getpass(
